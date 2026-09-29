@@ -1,0 +1,1 @@
+{"ok":true,"tests":22,"opportunity":true,"idealAlternative":true,"required":true,"collisionProtection":true,"physicalAdvisory":true,"notifications":true,"noAutoBooking":true}

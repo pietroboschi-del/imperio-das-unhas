@@ -1,0 +1,49 @@
+IMPÉRIO DAS UNHAS — V75
+DRE: Combo como política comercial + Rentabilidade com rateio
+
+Base: V74 — Campos e Opções · Financeiro
+Schema: 75
+Migration ID: v75-dre-combo-profitability-allocation
+
+ESCOPO EXCLUSIVO
+1. Corrigir a apresentação econômica de combos na DRE.
+2. Acrescentar rateio gerencial de despesas operacionais na Rentabilidade por categoria.
+
+COMBOS NA DRE
+- O preço comercial do combo passa a compor diretamente a receita realizada.
+- A diferença entre tabela dos serviços e preço do combo NÃO é dedução da DRE.
+- A diferença comercial do combo continua preservada e exibida como informação comercial.
+- Desconto manual continua separado.
+- Modelo/Parceria continua separado.
+- Serviços continuam independentes; nenhuma regra operacional do combo foi alterada.
+- A distribuição comercial congelada entre serviços continua sendo usada e reconciliada com o valor real do combo.
+
+RENTABILIDADE
+- Mantida a análise por categoria de serviço.
+- Acrescentados: participação no faturamento, despesa operacional rateada, resultado após rateio e margem após rateio.
+- Critério inicial: faturamento real da categoria / faturamento real de serviços da unidade.
+- O rateio é calculado por unidade primeiro; somente depois os resultados são consolidados.
+- O rateio não modifica a despesa total da DRE principal.
+- Custos diretamente apropriados não entram novamente no bolo de despesas rateáveis.
+- Despesas sem unidade/base suficiente permanecem não alocadas, em vez de serem distribuídas artificialmente.
+- Remuneração sem vínculo seguro com categoria permanece na DRE principal e é sinalizada como não atribuída na visão de rentabilidade.
+
+HISTÓRICO
+- Categorias e serviços históricos usam snapshots existentes quando disponíveis.
+- Nenhum fato histórico é regravado/reclassificado pela V75.
+
+RELATÓRIO FINANCEIRO/DRE
+- A apresentação resumida da DRE em Relatórios foi alinhada à nova semântica de combo.
+
+PERSISTÊNCIA
+- Nenhum rateio é persistido.
+- A migração apenas registra a versão/schema e migrationHistory.
+
+NÃO ALTERADO
+- Agenda.
+- regras de combo operacionais.
+- comissão/remuneração.
+- Estoque/CMV.
+- Caixa/Financeiro.
+- Marketing/Auditoria/Fiscal.
+- Configurações de formulários.

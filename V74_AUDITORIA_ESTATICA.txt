@@ -1,0 +1,7 @@
+V74 — AUDITORIA ESTÁTICA
+<script> abertura: 37
+</script> fechamento: 37
+IDs HTML estáticos (fora de templates JavaScript): 17
+IDs HTML estáticos duplicados: 0
+V74_SCHEMA ocorrências: 5
+migration id ocorrências: 1

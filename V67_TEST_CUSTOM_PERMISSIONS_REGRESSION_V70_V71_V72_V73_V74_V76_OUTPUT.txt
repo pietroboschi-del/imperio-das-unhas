@@ -1,0 +1,1 @@
+{"ok":true,"scripts":39,"tests":53,"customUserPermissions":true,"reportSubtabs":true,"operationalSubtabs":true,"actionGuards":true,"unitIsolation":true,"audit":true,"idempotent":true}

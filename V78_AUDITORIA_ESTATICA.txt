@@ -1,0 +1,17 @@
+IMPÉRIO DAS UNHAS — V78 — AUDITORIA ESTÁTICA
+
+index.html final:
+- tags <script>: 41
+- tags </script>: 41
+- blocos JavaScript aprovados via node --check: 41/41
+- IDs HTML estáticos: 17
+- IDs HTML estáticos duplicados: 0
+- ocorrência de migrationId v78-physical-capacity-alerts: 1
+- definição textual de function evaluatePhysicalCapacity(...): 1
+- window.__imperioV77=: 1
+- window.__imperioV78=: 1
+
+Conclusão:
+- o motor canônico V77 não foi duplicado;
+- a V78 adiciona camada visual/gerencial e usa o motor existente;
+- não há duplicidade de IDs HTML estáticos.

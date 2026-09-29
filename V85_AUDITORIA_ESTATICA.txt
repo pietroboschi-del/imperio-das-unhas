@@ -1,0 +1,10 @@
+script_tags_open=48
+script_tags_close=48
+scripts_com_codigo=48
+scripts_node_check_ok=48
+scripts_node_check_fail=0
+ids_estaticos_duplicados=0
+v85_migration_occurrences=1
+v85_schema_occurrences=1
+v83_schema_occurrences=1
+v84_schema_occurrences=1

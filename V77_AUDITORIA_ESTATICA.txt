@@ -1,0 +1,32 @@
+IMPÉRIO DAS UNHAS — V77 AUDITORIA ESTÁTICA
+
+Fonte auditada: index.html final V77
+
+JavaScript:
+- <script>: 40
+- </script>: 40
+- node --check: 40/40
+
+HTML estático (scripts/styles removidos para a contagem):
+- IDs: 17
+- IDs duplicados: 0
+
+V77:
+- V77_SCHEMA=77: 1 camada
+- migration ID v77-workstations-physical-capacity: 1 ocorrência
+- window.evaluatePhysicalCapacity: 1 exposição pública
+
+FONTES CANÔNICAS CONFIRMADAS
+- db.units
+- db.categories
+- db.services[].category
+- db.bookings[].items[]
+
+CADEIAS RELEVANTES
+renderAgenda: base → V56 → V70.1 → V77 (indicador somente)
+saveReservation: base → V28 → V72 → V76 (V77 não envolve)
+saveExistingBooking: base → V28 → V55 → V64 → V72 (V77 não envolve)
+finishBooking: V56 → V76 (V77 não envolve)
+agendaDrop: base → V56 → V76 (V77 não envolve)
+
+Conclusão: V77 adiciona análise física e Configurações sem criar segunda implementação de Agenda, serviço, unidade ou categoria.

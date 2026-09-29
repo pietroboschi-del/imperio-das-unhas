@@ -1,0 +1,1 @@
+{"ok":true,"scripts":43,"tests":47,"basic":true,"preference":true,"required":true,"invalidWindow":true,"multiunit":true,"expiration":true,"removal":true,"contact":true,"booking":true,"cancelForm":true,"duplicate":true,"capacityNeutral":true,"financialNeutral":true,"legacy":true,"audit":true,"idempotent":true}

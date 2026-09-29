@@ -1,0 +1,103 @@
+IMPÉRIO DAS UNHAS — V78 — TESTES
+
+VALIDAÇÃO SINTÁTICA
+- 41/41 blocos JavaScript aprovados via node --check.
+
+SUÍTE ESPECÍFICA V78
+V78_TEST_PHYSICAL_CAPACITY_ALERTS.js
+Resultado: 33/33 verificações.
+
+CENÁRIOS OBRIGATÓRIOS
+1. NORMAL
+   6 estações / 5 demandas compatíveis.
+   Resultado: normal; 5 simultâneas; 0 conflito.
+
+2. CONFLITO REAL
+   6 estações / 7 demandas simultâneas.
+   Resultado: 1 sem estação; alerta real de alta prioridade; agendamento não bloqueado.
+
+3. MATCHING POR COMPATIBILIDADE
+   Quantidade numérica suficiente, porém uma categoria sem compatibilidade.
+   Resultado: conflito identificado pelo matching real.
+
+4. ESTAÇÃO VERSÁTIL
+   Estação exclusiva + estação versátil.
+   Resultado: matching completo; nenhum falso alerta.
+
+5. CANCELAMENTO RESOLVE
+   Conflito inicial; atendimento cancelado.
+   Resultado: alerta real deixa de estar ativo.
+
+6. REAGENDAMENTO CRIA CONFLITO
+   Atendimento movido para intervalo pressionado.
+   Resultado: edição salva normalmente; alerta real aparece.
+
+7. SEM CONFIGURAÇÃO
+   Unidade sem estações.
+   Resultado: not_configured; nenhum alerta falso de capacidade zero.
+
+8. MULTIUNIDADE
+   Conflito somente no Big Shopping.
+   Resultado: não contamina outras unidades nem seus gestores.
+
+9. RISCO DE ESCALA
+   Profissionais escalados acima da estrutura possível, sem bookings suficientes para conflito real.
+   Resultado: alerta preventivo; nenhum alerta real.
+
+10. DEDUPLICAÇÃO
+    Mesmo conflito avaliado repetidamente.
+    Resultado: chave lógica estável e única.
+
+11. ESTAÇÃO INATIVADA
+    Inativação reduz capacidade e gera conflito futuro.
+    Resultado: alerta coerente após invalidação.
+
+12. ESTAÇÃO REATIVADA
+    Reativação resolve insuficiência.
+    Resultado: alerta real deixa de estar ativo.
+
+13. NÃO BLOQUEIO
+    Novo agendamento criado em intervalo já fisicamente conflitante.
+    Resultado: agendamento salvo; sistema somente informa o conflito.
+
+OUTRAS VERIFICAÇÕES V78
+- Estado Visto persistido em db.notificationAlertStates.
+- Estado Em análise persistido na mesma infraestrutura.
+- Seção física injetada na Central de Ações V66.
+- Migração V78 idempotente e sem escrita na segunda execução.
+- Roteamento de responsáveis por unidade.
+
+REGRESSÃO COMPLETA EXECUTADA SOBRE A V78
+- V61 Financeiro/DRE: 91/91
+- V62 Marketing: 54/54
+- V63 Usuários: 44/44
+- V64 Auditoria: 60/60
+- V65 Visão Executiva: 38/38
+- V66 Notificações/Tarefas: 50/50
+- V67 Permissões: 53/53
+- V68 Fiscal: 91/91
+- V69 NFS-e: 50/50
+- V70.1 Agenda inicial: 33/33
+- V70 Agenda operacional: 28/28
+- V71 Campos/Clientes: 50/50
+- V72 Campos/Agenda/Comandas: 57/57
+- V73 Profissionais/Estoque: 73/73
+- V74 Financeiro/Configurações: 76/76
+- V75 DRE Combo/Rateio: 75/75
+- V76 Fiscal pagamentos/Autoria: 52/52
+- V77 Estações/Capacidade: 39/39
+- V78 Alertas físicos: 33/33
+
+TOTAL JAVASCRIPT: 1047 assertions aprovadas.
+FISCAL GATEWAY: 3/3 testes aprovados.
+TOTAL DA RODADA INCLUINDO GATEWAY: 1050 verificações/testes aprovados.
+
+OBSERVAÇÃO SOBRE REGRESSÃO V64
+A V78 envolve savePro() para invalidar o cache físico após mudança de escala. O teste de regressão V64 que antes verificava apenas o texto da função final foi atualizado para validar a cadeia: wrapper V78 ativo + wrapper V64 de Auditoria ainda presente. As verificações funcionais de Auditoria permanecem 60/60.
+
+TIPOS DE TESTE REALMENTE EXECUTADOS
+- validação sintática: SIM;
+- testes lógicos automatizados: SIM;
+- DOM simulado: SIM;
+- gateway Node mockado: SIM;
+- E2E completo em navegador real: NÃO.

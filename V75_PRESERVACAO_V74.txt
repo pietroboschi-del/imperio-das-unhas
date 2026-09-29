@@ -1,0 +1,10 @@
+IMPÉRIO DAS UNHAS — PRESERVAÇÃO V74
+
+A versão V74 original foi preservada no pacote como:
+V74_FONTE_DE_VERDADE.zip
+
+SHA-256 da origem V74 e da cópia preservada:
+ca3a710c57398de8f52aa408b4c29e73109092dd68edec5c664d7a80c1de08c2
+
+O index.html original da V74 também foi preservado como:
+index.v74.source.html

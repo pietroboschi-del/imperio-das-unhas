@@ -1,0 +1,12 @@
+script_open=42
+script_close=42
+static_ids=17
+duplicate_static_ids=[]
+evaluatePhysicalCapacity_definitions=1
+v79_migration_id_occurrences=1
+v79_schema_marker_occurrences=1
+v79_addEventListener_occurrences=0
+waitlist_push_sites=1
+saveReservation_wrapper_captures=2
+V79_final_after_V78=True
+V79_layer_physical_engine_calls=0

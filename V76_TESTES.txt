@@ -1,0 +1,68 @@
+IMPÉRIO DAS UNHAS — V76 — TESTES
+
+VALIDAÇÃO SINTÁTICA
+- 39/39 blocos JavaScript aprovados via node --check.
+- 39 tags <script> / 39 tags </script>.
+- 17 IDs HTML estáticos; 0 duplicados.
+
+REGRESSÕES EXECUTADAS SOBRE A V76
+- V61 Financeiro/DRE: 91/91
+- V62 Marketing: 54/54
+- V63 Usuários/Configurações: 44/44
+- V64 Auditoria: 60/60
+- V65 Visão Executiva: 38/38
+- V66 Notificações/Tarefas: 50/50
+- V67 Permissões: 53/53
+- V68 Fiscal Foundation: 91/91
+- V69 NFS-e Nacional: 50/50
+- V70.1 Agenda carga inicial: 33/33
+- V70 Agenda operacional: 28/28
+- V71 Campos/Opções Clientes: 50/50
+- V72 Campos/Opções Agenda/Comandas: 57/57
+- V73 Campos/Opções Profissionais/Estoque: 73/73
+- V74 Campos/Opções Financeiro: 76/76
+- V75 DRE Combo/Rateio: 75/75
+
+Subtotal de assertions de regressão herdada: 923.
+
+TESTE ESPECÍFICO V76
+V76_TEST_FISCAL_PAYMENTS_BOOKING_AUTHORSHIP.js: 52/52 assertions.
+
+Fiscal validado:
+1. pagamento único;
+2. pagamentos múltiplos;
+3. Pix + cartão com soma correta;
+4. Conta Mensal ainda sem recebimento;
+5. Conta Mensal recebida posteriormente;
+6. pagamento parcial de Conta Mensal;
+7. pagamento direto à profissional sem entrada na empresa;
+8. NF/comanda sem evidência de pagamento => indisponível, não zero fictício;
+9. NF cancelada preservando a informação financeira vinculada;
+10. vínculo NF -> commandId -> pagamento;
+11. renderização fiscal não cria nem altera Caixa, lançamentos financeiros, recebíveis, pagamentos, comissões ou comandas.
+
+Autoria validada:
+1. Maria cria agendamento interno: createdByUserId, snapshot createdBy e createdAt;
+2. Ana altera/reagenda: autoria original de Maria é preservada e alteração entra na Auditoria;
+3. reagendamento por drag-and-drop preserva Maria e é auditado com Ana como actor;
+4. agendamento público não recebe userId de recepcionista e preserva sourceType public_booking;
+5. agendamento legado sem autoria permanece legacy_unknown e não recebe backfill;
+6. renomear/inativar Maria depois não altera o snapshot histórico do booking;
+7. migração V76 idempotente e segunda inicialização sem nova gravação.
+
+FISCAL GATEWAY
+- 3/3 testes do gateway já existente aprovados; nenhum código do Gateway foi alterado pela V76.
+
+TOTAL DA RODADA
+- 975 assertions JavaScript aprovadas (923 regressão + 52 V76).
+- 3/3 testes do Fiscal Gateway aprovados.
+- 978 verificações/testes executados na rodada quando somados os dois conjuntos.
+
+TIPOS DE TESTE REALMENTE EXECUTADOS
+- validação sintática: SIM;
+- testes lógicos automatizados: SIM;
+- DOM simulado: SIM;
+- regressão automatizada: SIM;
+- testes do Fiscal Gateway: SIM;
+- teste manual em navegador real: NÃO;
+- E2E completo em navegador real: NÃO.

@@ -1,0 +1,37 @@
+V84 — METAS DE AGENDAMENTOS POR RECEPCIONISTA
+
+Base: V83 corrigida (Agendamentos por Recepcionista / Auditoria Operacional).
+Schema: 84.
+Migration: v84-reception-booking-goals.
+
+IMPLEMENTADO
+- Coleção persistida db.receptionBookingGoals.
+- Metas por recepcionista, período e uma ou várias unidades.
+- Alvos independentes/opcionais para:
+  * valor agendado;
+  * quantidade de serviços;
+  * clientes únicos.
+- O período da meta considera a DATA DE CRIAÇÃO ORIGINAL do agendamento.
+- O realizado reutiliza integralmente os fatos/métricas canônicas da V83:
+  * autoria original;
+  * preço comercial histórico do booking;
+  * rateio correto de combos;
+  * clientes únicos;
+  * unidades permitidas.
+- Cancelados e faltas não compõem o realizado da meta.
+- Configuração restrita à Administração.
+- Visualização respeita o acesso por unidade; metas multiunidade não exibem progresso parcial para usuários sem acesso integral ao escopo.
+- Proteção contra metas ativas sobrepostas para a mesma recepcionista/período/unidades coincidentes.
+- Arquivamento lógico; nenhuma meta é excluída fisicamente.
+- Criação, alteração, arquivamento e reativação integram a Auditoria V64 quando disponível.
+- Dashboard de progresso dentro de Relatórios > Agenda > Agendamentos por recepcionista.
+
+NÃO ALTERADO
+- Agenda/booking canônico.
+- Financeiro, Caixa, DRE, comissão e recebíveis.
+- Motor de disponibilidade.
+- Capacidade física.
+- Fila de Encaixe.
+
+IMPORTANTE
+Valor agendado é indicador comercial/operacional. Meta atingida NÃO reconhece receita nem cria qualquer fato financeiro.

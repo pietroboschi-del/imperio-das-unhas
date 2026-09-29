@@ -1,0 +1,10 @@
+V85_CORRIGIDA_FONTE_PRESERVADA.html SHA-256:
+440f2368bdde5c6161b4967d44abaf0b6dd64f57bed749ac7058a6cab8ac2ef2
+
+V86 working index SHA-256 before final rename/package:
+3227cea197f1f830b4a87526aca889328fc476dd7f85cdff5d5762296ebe9cbc
+
+Scripts 1–42: idênticos à V85 corrigida.
+Script 46 / V83: idêntico.
+Script 47 / V84: idêntico.
+Alterados: 43/V80, 44/V81, 45/V82, 48/V85. Novo: 49/V86.

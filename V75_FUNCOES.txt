@@ -1,0 +1,45 @@
+IMPÉRIO DAS UNHAS — V75 FUNÇÕES / CADEIA DRE
+
+FONTE CANÔNICA PRESERVADA
+financeDreDataV40()
+
+Cadeia encontrada antes da V75:
+V40 base
+ -> wrapper V42 (insumos/CMV)
+ -> wrapper V49 (snapshots comerciais + commissionEvents/remuneração)
+
+V75 NÃO cria uma DRE paralela.
+Ela captura a implementação canônica final anterior em:
+_financeDreDataV75Base = financeDreDataV40
+
+e redefine o mesmo nome canônico financeDreDataV40() para aplicar somente a nova interpretação econômica e o rateio gerencial.
+
+FUNÇÕES ALTERADAS/ENVOLVIDAS NA V75
+- financeDreDataV40(st)
+  Continua sendo a fonte canônica final. Reexpressa combo e acrescenta campos de rateio.
+- renderFinanceDreBody()
+  Atualiza apresentação da DRE e Rentabilidade.
+- openDreCategoryV40(categoryId)
+  Drill-down do rateio por categoria/unidade.
+- v60DreHtml(d)
+  Alinha a DRE resumida dos Relatórios à nova semântica de combo.
+- renderAdmin()/v63SetSettingsTab()
+  Apenas atualização técnica da etiqueta de versão exibida em Configurações → Sistema.
+
+HELPERS V75
+- v75commandCommercialRows(c)
+- v75partnershipSnapshot(c)
+- v75serviceSnapshot(c,lineId)
+- v75commissionEventMap(c)
+- v75inputByCategory(st)
+- v75isRateableOperatingExpense(e)
+- v75rateableExpenseRows(base)
+- v75rateableExpenseByCategory(rows)
+- v75core(st)
+- v75allocateUnit(core,unitId)
+- v75relevantUnits(st,core)
+- v75aggregateConsolidated(core,parts)
+- v75migrate()
+
+API DE TESTE/DIAGNÓSTICO
+window.__imperioV75

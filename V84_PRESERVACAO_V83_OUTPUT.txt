@@ -1,0 +1,1 @@
+{"ok":true,"tests":12,"comboTotal":65,"localTimestamp":"28/09/2026 23:30","permission":true,"defaultStatus":true,"zeroReception":true}

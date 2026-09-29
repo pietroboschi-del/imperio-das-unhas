@@ -1,0 +1,19 @@
+IMPÉRIO DAS UNHAS — V76 — AUDITORIA ESTÁTICA
+
+index.html final:
+- 39 tags <script> de abertura
+- 39 tags </script>
+- 39/39 blocos JavaScript aprovados via node --check
+- 17 IDs HTML estáticos
+- 0 IDs HTML estáticos duplicados
+- 1 ocorrência do migrationId v76-fiscal-payments-booking-authorship
+- 1 exportação window.__imperioV76
+
+Cadeias revisadas:
+- renderFinanceInvoices: Fiscal V68 -> wrapper V69 -> wrapper V76
+- saveReservation: base -> V28 -> V72 -> V76
+- finishBooking: implementação pública V56 -> V76
+- agendaDrop: base -> V56 -> V76
+- saveExistingBooking: Auditoria V64 + validação V72, preservado
+- finalizeCommandPayment: cadeia histórica preservada; não alterada na V76
+- saveClientMonthlySettlement: cadeia histórica preservada; não alterada na V76

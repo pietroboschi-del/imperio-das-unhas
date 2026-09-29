@@ -1,0 +1,24 @@
+V80 — PRINCIPAIS FUNÇÕES
+
+__imperioV80.ensureMigration()
+__imperioV80.active(req)
+__imperioV80.eligible(req)
+__imperioV80.clientPlacements(req)
+__imperioV80.physicalAdvisory(req, placement)
+__imperioV80.candidates(req)
+__imperioV80.compute()
+__imperioV80.reevaluate(reason)
+__imperioV80.beginBooking(reqId)
+
+Globais operacionais:
+v80ReevaluateWaitlistOpportunities(reason)
+v80BeginQueueBooking(reqId)
+
+Motores canônicos reutilizados, não duplicados:
+availabilityEligiblePros()
+availabilityPlacement()
+availabilityServiceDuration()
+availabilityServicePrice()
+availabilityClientCompatible()
+evaluatePhysicalCapacity() / __imperioV77
+saveReservation() / Agenda canônica

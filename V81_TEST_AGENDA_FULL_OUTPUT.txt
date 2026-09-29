@@ -1,0 +1,12 @@
+V81 · TESTE DIRECIONADO — ALERTA SIMPLES DE AGENDA CHEIA
+PASS migration schema 81
+PASS migration registered
+PASS real free slot means not full
+PASS no real placement means full
+PASS alerts only allowed configured unit over horizon
+PASS stable derived key
+PASS alert disappears when real slot returns
+PASS day without schedule is not called full
+RESULT 8/8
+
+Observação: o dia corrente já encerrado não gera alerta de Agenda cheia; somente disponibilidade operacional ainda útil é considerada.

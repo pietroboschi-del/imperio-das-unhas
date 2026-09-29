@@ -1,0 +1,1 @@
+{"ok":true,"scripts":39,"tests":75,"combo":true,"allocation":true,"multiunit":true,"zeroSafe":true,"noDoubleAllocation":true,"conservation":true,"idempotent":true}

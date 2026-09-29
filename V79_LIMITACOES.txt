@@ -1,0 +1,14 @@
+IMPÉRIO DAS UNHAS — V79 — LIMITAÇÕES DELIBERADAS
+
+1. NÃO existe motor automático de oportunidades.
+2. NÃO existe busca fila × Agenda.
+3. NÃO existe reação automática a cancelamento/reagendamento.
+4. O status OPPORTUNITY existe no modelo, mas não é preenchido automaticamente.
+5. Unidade é obrigatória na interface desta versão; o modelo já suporta evolução futura por acceptedUnitIds/unitPreferenceMode.
+6. Não há WhatsApp automático. Existe somente atalho manual para o número atual da cliente.
+7. Não há reserva automática, bloqueio de horário nem agendamento automático.
+8. A fila não participa da ocupação, capacidade profissional ou capacidade física.
+9. Solicitações expiradas são derivadas por data; não são apagadas nem regravadas apenas por consulta.
+10. Registros históricos/terminais permanecem auditáveis. Alterações manuais feitas pela gestão continuam passando pela Auditoria; não existe exclusão física.
+11. A preferência profissional usa a habilitação atual para operações futuras. Snapshots preservam a leitura histórica do nome/serviço.
+12. O protótipo continua em localStorage e mantém as limitações de concorrência/multiusuário já documentadas nas versões anteriores.

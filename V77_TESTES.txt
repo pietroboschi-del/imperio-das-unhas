@@ -1,0 +1,74 @@
+IMPÉRIO DAS UNHAS — V77 TESTES
+
+VALIDAÇÃO SINTÁTICA
+- 40 tags <script> / 40 tags </script>
+- 40/40 blocos aprovados via node --check
+- 17 IDs HTML estáticos / 0 duplicados
+
+SUÍTE ESPECÍFICA V77
+Arquivo: tests/V77_TEST_WORKSTATIONS_PHYSICAL_CAPACITY.js
+Resultado: 39/39
+
+CENÁRIOS OBRIGATÓRIOS
+1. Matching simples: PASSOU — M1(Manicure) + A1(Manicure/Alongamento) atende Manicure + Alongamento.
+2. Ordem adversa: PASSOU — maximum matching encontra solução completa, sem falso conflito do guloso.
+3. Excesso: PASSOU — 6 estações / 7 demandas => allocated=6, unallocated=1, conflict=true.
+   Teste adicional: o 7º agendamento foi efetivamente salvo e só depois sinalizado pelo motor.
+4. Unidade errada: PASSOU — estação do Big não participa de demanda de outra unidade.
+5. Inativa: PASSOU — estação inativa não entra na capacidade ativa.
+6. Sem configuração: PASSOU — configured=false/status=not_configured/sem conflito.
+7. Sem compatibilidade: PASSOU — demanda não alocada com reason=no_compatible_station; sem bloqueio.
+8. Sequencial: PASSOU — 14:00–14:40 e 14:40–15:20 usam uma estação sem conflito.
+9. Sobreposição: PASSOU — 14:00–14:40 e 14:30–15:10 com uma estação gera conflito em 14:30–14:40.
+10. Combo: PASSOU — dois itens reais geram duas demandas físicas, não uma demanda “combo”.
+11. Estação versátil: PASSOU — reatribuição encontra matching máximo quando existe solução.
+12. Edição: PASSOU — saveExistingBooking() salva horário com excesso; motor sinaliza depois.
+
+OUTROS TESTES V77
+- criação individual de estação;
+- referências canônicas de unidade/categoria;
+- Auditoria de criação/edição;
+- Settings renderiza categorias canônicas;
+- inativação preserva registro;
+- indicador discreto aparece somente quando há conflito configurado;
+- não aparece em unidade não configurada;
+- migração idempotente e segunda execução sem gravação.
+
+REGRESSÃO COMPLETA EXECUTADA SOBRE A V77
+V61 Financeiro/DRE: 91/91
+V62 Marketing: 54/54
+V63 Usuários/Configurações: 44/44
+V64 Auditoria: 60/60
+V65 Visão Executiva: 38/38
+V66 Notificações/Tarefas: 50/50
+V67 Permissões: 53/53
+V68 Fiscal: 91/91
+V69 NFS-e Nacional: 50/50
+V70.1 Agenda carga inicial: 33/33
+V70 Agenda gerencial: 28/28
+V71 Campos/Opções Clientes: 50/50
+V72 Agenda/Comandas: 57/57
+V73 Profissionais/Estoque: 73/73
+V74 Financeiro: 76/76
+V75 DRE Combo/Rateio: 75/75
+V76 Fiscal pagamentos/autoria: 52/52
+V77 Estações/capacidade: 39/39
+
+Total JavaScript executado na rodada: 1014 assertions/verificações.
+Fiscal Gateway: 3/3.
+Total incluindo Gateway: 1017.
+
+REGRESSÕES IMPORTANTES PRESERVADAS
+- Financeiro e DRE V75;
+- combo/rateio;
+- Fiscal/NFS-e;
+- autoria de agendamento V76;
+- Conta Mensal;
+- Comandas;
+- Serviços;
+- Campos e Opções;
+- permissões/multiunidade;
+- motor existente de Agenda/área corporal/simultaneidade.
+
+NAVEGADOR
+Não é alegado E2E completo em navegador real nesta versão. Os testes de interface V77 foram DOM simulado/lógicos.

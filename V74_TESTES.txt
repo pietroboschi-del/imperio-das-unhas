@@ -1,0 +1,55 @@
+IMPÉRIO DAS UNHAS — V74 — TESTES EXECUTADOS
+
+ARQUIVO FINAL
+- 37/37 blocos JavaScript sintaticamente válidos.
+- 37 tags <script> e 37 tags </script>.
+- 17 IDs HTML estáticos fora de templates JavaScript.
+- 0 IDs HTML estáticos duplicados.
+
+SUÍTE ESPECÍFICA V74
+V74_TEST_FIELDS_OPTIONS_FINANCE.js
+Resultado: 76/76.
+
+Cobertura principal V74:
+- Central mostra todos os seis módulos como configuráveis;
+- grupos financeiros renderizados;
+- campos estruturais protegidos;
+- campos administrativos podem alternar obrigatório/opcional;
+- status/tipo de lançamento protegidos;
+- tipos CASH/BANK/PROCESSOR protegidos;
+- vencimento e descrição de lançamento manual;
+- empresa, instituição e formas aceitas de conta financeira;
+- CNPJ e inscrição municipal do cadastro de empresa;
+- observação de baixa de Conta Mensal;
+- histórico financeiro não reescrito;
+- valor técnico inativo permanece representável no histórico;
+- Auditoria de configuração;
+- migração idempotente;
+- reinicialização de base já migrada.
+
+REGRESSÕES EXECUTADAS SOBRE V74
+- V61 Financeiro/DRE: 91/91
+- V62 Marketing: 54/54
+- V63 Configurações/Usuários: 44/44
+- V64 Auditoria: 60/60
+- V65 Visão Executiva: 38/38
+- V66 Notificações/Tarefas: 50/50
+- V67 Permissões: 53/53
+- V68 Fiscal Foundation: 91/91 (esta suíte inclui 53 verificações herdadas da V67 em sua própria contagem)
+- V69 NFS-e Nacional: 50/50
+- V70 Agenda operacional: 28/28
+- V70.1 carregamento inicial da Agenda: 33/33
+- V71 Campos/Opções Clientes: 50/50
+- V72 Campos/Opções Agenda/Comandas: 57/57
+- V73 Campos/Opções Profissionais/Estoque: 73/73
+- V74 Campos/Opções Financeiro: 76/76
+- Fiscal Gateway: 3/3
+
+Todos os arquivos de teste V74-regression e seus outputs estão incluídos no pacote.
+
+IMPORTANTE SOBRE CONTAGEM
+As suítes são reportadas individualmente. Não se apresenta um “total de verificações únicas” porque a suíte V68 deliberadamente incorpora verificações herdadas da V67; somar cegamente todas as linhas produziria dupla contagem.
+
+NÃO EXECUTADO / NÃO ALEGADO
+- E2E completo em navegador real.
+- Emissão real na SEFIN.

@@ -1,0 +1,24 @@
+IMPÉRIO DAS UNHAS — V77 MIGRAÇÃO
+
+Schema alvo: 77
+Migration ID: v77-workstations-physical-capacity
+
+A migração:
+1. garante db.workstations como array vazio quando inexistente;
+2. registra workstations em IMPERIO_ARRAY_COLLECTIONS quando a coleção está disponível;
+3. registra o migration ID em db.migrationHistory;
+4. eleva schemaVersion para 77;
+5. grava somente quando houve alteração real.
+
+POLÍTICA DE DADOS EXISTENTES
+- nenhuma estação é criada automaticamente;
+- nenhuma unidade recebe quantidade presumida de estações;
+- nenhum booking antigo recebe stationId;
+- nenhuma alocação histórica é persistida;
+- categorias/serviços/unidades existentes não são copiados nem reescritos.
+
+UNIDADE SEM ESTAÇÕES
+Continua explicitamente como capacidade física não configurada.
+
+IDEMPOTÊNCIA
+A segunda execução da migração em base já V77 não duplica coleção, histórico ou configurações e não gera nova gravação.

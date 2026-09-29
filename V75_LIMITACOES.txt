@@ -1,0 +1,12 @@
+IMPÉRIO DAS UNHAS — V75 LIMITAÇÕES
+
+1. O rateio é uma visão GERENCIAL; não altera lançamentos, contas ou DRE principal.
+2. A base de rateio atual é faturamento real da categoria. Outros drivers (m², horas, headcount etc.) não foram implementados.
+3. Taxas financeiras por categoria continuam usando a alocação proporcional analítica já existente, pois não há vínculo direto confiável por categoria em todos os fatos.
+4. Remuneração complementar/garantia/diária sem vínculo seguro com serviço/categoria permanece na DRE principal e não é inventada como custo de uma categoria.
+5. CMV de revenda permanece custo direto da venda de produto e não é alocado entre categorias de serviço sem relação confiável.
+6. Despesas operacionais sem unidade identificável não são distribuídas entre unidades no consolidado.
+7. Impostos continuam fora do rateio operacional V75 e a DRE segue como Resultado Gerencial Parcial.
+8. Nenhum rateio é persistido; ele será recalculado a partir dos fatos/snapshots no período consultado.
+9. A V75 não muda o motor operacional do combo. Se regras futuras de combo forem alteradas, novos fatos devem continuar congelando snapshots.
+10. Não foi implementada nova tela/módulo; apenas DRE/Rentabilidade já existentes foram ajustadas.

@@ -1,0 +1,82 @@
+IMPÉRIO DAS UNHAS — V76 — FONTES CANÔNICAS
+
+1. LISTAGEM FISCAL
+O documento fiscal NÃO guarda uma cópia dos pagamentos.
+A exibição é calculada no momento da renderização a partir do commandId.
+
+1.1 Pagamento imediato recebido pela empresa
+Fonte prioritária:
+  db.demoCashMovements
+Requisitos:
+  commandId correspondente
+  amount > 0
+  tipo de recebimento de comanda OU sourceType = command_finalization.
+
+Valor recebido pela empresa = soma desses movimentos canônicos.
+
+1.2 Pagamento direto à profissional
+Fonte:
+  command.paymentRecords
+  methodId = pm_direct
+
+Valor pago pelo cliente entra em "Valor pago" da visualização fiscal.
+Valor recebido pela empresa NÃO aumenta.
+Nenhum movimento é criado pela V76.
+
+1.3 Conta Mensal
+Valor originalmente faturado:
+  command.paymentRecords com methodId = pm_monthly.
+
+Recebimentos posteriores:
+  db.clientReceivablePayments[].allocations[]
+  allocation.commandId = commandId.
+
+Valor pago até o momento = soma das alocações reais para a comanda.
+Saldo visual da Conta Mensal = valor mensal original - recebimentos alocados.
+
+A baixa do recebível continua sendo responsabilidade do fluxo canônico saveClientMonthlySettlement().
+A V76 apenas lê esses fatos.
+
+1.4 Pagamento múltiplo
+Cada meio é agrupado separadamente.
+Exemplo:
+  Pix 100 + Cartão 100
+  Valor pago = 200.
+
+1.5 Permuta
+PaymentRecord pm_barter é apresentado como liquidação não financeira.
+Não é somado ao Valor pago monetário.
+
+1.6 Ausência de evidência
+Sem movimento, PaymentRecord ou recebimento que permita concluir pagamento:
+  known = false
+  Valor pago = —
+Nunca converte ausência de dado em zero inventado.
+
+2. AUTORIA DA AGENDA
+Interno:
+  createdByUserId = __imperioV63.currentUser().id
+  createdBy = snapshot do nome no momento da criação
+  createdAt = timestamp de criação
+  sourceType = internal_booking
+  sourceId = booking.id
+  origin = Interno
+
+Público:
+  createdByUserId = ""
+  createdBy = Agendamento online
+  createdAt = timestamp existente/novo
+  sourceType = public_booking
+  sourceId = booking.id
+  origin = Online
+
+Legado:
+Nenhum backfill.
+bookingAttribution() retorna reliability = legacy_unknown quando não há evidência.
+
+3. PRINCÍPIOS PRESERVADOS
+- recebimento de Conta Mensal não reconhece receita novamente;
+- pagamento direto à profissional não vira Caixa/Banco da empresa;
+- render Fiscal é economicamente neutro;
+- createdAt não é data do atendimento;
+- alteração/reagendamento não substitui autoria de criação.

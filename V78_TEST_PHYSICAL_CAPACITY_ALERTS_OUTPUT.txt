@@ -1,0 +1,1 @@
+{"ok":true,"scripts":41,"tests":33,"normal":true,"realConflict":true,"matching":true,"versatile":true,"cancelResolve":true,"reschedule":true,"notConfigured":true,"multiunit":true,"preventive":true,"dedupe":true,"stationToggle":true,"nonBlocking":true,"states":true,"idempotent":true}

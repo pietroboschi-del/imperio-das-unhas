@@ -1,0 +1,64 @@
+name: V98a Backend CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: imperio
+          POSTGRES_PASSWORD: imperio_ci
+          POSTGRES_DB: imperio_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U imperio -d imperio_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://imperio:imperio_ci@localhost:5432/imperio_ci?schema=public
+      PORT: 3100
+      COOKIE_SECURE: "false"
+      CORS_ORIGINS: http://127.0.0.1:3101
+      MIGRATION_IMPORT_ENABLED: "true"
+      MIGRATION_REQUIRE_CANONICAL: "true"
+      READ_THROUGH_ENABLED: "false"
+      SHADOW_READS_ENABLED: "false"
+      OPERATIONAL_WRITES_ENABLED: "false"
+      ADMIN_USERNAME: ci_owner
+      ADMIN_PASSWORD: ci-owner-password-123
+      ADMIN_NAME: CI Owner
+      JSON_BODY_LIMIT: 20mb
+      MIGRATION_BATCH_SIZE: "500"
+      MIGRATION_TX_TIMEOUT_MS: "60000"
+      MIGRATION_PROMOTION_TX_TIMEOUT_MS: "180000"
+      MIGRATION_STAGE_RETENTION_DAYS: "30"
+      BUSINESS_TIMEZONE: America/Sao_Paulo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Prisma generate
+        run: npm run prisma:generate
+      - name: Apply migrations
+        run: npm run prisma:migrate
+      - name: Build
+        run: npm run build
+      - name: Static and projector tests
+        run: npm test
+      - name: Create CI administrator
+        run: npm run admin:create
+      - name: PostgreSQL/Nest integration tests
+        run: npm run test:integration

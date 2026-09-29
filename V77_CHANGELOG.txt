@@ -1,0 +1,96 @@
+IMPÉRIO DAS UNHAS — V77
+ESTAÇÕES DE TRABALHO + CAPACIDADE FÍSICA GERENCIAL
+Data: 28/09/2026
+
+Base direta: V76 — Fiscal: pagamentos + autoria de agendamentos
+Schema: 77
+Migration ID: v77-workstations-physical-capacity
+
+ESCOPO DESTA VERSÃO
+Somente:
+A. cadastro individual de estações físicas por unidade;
+B. motor canônico de compatibilidade/capacidade física por matching;
+C. indicação discreta de conflito físico na Agenda.
+
+NÃO ALTERADO
+- Financeiro / DRE / Conta Mensal / pagamentos;
+- Fiscal / NFS-e / Gateway;
+- autoria dos agendamentos V76;
+- regras de disponibilidade profissional;
+- simultaneidade corporal/área da cliente;
+- combos e sua regra comercial;
+- bloqueios e escalas;
+- meta dinâmica da Agenda;
+- navegação geral;
+- nenhum agendamento passa a exigir estação.
+
+1. ESTAÇÕES INDIVIDUAIS
+Nova coleção persistida: db.workstations.
+Cada estação possui:
+- id;
+- unitId (referência a db.units);
+- name;
+- allowedCategoryIds[] (referências a db.categories);
+- active;
+- createdAt / updatedAt;
+- createdByUserId / createdByUserName;
+- updatedByUserId / updatedByUserName.
+
+Não há tipo hardcoded de estação. A compatibilidade é determinada somente por allowedCategoryIds.
+Estações não são excluídas fisicamente; a operação prevista é inativação.
+
+2. CONFIGURAÇÕES
+Nova área: Configurações → Estações de trabalho.
+Permite:
+- criar;
+- editar nome;
+- escolher uma unidade;
+- escolher uma ou várias categorias canônicas;
+- ativar/inativar.
+Somente Administração gerencia estações, seguindo o padrão atual de Configurações.
+
+3. MOTOR CANÔNICO
+Função pública canônica:
+- evaluatePhysicalCapacity(input)
+Helper diário:
+- __imperioV77.evaluatePhysicalCapacityDay({unitId,date})
+
+O matching utiliza caminho aumentante (maximum bipartite matching / algoritmo de Kuhn), não estratégia gulosa simples.
+Demandas = itens reais de db.bookings[].items[].
+Estações = db.workstations ativas da mesma unidade.
+Aresta = categoryId da demanda pertence a station.allowedCategoryIds.
+
+4. INTERVALOS
+A convenção é [início, fim):
+14:00–14:40 e 14:40–15:20 não sobrepõem.
+O helper diário divide o dia em segmentos atômicos formados pelos horários reais de início/fim e executa o matching em cada segmento simultâneo.
+
+5. COMBOS
+Combo não vira uma demanda física única.
+Cada item operacional real do booking gera sua própria demanda física.
+
+6. NÃO BLOQUEIO
+A V77 não adiciona validação de estação em saveReservation(), saveExistingBooking(), agendaDrop() ou finishBooking().
+Conflitos físicos são somente análise gerencial.
+Foi testado salvar novo agendamento e editar agendamento existente em situação de excesso físico: ambos continuam permitidos.
+
+7. SEM CONFIGURAÇÃO
+Se não existe nenhum registro de estação para a unidade:
+configured=false
+status=not_configured
+hasConflict=false
+Nenhum alerta é exibido na Agenda.
+A migração não inventa estações.
+
+8. INDICAÇÃO NA AGENDA
+Quando existe configuração e conflito real no dia/unidade atuais, a toolbar recebe um indicador discreto:
+“⚠ Capacidade física”.
+O detalhe mostra os intervalos conflitantes, demandas, alocadas, sem estação e motivo.
+Não há alerta completo/gerencial nesta versão.
+
+9. AUDITORIA
+Criação e alteração de estações usam a trilha existente V64, módulo settings, sem nova trilha paralela.
+
+10. PRESERVAÇÃO
+A V76 completa foi incluída como V76_FONTE_DE_VERDADE.zip e index.v76.source.html.
+O index V76 foi preservado byte a byte.

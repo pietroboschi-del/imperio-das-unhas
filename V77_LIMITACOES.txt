@@ -1,0 +1,11 @@
+IMPÉRIO DAS UNHAS — V77 LIMITAÇÕES
+
+1. Capacidade física é gerencial e derivada. Nenhuma estação fica reservada/persistida por booking nesta versão.
+2. A alocação retornada pelo matching demonstra uma distribuição possível para o intervalo analisado; ela não é uma designação operacional permanente.
+3. Histórico de bookings não recebe estação retroativamente. Análises históricas usam as estações/configurações disponíveis no momento da consulta e devem ser entendidas como cálculo derivado, não snapshot histórico de ocupação física.
+4. Se uma categoria histórica não puder ser identificada a partir do item/snapshot/serviço, a demanda pode aparecer como “Categoria não identificada”. Nenhuma categoria é inventada.
+5. Unidade com zero registros de estação é “não configurada” e não gera conflito.
+6. Se existem estações cadastradas, mas todas estão inativas, a configuração existe e a capacidade ativa é zero; demandas atuais podem ser sinalizadas como conflito. Os registros inativos permanecem históricos.
+7. Não há alerta preventivo, escala física, tendência, ranking, notificação de gerente ou bloqueio nesta versão.
+8. Não há escolha manual de estação pela recepção.
+9. A interface desta entrega foi validada por testes lógicos/DOM simulado; não é alegado E2E completo em navegador real.

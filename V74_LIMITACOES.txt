@@ -1,0 +1,9 @@
+IMPÉRIO DAS UNHAS — V74 — LIMITAÇÕES
+
+1. Configurações continuam globais para toda a rede. formUnitOverrides permanece reservado para evolução futura, sem override por unidade ativo nesta versão.
+2. A Central controla obrigatoriedade e optionSets técnicos seguros; ela não transforma categorias de DRE ou formas de pagamento em catálogos paralelos.
+3. Campos obrigatórios configuráveis afetam novos salvamentos/edições. Registros históricos não são invalidados retroativamente.
+4. Desativar um tipo/status técnico o remove de novos usos quando o formulário consome o optionSet, mas um valor histórico permanece representável.
+5. A arquitetura continua HTML/JavaScript/localStorage; autorização real de backend ainda depende da futura migração de produção.
+6. Não houve alteração da integração NFS-e V69 nem tentativa de emissão real nesta etapa.
+7. Não foi realizado E2E completo em navegador nesta rodada. A validação executada foi sintática, lógica automatizada/DOM simulado e regressões Node, além dos testes do Fiscal Gateway.

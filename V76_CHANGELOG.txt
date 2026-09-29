@@ -1,0 +1,65 @@
+IMPÉRIO DAS UNHAS — V76
+Fiscal: pagamentos na listagem + autoria de agendamentos
+
+Schema: 76
+Migration ID: v76-fiscal-payments-booking-authorship
+Base: V75 — DRE Combo + Rentabilidade Rateada
+
+ESCOPO EXCLUSIVO
+A) enriquecer a listagem Fiscal/Notas fiscais com forma(s) de pagamento e valor efetivamente pago;
+B) começar a registrar autoria confiável dos novos agendamentos.
+
+A — FISCAL / PAGAMENTOS
+- A tabela existente de Notas fiscais foi preservada e enriquecida com:
+  Data | NF | Cliente | Unidade | Comanda | Valor da NF | Forma de pagamento | Valor pago | Status | Ações.
+- NÃO foi criada uma nova fonte financeira no documento fiscal.
+- Pagamentos imediatos são derivados dos movimentos canônicos de recebimento vinculados à comanda.
+- PaymentRecords da comanda são usados para fatos não-caixa específicos, em especial pagamento direto à profissional, e como fallback legado quando não existe movimento canônico vinculado.
+- Conta Mensal utiliza clientReceivablePayments.allocations por commandId; pagamentos posteriores/parciais aparecem dinamicamente sem reconhecer receita novamente.
+- Pagamento direto à profissional aparece como liquidação do cliente, mas continua fora do Caixa/Banco da empresa.
+- Permuta permanece identificada como liquidação não financeira e não compõe "Valor pago" monetário.
+- Comanda sem evidência de pagamento mostra "—" em vez de inventar zero.
+- NF cancelada continua mostrando a rastreabilidade de pagamento da comanda vinculada.
+- Emissão NFS-e, Gateway, certificado, payload, homologação, cancelamento e reconciliação NÃO foram alterados.
+
+B — AUTORIA DOS AGENDAMENTOS
+- Novos agendamentos internos agora preservam:
+  createdByUserId: ID do usuário autenticado no momento da criação;
+  createdBy: snapshot legível do nome do usuário já compatível com a arquitetura existente;
+  createdAt: instante de criação;
+  sourceType: internal_booking;
+  sourceId: ID do próprio agendamento;
+  origin: Interno (campo humano já existente).
+- O campo createdBy existente foi reutilizado como snapshot de nome; NÃO foi criado createdByUserName redundante.
+- O sourceType existente foi reutilizado como origem técnica; NÃO foi criado bookingOrigin redundante.
+- Novos agendamentos públicos preservam/normalizam:
+  createdByUserId = "";
+  createdBy = "Agendamento online";
+  createdAt;
+  sourceType = public_booking;
+  sourceId = ID do agendamento;
+  origin = Online.
+- Agendamentos antigos NÃO recebem autoria retroativa.
+- bookingAttribution() interpreta legado sem evidência como "Não identificado · legado" sem mutar o registro.
+- Reagendamento/edição preserva a autoria original.
+- O fluxo de edição existente já é auditado pela V64; V76 também integra o drag-and-drop da Agenda à mesma Auditoria.
+- Criação interna é registrada na Auditoria V64 quando há novo booking.
+- Blocos de horário não são tratados como agendamentos de cliente para autoria.
+
+FLUXOS DE CRIAÇÃO AUDITADOS
+1. Agenda interna / saveReservation(): criação nova recebe autoria.
+2. Adição de serviço a uma visita existente: não cria novo booking e não altera a autoria original.
+3. Agendamento público / finishBooking(): preserva origem pública e não atribui recepcionista.
+4. Implementação pública antiga permanece sobrescrita pela V56 e não é a função ativa.
+5. Bloqueios usam saveBlockTime(), são fatos de bloqueio e ficaram fora do escopo de autoria de agendamento de cliente.
+
+SEM ALTERAÇÃO
+- DRE V75, combos e rateio;
+- Financeiro/Caixa;
+- reconhecimento de receita;
+- comissão/remuneração;
+- Conta Mensal econômica;
+- Fiscal/NFS-e operacional;
+- Campos e Opções;
+- permissões;
+- layout/navegação fora das colunas da tabela fiscal.

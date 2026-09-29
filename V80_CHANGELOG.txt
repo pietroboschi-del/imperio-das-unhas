@@ -1,0 +1,35 @@
+IMPÉRIO DAS UNHAS — V80 — MOTOR INTELIGENTE DE OPORTUNIDADES DA FILA DE ENCAIXE
+
+Base: V79 — Fila de Encaixe Operacional.
+Schema: 80.
+Migration: v80-waitlist-opportunity-engine.
+
+IMPLEMENTADO
+- Motor automático e orientado a eventos para detectar oportunidades reais da Fila de Encaixe.
+- Reutilização do motor canônico da Agenda: availabilityEligiblePros(), availabilityPlacement(), escala, bloqueios, conflitos e regras de área da cliente.
+- Busca em incrementos de 15 minutos dentro da janela declarada; a duração real vem do serviço/profissional.
+- professionalPreferenceMode=preferred: preferida gera IDEAL; outra habilitada pode gerar ALTERNATIVE.
+- professionalPreferenceMode=required: somente a profissional exigida é aceita.
+- Ordenação explicável: requisitos obrigatórios -> qualidade da preferência -> createdAt -> horário.
+- Atribuição de intervalos concorrentes para evitar oferecer a mesma faixa/profissional simultaneamente a mais de uma solicitação.
+- Persistência da oportunidade na própria waitlistRequest, sem coleção paralela e sem booking fantasma.
+- Oportunidade removida/reclassificada quando a Agenda deixa de suportá-la.
+- CONTACTED preserva o histórico de contato; disponibilidade atual é representada separadamente por opportunityActive.
+- Capacidade física avaliada como advisory usando evaluatePhysicalCapacity(); conflito físico NÃO bloqueia a oportunidade.
+- Oportunidades aparecem em Notificações/Tarefas e no card da Fila.
+- Ação Agendar abre a Agenda canônica já posicionada na oportunidade; BOOKED continua ocorrendo somente após booking real compatível.
+- Reavaliação ligada a eventos de Agenda: criação/alteração/movimentação de booking e criação/edição/remoção de bloqueios, além de alterações da própria fila.
+
+NÃO IMPLEMENTADO / NÃO ALTERADO
+- Nenhum autoagendamento.
+- Nenhuma reserva temporária/booking fantasma.
+- Nenhum polling periódico.
+- Nenhuma alteração nas regras financeiras, DRE, comissão, Caixa ou recebíveis.
+- Nenhuma mudança visual ampla da Agenda/Configurações.
+- Flexibilidade multiunidade da solicitação continua futura.
+
+REVISAO POS-AUDITORIA — 2026-09-28
+- beginBooking() agora recalcula a arbitragem global da Fila imediatamente antes de abrir a Agenda.
+- A oportunidade exibida precisa continuar atribuída ao mesmo requestId, profissional, horário e classificação.
+- Se a atribuição mudou ou desapareceu, o clique é abortado, a Fila é reavaliada e nenhum booking é criado.
+- Teste de condição de corrida adicionado; V80_TEST_OPPORTUNITY_MATCHING passou de 18 para 22 verificações.

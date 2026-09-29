@@ -1,0 +1,11 @@
+V85 runtime integration: OK
+- painel é retornado antes do relatório Agenda base
+- título "Rendimento dos agendamentos por usuário" presente
+- colunas Agendamentos/Serviços/Clientes/Valor/Cancelados/Faltas presentes
+- usuário sem meta não depende de receptionBookingGoals para aparecer
+- relatório Agenda base permanece preservado
+- schemaVersion 85 e migration v85-reception-performance-dashboard preservados
+- 48/48 blocos JavaScript: sintaxe válida
+- gateway fiscal: 3/3 testes aprovados
+
+Observação: Chromium headless do ambiente não concluiu a abertura do protótipo dentro do timeout; portanto isto não é alegado como E2E real de navegador.

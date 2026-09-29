@@ -1,0 +1,26 @@
+IMPÉRIO DAS UNHAS — V74 — MIGRAÇÃO
+
+Migration ID:
+v74-configurable-fields-options-finance
+
+Schema destino:
+74
+
+A migração:
+- garante systemSettings.formFields.finance;
+- adiciona somente configurações ausentes;
+- cria/normaliza os optionSets técnicos finance.entryDirection, finance.entryStatus e finance.accountType;
+- define formConfigModulesVersion = 4;
+- preserva configurações existentes;
+- não altera fatos financeiros;
+- não altera saldos;
+- não altera contas a receber/pagar;
+- não altera DRE;
+- não altera Caixa;
+- não cria seed operacional;
+- não reinterpreta histórico;
+- registra uma única entrada em migrationHistory;
+- só chama save quando houve mudança real.
+
+Idempotência testada:
+segunda execução de __imperioV74.migrate() => false e zero gravações adicionais.

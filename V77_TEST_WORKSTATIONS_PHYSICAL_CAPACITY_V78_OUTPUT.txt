@@ -1,0 +1,1 @@
+{"ok":true,"scripts":41,"tests":39,"matching":true,"adverse":true,"excess":true,"multiunit":true,"inactive":true,"notConfigured":true,"noCompatible":true,"sequential":true,"overlap":true,"combo":true,"versatile":true,"editNonBlocking":true,"settings":true,"idempotent":true}

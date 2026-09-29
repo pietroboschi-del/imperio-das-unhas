@@ -1,0 +1,60 @@
+=== tests/V61_TEST_FINANCE_DRE_REGRESSION_V68_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":91,"stage1":true,"stage2":true,"stage3":true}
+
+=== tests/V62_TEST_MARKETING_REGRESSION_V70_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":54,"v62RegressionOnV65":true,"firstVisit":true,"postVisits":true,"snapshots":true,"idempotent":true}
+
+=== tests/V63_TEST_SETTINGS_USERS_REGRESSION_V70_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":44,"users":true,"unitAccess":true,"settings":true,"whatsappConfig":true,"idempotent":true}
+
+=== tests/V64_TEST_AUDIT_REGRESSION_V70_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":60,"audit":true,"legacyPolicy":true,"actor":true,"cash":true,"finance":true,"commands":true,"commission":true,"stock":true,"settings":true,"idempotent":true}
+
+=== tests/V65_TEST_EXECUTIVE_OVERVIEW_REGRESSION_V70_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":38,"executive":true,"comparison":true,"navigation":true,"canonicalSources":true,"idempotent":true}
+
+=== tests/V66_TEST_NOTIFICATIONS_TASKS_REGRESSION_V70_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":50,"alerts":true,"tasks":true,"snooze":true,"partnership":true,"settings":true,"roleVisibility":true,"idempotent":true}
+
+=== tests/V67_TEST_CUSTOM_PERMISSIONS_REGRESSION_V70_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":53,"customUserPermissions":true,"reportSubtabs":true,"operationalSubtabs":true,"actionGuards":true,"unitIsolation":true,"audit":true,"idempotent":true}
+
+=== tests/V68_TEST_FISCAL_FOUNDATION_REGRESSION_V70_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"inheritedTests":53,"fiscalTests":38,"tests":91,"fiscalFoundation":true,"noFakeEmission":true,"commandLink":true,"snapshots":true,"audit":true,"economicNeutrality":true,"duplicateGuard":true,"externalEvidence":true,"cancellation":true,"errorRegistry":true}
+
+=== tests/V69_TEST_NFSE_NATIONAL_DIRECT_REGRESSION_V70_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":50,"nfseNationalDirect":true,"homologationFirst":true,"certificateOutsideBrowser":true,"payloadSnapshot":true,"validateNoEmission":true,"issueBoundary":true,"productionLock":true,"uncertainTransport":true,"reconcileNoResend":true,"economicNeutrality":true,"idempotent":true}
+
+=== tests/V70_1_TEST_AGENDA_INITIAL_LOAD_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":33,"clients":2,"services":3,"target":10,"occupancy":25,"freeMin":360,"windows":2}
+
+=== tests/V70_TEST_AGENDA_OPERATIONAL_V71_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":28,"clients":2,"services":3,"target":10,"occupancy":25,"freeMin":360,"windows":2}
+
+=== tests/V71_TEST_FIELDS_OPTIONS_CLIENTS_V72_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":50,"globalConfig":true,"clients":true,"options":true,"historicalPreservation":true,"centralValidation":true,"audit":true,"idempotent":true}
+
+=== tests/V72_TEST_FIELDS_OPTIONS_AGENDA_COMMANDS_V73_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":57,"agenda":true,"commands":true,"statusProtected":true,"historicalPreservation":true,"centralValidation":true,"audit":true,"idempotent":true}
+
+=== tests/V73_TEST_FIELDS_OPTIONS_PROFESSIONALS_STOCK_V74_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":73,"professionals":true,"stock":true,"historicalPreservation":true,"centralValidation":true,"audit":true,"idempotent":true}
+
+=== tests/V74_TEST_FIELDS_OPTIONS_FINANCE_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":76,"finance":true,"protectedFields":true,"centralValidation":true,"historicalPreservation":true,"audit":true,"idempotent":true}
+
+=== tests/V75_TEST_DRE_COMBO_RATEIO_V76_V79.js ===
+{"ok":true,"scripts":42,"tests":75,"combo":true,"allocation":true,"multiunit":true,"zeroSafe":true,"noDoubleAllocation":true,"conservation":true,"idempotent":true}
+
+=== tests/V76_TEST_FISCAL_PAYMENTS_BOOKING_AUTHORSHIP_V79.js ===
+{"ok":true,"scripts":42,"tests":52,"fiscalPayments":true,"multiplePayments":true,"monthly":true,"directPayment":true,"economicNeutrality":true,"bookingAuthorship":true,"publicOrigin":true,"legacyUnknown":true,"audit":true,"idempotent":true}
+
+=== tests/V77_TEST_WORKSTATIONS_PHYSICAL_CAPACITY_V79.js ===
+{"ok":true,"scripts":42,"tests":39,"matching":true,"adverse":true,"excess":true,"multiunit":true,"inactive":true,"notConfigured":true,"noCompatible":true,"sequential":true,"overlap":true,"combo":true,"versatile":true,"editNonBlocking":true,"settings":true,"idempotent":true}
+
+=== tests/V78_TEST_PHYSICAL_CAPACITY_ALERTS_V79.js ===
+{"ok":true,"scripts":42,"tests":33,"normal":true,"realConflict":true,"matching":true,"versatile":true,"cancelResolve":true,"reschedule":true,"notConfigured":true,"multiunit":true,"preventive":true,"dedupe":true,"stationToggle":true,"nonBlocking":true,"states":true,"idempotent":true}
+
+=== tests/V79_TEST_WAITLIST_OPERATIONAL.js ===
+{"ok":true,"scripts":42,"tests":47,"basic":true,"preference":true,"required":true,"invalidWindow":true,"multiunit":true,"expiration":true,"removal":true,"contact":true,"booking":true,"cancelForm":true,"duplicate":true,"capacityNeutral":true,"financialNeutral":true,"legacy":true,"audit":true,"idempotent":true}
+

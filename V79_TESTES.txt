@@ -1,0 +1,87 @@
+IMPÉRIO DAS UNHAS — V79 — TESTES
+
+FASE 0 — VERIFICAÇÃO DA V78 ANTES DE ESCREVER A FILA
+A fonte V78 foi extraída e os testes existentes foram executados antes da implementação V79.
+Resultado: base consistente; nenhum defeito funcional da etapa de capacidade/alertas exigiu correção prévia.
+
+Foram especialmente confirmados:
+- workstations individuais / allowedCategoryIds;
+- multiunidade;
+- estações inativas;
+- evaluatePhysicalCapacity() canônico;
+- matching adverso/estações versáteis;
+- sobreposição temporal;
+- indicador da Agenda;
+- conflito real e risco preventivo;
+- deduplicação e resolução de alertas;
+- permissões por unidade;
+- criação, edição e reagendamento em conflito continuam permitidos.
+
+V79 — SUÍTE ESPECÍFICA
+Arquivo: tests/V79_TEST_WAITLIST_OPERATIONAL.js
+Resultado final: 47/47.
+
+CENÁRIOS OBRIGATÓRIOS
+1. Básico: Juliana/Manicure/Big/03-10/13–18/qualquer → WAITING; 0 booking/capacidade criada. APROVADO.
+2. Preferência: modo preferred não vira exigência. APROVADO.
+3. Exigência: modo required exige profissional selecionada para satisfazer a fila. APROVADO.
+4. Janela inválida: fim < início e fim = início rejeitados. APROVADO.
+5. Multiunidade: solicitação aparece apenas no escopo permitido. APROVADO.
+6. Expiração: solicitação passada é interpretada como EXPIRED sem apagar/regravar história. APROVADO.
+7. Remoção: status REMOVED; registro preservado. APROVADO.
+8. Contato: CONTACTED + contactedAt + contactedByUserId. APROVADO.
+9. Agendar: usa fluxo normal Agenda; somente após booking real correspondente marca BOOKED + appointmentId. APROVADO.
+10. Fechar sem salvar: solicitação continua ativa. APROVADO.
+11. Duplicidade: detecta solicitação ativa equivalente e avisa; sem bloqueio rígido. APROVADO.
+12. Capacidade: 10 solicitações não alteram booking, ocupação nem demandas físicas. APROVADO.
+13. Financeiro: fila não altera receita, comissão, recebível, Caixa, Financeiro, DRE ou Comandas. APROVADO.
+14. Legado: base anterior migra com waitlistRequests vazio; booking antigo não vira fila. APROVADO.
+
+VERIFICAÇÕES ADICIONAIS
+- Auditoria CREATE_WAITLIST e WAITLIST_TO_BOOKING;
+- autoria da solicitação;
+- required não aceita booking de outra profissional;
+- status técnico desconhecido é rejeitado;
+- migration idempotente e sem save na segunda execução.
+
+REGRESSÃO COMPLETA V79
+Executada sobre index.html V79:
+- Financeiro/DRE V61: 91/91
+- Marketing V62: 54/54
+- Usuários V63: 44/44
+- Auditoria V64: 60/60
+- Visão Executiva V65: 38/38
+- Notificações/Tarefas V66: 50/50
+- Permissões V67: 53/53
+- Fiscal V68: 91/91
+- NFS-e V69: 50/50
+- Agenda V70.1: 33/33
+- Agenda operacional V70: 28/28
+- Clientes V71: 50/50
+- Agenda/Comandas V72: 57/57
+- Profissionais/Estoque V73: 73/73
+- Financeiro V74: 76/76
+- DRE Combo/Rateio V75: 75/75
+- Fiscal/Autoria V76: 52/52
+- Estações/Capacidade V77: 39/39
+- Capacidade/Alertas V78: 33/33
+- Fila de Encaixe V79: 47/47
+
+TOTAL: 1094 assertions JavaScript aprovadas.
+Fiscal Gateway preservado: 3/3.
+TOTAL DA RODADA INCLUINDO GATEWAY: 1097 verificações/testes aprovados.
+
+SINTAXE/ESTÁTICA
+- 42/42 blocos JavaScript: node --check aprovado.
+- 42 tags <script> / 42 </script>.
+- 17 IDs HTML estáticos / 0 duplicados.
+- evaluatePhysicalCapacity(): 1 definição.
+- migration V79: 1.
+
+TIPOS DE TESTE
+- sintaxe: SIM
+- lógica automatizada Node/vm: SIM
+- DOM simulado: SIM
+- teste manual/E2E em navegador real: NÃO
+
+Nenhuma alegação de E2E em navegador real é feita nesta versão.

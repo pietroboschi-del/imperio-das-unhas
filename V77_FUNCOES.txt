@@ -1,0 +1,85 @@
+IMPÉRIO DAS UNHAS — V77 FUNÇÕES E FONTES CANÔNICAS
+
+FONTES EXISTENTES REUTILIZADAS
+- Unidades: db.units
+- Categorias: db.categories
+- Serviços: db.services; service.category referencia db.categories.id
+- Agenda: db.bookings
+- Serviços de um agendamento: db.bookings[].items[]
+- Tempo: timeToMin(), minToTime(), itemDuration()
+- Booking normalizado: normalizeBooking()
+- Auditoria: __imperioV64.persistEvent()
+- Usuário: __imperioV63.currentUser()/currentUserId()
+
+CADEIAS ATIVAS AUDITADAS ANTES DA V77
+renderAgenda:
+base → V56 → V70.1 → V77 (somente indicador visual)
+
+saveReservation:
+base → V28 → V72 → V76
+V77 NÃO envolve nem bloqueia esta função.
+
+saveExistingBooking:
+base → V28 → V55 → V64 → V72
+V77 NÃO envolve nem bloqueia esta função.
+
+finishBooking (público):
+V56 → V76
+V77 NÃO altera.
+
+agendaDrop:
+base → V56 → V76
+V77 NÃO altera.
+
+FUNÇÕES V77
+ensure()
+- garante coleção workstations.
+
+upsertWorkstation(data,id)
+- criação/edição individual;
+- referencia IDs canônicos de unidade/categoria;
+- registra Auditoria.
+
+stationRecordsForUnit(unitId)
+activeStationsForUnit(unitId)
+- isolam estações por unidade e atividade.
+
+physicalDemandsForDate(unitId,date)
+- converte os itens reais da Agenda em demandas físicas;
+- ignora Cancelado, Faltou e Bloqueado;
+- combo continua sendo seus itens reais separados.
+
+demandCategoryId(item)
+- prioriza categoryId/serviceCategoryId/categorySnapshot.id do próprio item quando disponível;
+- senão usa a categoria do serviço canônico.
+
+maximumMatching(demands,stations)
+- maximum bipartite matching por caminhos aumentantes (Kuhn);
+- encontra matching válido mesmo quando uma estação versátil precisa ser realocada para liberar uma estação específica.
+
+evaluatePhysicalCapacity(input)
+- FONTE CANÔNICA do cálculo físico V77;
+- retorna configured/status/demands/allocated/unallocated/hasConflict/assignments/conflicts etc.
+
+evaluatePhysicalCapacityDay({unitId,date})
+- cria segmentos atômicos pelos inícios/fins reais;
+- usa evaluatePhysicalCapacity em cada sobreposição simultânea;
+- respeita intervalo [início,fim).
+
+mergeConflictSegments(rows)
+- agrupa segmentos contíguos com o mesmo conflito para exibição.
+
+injectAgendaIndicator()
+- somente visual;
+- não altera validação da Agenda.
+
+WRAPPERS NOVOS
+- renderAgenda(): envolve o renderer final anterior para injetar o indicador discreto.
+- renderAdmin()/v63SetSettingsTab(): integram “Estações de trabalho” em Configurações.
+
+NÃO CRIADOS
+- stationId obrigatório no booking;
+- reserva persistida de estação;
+- segundo motor de disponibilidade;
+- segundo cadastro de unidade/categoria/serviço;
+- bloqueio de salvar/editar/reagendar.

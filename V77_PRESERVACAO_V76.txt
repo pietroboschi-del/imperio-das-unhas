@@ -1,0 +1,16 @@
+IMPÉRIO DAS UNHAS — V77 PRESERVAÇÃO DA V76
+
+A versão anterior foi preservada no pacote como:
+- V76_FONTE_DE_VERDADE.zip
+- index.v76.source.html
+
+SHA-256 do ZIP V76 original:
+2cee994f06d3a295071a847ba6aa6fb3a92609f2db4e2085baa3aa1c90808178
+
+SHA-256 do index.html original dentro da V76:
+92b48eb02d2c3a3c6af05fde33d16e42411618d65dea6ca8a01711e98e44406d
+
+SHA-256 de index.v76.source.html no pacote V77:
+92b48eb02d2c3a3c6af05fde33d16e42411618d65dea6ca8a01711e98e44406d
+
+Portanto o index anterior foi preservado byte a byte.

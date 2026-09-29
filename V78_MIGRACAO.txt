@@ -1,0 +1,27 @@
+IMPÉRIO DAS UNHAS — V78 — MIGRAÇÃO
+
+schemaVersion alvo: 78
+migrationId: v78-physical-capacity-alerts
+
+OBJETIVO
+Registrar a evolução visual/gerencial da capacidade física sem persistir cálculos derivados.
+
+ALTERAÇÕES DE DADOS
+- Garante que db.notificationAlertStates seja objeto quando inexistente/corrompido em formato incompatível.
+- Registra v78-physical-capacity-alerts em migrationHistory uma única vez.
+- Eleva schemaVersion para 78.
+
+NÃO CRIA
+- nova coleção de estações;
+- nova coleção de alertas derivados;
+- fatos de capacidade histórica;
+- estações fictícias;
+- escala fictícia;
+- vínculos de estação em agendamentos;
+- fila de encaixe.
+
+IDEMPOTÊNCIA
+Segunda execução de __imperioV78.migrate():
+- retorna false;
+- não duplica migrationHistory;
+- não grava novamente a base quando nada mudou.

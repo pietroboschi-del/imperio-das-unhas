@@ -1,0 +1,17 @@
+IMPÉRIO DAS UNHAS — MIGRAÇÃO V75
+
+Schema alvo: 75
+Migration ID: v75-dre-combo-profitability-allocation
+
+A V75 NÃO cria tabelas/coleções de rateio e NÃO altera fatos históricos.
+
+A migração realiza somente:
+- registro idempotente em migrationHistory;
+- atualização de schemaVersion para 75;
+- schemaMigratedAt quando necessário.
+
+O rateio é calculado em tempo de consulta a partir dos fatos existentes.
+
+Idempotência validada:
+- segunda chamada de __imperioV75.migrate(): false;
+- nenhuma nova gravação na segunda execução.

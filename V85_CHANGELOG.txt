@@ -1,0 +1,20 @@
+V85 — PAINEL DE DESEMPENHO DA RECEPÇÃO
+
+Implementado em Relatórios > Agenda, integrado às áreas V83/V84.
+
+Incluído:
+- tabela comparativa das metas em andamento;
+- meta x realizado para valor agendado, serviços e clientes únicos;
+- reservas criadas e reservas válidas;
+- cancelamentos e faltas separados;
+- evolução semanal cumulativa por meta;
+- detalhamento dos agendamentos da meta;
+- respeito aos filtros de recepcionista/unidade e permissões já existentes;
+- schemaVersion 85 com migration idempotente.
+
+Não incluído:
+- ranking de recepcionistas;
+- nota de desempenho;
+- previsão automática;
+- alteração de regras financeiras;
+- nova fonte persistente de métricas.

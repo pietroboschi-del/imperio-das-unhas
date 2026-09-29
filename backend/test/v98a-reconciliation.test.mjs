@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {legacyDataHash,sha256DataHash,validateExport,normalizePhone,reconcileExports} from '../tools/reconcile-exports.mjs';
+let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+const data={storageMeta:{dataMode:'real'},units:[{id:'u1'}],clients:[{id:'c1',name:'Ana',phone:'31999999999'}],bookings:[{id:'b1',unit:'u1'}],stockBalances:[{locationId:'u1',productId:'p1',qty:2}],commissionSettings:{a:1}};
+const base={format:'imperio-central-migration',contractVersion:1,schemaVersion:97,instanceId:'i1',revision:1,sensitiveIncluded:false,data};base.dataHash=legacyDataHash(data);
+ok(validateExport(base).ok,'aceita FNV legado');ok(validateExport({...base,dataHash:sha256DataHash(data)}).ok,'aceita SHA-256');ok(validateExport(base).warnings.length>0,'avisa hash legado');ok(normalizePhone('(31) 99999-9999')==='+5531999999999','normaliza telefone');
+const b=structuredClone(base);b.instanceId='i2';b.dataHash=legacyDataHash(b.data);let r=reconcileExports([{label:'A',env:base},{label:'B',env:b}]);ok(r.eligible,'exports elegíveis');ok(r.collections.find(x=>x.collection==='bookings').equal,'bookings iguais');
+b.data.bookings.push({id:'b2',unit:'u1'});b.dataHash=legacyDataHash(b.data);r=reconcileExports([{label:'A',env:base},{label:'B',env:b}]);ok(r.collections.find(x=>x.collection==='bookings').exclusive.length===1,'detecta booking exclusivo');
+b.data.clients[0].name='Outra';b.dataHash=legacyDataHash(b.data);r=reconcileExports([{label:'A',env:base},{label:'B',env:b}]);ok(r.collections.find(x=>x.collection==='clients').conflicts.length===1,'detecta conflito mesmo ID');
+b.data.clients=[{id:'c2',name:'Ana',phone:'31999999999'}];b.dataHash=legacyDataHash(b.data);r=reconcileExports([{label:'A',env:base},{label:'B',env:b}]);ok(r.probableClientDuplicates.length===1,'detecta duplicata por telefone');ok(r.summary.conflicts>=0,'summary disponível');
+b.data.stockBalances=[{locationId:'u1',productId:'p1',qty:9}];b.dataHash=legacyDataHash(b.data);r=reconcileExports([{label:'A',env:base},{label:'B',env:b}]);ok(r.collections.find(x=>x.collection==='stockBalances').conflicts.length===1,'estoque por produto/local');
+b.data.commissionSettings={a:2};b.dataHash=legacyDataHash(b.data);r=reconcileExports([{label:'A',env:base},{label:'B',env:b}]);ok(r.collections.find(x=>x.collection==='commissionSettings').conflicts.length===1,'config divergente');ok(!r.approvedForCanonicalBuild,'bloqueia com divergências');
+const demo=structuredClone(base);demo.data.storageMeta.dataMode='demo';demo.dataHash=legacyDataHash(demo.data);ok(!validateExport(demo).ok,'demo rejeitado');ok(!validateExport({...base,dataHash:'sha256:bad'}).ok,'hash incorreto rejeitado');
+console.log(JSON.stringify({ok:true,tests,feature:'v98a_reconciliation'}));

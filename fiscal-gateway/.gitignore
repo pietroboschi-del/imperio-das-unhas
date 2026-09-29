@@ -1,0 +1,8 @@
+.env
+*.pfx
+*.p12
+*.pem
+storage/*
+!storage/.gitkeep
+node_modules/
+test-storage/

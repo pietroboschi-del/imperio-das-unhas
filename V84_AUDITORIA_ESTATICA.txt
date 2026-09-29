@@ -1,0 +1,9 @@
+V84 — AUDITORIA ESTÁTICA
+Scripts encontrados: 47
+Scripts com sintaxe válida: 47/47
+Tags <script>: 47
+Tags </script>: 47
+Blocos V84: 1
+Definições canônicas availabilityPlacement(): 1
+Definições canônicas evaluatePhysicalCapacity(): 1
+Erros: nenhum

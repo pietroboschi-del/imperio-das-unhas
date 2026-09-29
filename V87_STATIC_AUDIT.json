@@ -1,0 +1,20 @@
+{
+  "schemaTag": "V87",
+  "scripts": 50,
+  "closes": 50,
+  "staticIds": 17,
+  "duplicateStaticIds": {},
+  "capacityDefinitions": 1,
+  "listeners": 1,
+  "domContentLoaded": 0,
+  "visibleLeaks": {
+    "window.": 0,
+    "addEventListener": 0,
+    "=>": 0,
+    "function ": 0,
+    "const ": 0,
+    "let ": 0,
+    "${": 0
+  },
+  "sha256": "236a2e3fbe398718abe86d63fefc80c39d39b5e6e42b36ed50e6a44f5b6dccde"
+}

@@ -1,0 +1,1 @@
+{"ok":true,"tests":22,"schema":85,"currentGoals":2,"createdBookings":4,"validBookings":2,"cancelled":1,"missed":1,"value":115,"services":3,"clients":2,"weeks":5}

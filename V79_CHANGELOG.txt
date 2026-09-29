@@ -1,0 +1,151 @@
+IMPÉRIO DAS UNHAS — V79
+Fila de Encaixe — Fundação Operacional
+
+VERSÃO
+schemaVersion = 79
+migrationId = v79-waitlist-operational-foundation
+Fonte anterior preservada: V78
+
+ESCOPO DESTA VERSÃO
+Somente:
+1. auditoria obrigatória da V78 (capacidade física + alertas);
+2. fundação operacional da Fila de Encaixe integrada à Agenda.
+
+NÃO IMPLEMENTADO
+- motor automático de busca de vagas;
+- matching Fila × Agenda;
+- reação automática a cancelamentos/reagendamentos;
+- classificação automática de oportunidade ideal/alternativa;
+- reserva/agendamento automático;
+- WhatsApp automático;
+- ranking/pontuação;
+- painel de desempenho da recepção;
+- receita recuperada.
+
+FASE 0 — AUDITORIA V78
+A V78 foi executada antes da implementação da fila.
+Foram confirmados:
+- cadastro individual db.workstations;
+- allowedCategoryIds;
+- isolamento multiunidade;
+- estações ativas/inativas;
+- única definição canônica evaluatePhysicalCapacity();
+- matching bipartido da V77;
+- estações versáteis;
+- sobreposição temporal [início,fim);
+- indicador de capacidade na Agenda;
+- conflito físico real;
+- risco preventivo de escala;
+- Central de Ações/notificações V66 reutilizada pela V78;
+- deduplicação;
+- resolução derivada quando o conflito desaparece;
+- escopo por unidade/permissões;
+- criação, edição e reagendamento continuam NÃO bloqueados por capacidade física.
+
+Nenhum defeito funcional da V78 foi encontrado na auditoria obrigatória. Portanto não foi necessária correção prévia da etapa anterior.
+
+FILA DE ENCAIXE
+Nova coleção persistida:
+  db.waitlistRequests
+
+Cada solicitação representa intenção de atendimento e não um agendamento.
+Ela não entra em db.bookings e não cria ocupação, demanda física, comanda, receita, comissão, recebível, Caixa, Financeiro ou DRE.
+
+Integração visual:
+- botão compacto "Fila de encaixe (N)" na toolbar da Agenda;
+- modal reutilizando a infraestrutura de modal existente;
+- abas Ativas / Histórico;
+- filtros simples por unidade, data, status e busca;
+- sem nova página no menu principal.
+
+MODELO
+Campos principais:
+- id
+- clientId
+- clientNameSnapshot
+- unitId
+- unitPreferenceMode
+- acceptedUnitIds
+- serviceId
+- serviceNameSnapshot
+- serviceDurationSnapshot
+- availabilityDate
+- availabilityStartTime
+- availabilityEndTime
+- professionalPreferenceMode
+- preferredProfessionalId
+- preferredProfessionalNameSnapshot
+- status
+- notes
+- createdAt / createdByUserId / createdByUserName
+- updatedAt / updatedByUserId / updatedByUserName
+- contactedAt / contactedByUserId / contactedByUserName
+- appointmentId / bookedAt / bookedByUserId / bookedByUserName
+- dados de recusa/remoção quando aplicáveis
+
+PREFERÊNCIA DE PROFISSIONAL
+- any: qualquer profissional habilitada;
+- preferred: prefere a selecionada, mas aceita outra;
+- required: somente a selecionada satisfaz a solicitação.
+
+A lista de profissionais reutiliza professionalCanDo(), unidade e status ativo já existentes.
+
+UNIDADE
+Nesta primeira versão operacional a unidade é obrigatória.
+O modelo já nasce extensível com unitPreferenceMode e acceptedUnitIds, mas não foi criada flexibilidade entre unidades na interface para manter a operação simples.
+
+DISPONIBILIDADE
+A fila armazena data + janela.
+A janela significa disponibilidade da cliente, não duração do serviço.
+Validação: fim deve ser estritamente posterior ao início.
+A duração continua vindo do serviço canônico.
+
+STATUS
+WAITING       — Aguardando vaga
+OPPORTUNITY   — Oportunidade encontrada (somente estrutural nesta versão)
+CONTACTED     — Cliente contatado
+BOOKED        — Agendado
+DECLINED      — Recusou
+EXPIRED       — Expirado
+REMOVED       — Removido
+
+O sistema rejeita status técnico desconhecido.
+
+EXPIRAÇÃO
+Para solicitações ainda ativas cuja availabilityDate já passou, effectiveStatus() retorna EXPIRED.
+O registro não é apagado e seu status persistido não é reescrito apenas por abrir a tela.
+
+AGENDAR
+A ação AGENDAR não cria um fluxo paralelo.
+Ela abre a Agenda canônica com openReservation(), pré-preenche cliente/serviço/unidade/data e preferência quando aplicável e deixa a recepção confirmar o agendamento normal.
+
+A V79 envolve a implementação final de saveReservation().
+A solicitação só vira BOOKED se:
+- surgiu um booking real novo;
+- o booking corresponde ao cliente/unidade/data/serviço;
+- o serviço cabe integralmente dentro da janela;
+- quando a preferência for required, a profissional é exatamente a exigida.
+
+Se o formulário for fechado sem salvar, nada muda na fila.
+Se um booking for salvo fora dos critérios da solicitação, o booking permanece válido, mas a solicitação continua ativa.
+
+AUDITORIA/AUTORIA
+Reutiliza:
+- usuários/autoria V63/V76;
+- __imperioV64.persistEvent() para a Auditoria.
+Eventos principais:
+- CREATE_WAITLIST
+- UPDATE_WAITLIST
+- UPDATE_WAITLIST_STATUS
+- WAITLIST_TO_BOOKING
+
+DUPLICIDADE
+Solicitação ativa equivalente por cliente + serviço + unidade + data + janela gera aviso de possível duplicidade.
+A recepção pode prosseguir conscientemente; não existe bloqueio rígido.
+
+REVISÃO FINAL
+Durante a revisão da implementação V79 foram corrigidos antes da entrega:
+- geração de id da nova solicitação, impedindo que id vazio coletado no formulário sobrescrevesse o id criado;
+- validação de status para rejeitar valores técnicos desconhecidos.
+
+Nenhum desses problemas chegou à versão entregue.

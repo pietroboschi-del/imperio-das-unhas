@@ -1,0 +1,35 @@
+[
+  {
+    "name": "desktop",
+    "overflow": false,
+    "hub": 1,
+    "focus": 1,
+    "chips": 5,
+    "errors": [],
+    "listModal": null,
+    "confirmModal": null,
+    "focusActive": null
+  },
+  {
+    "name": "tablet",
+    "overflow": false,
+    "hub": 1,
+    "focus": 1,
+    "chips": 5,
+    "errors": [],
+    "listModal": null,
+    "confirmModal": null,
+    "focusActive": null
+  },
+  {
+    "name": "mobile",
+    "overflow": false,
+    "hub": 1,
+    "focus": 1,
+    "chips": 5,
+    "errors": [],
+    "listModal": 1,
+    "confirmModal": 1,
+    "focusActive": 1
+  }
+]

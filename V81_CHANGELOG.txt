@@ -1,0 +1,13 @@
+V81 — ALERTA SIMPLES DE AGENDA CHEIA
+
+- schemaVersion: 81
+- migration: v81-agenda-full-alert
+- Alerta derivado por unidade/data para os próximos 7 dias.
+- Reutiliza availabilityWorkWindow(), availabilityEligiblePros(), availabilityServiceDuration() e availabilityPlacement().
+- Considera somente horários realmente livres (allowFit=false); possíveis encaixes não contam como vaga livre.
+- Dia sem escala válida não é classificado como Agenda cheia.
+- Respeita unidades permitidas ao usuário via V63.
+- Integra a Central de Ações V66 por composição, sem nova coleção persistente de alertas.
+- O alerta desaparece automaticamente quando uma vaga real reaparece.
+- Adiciona chip contextual discreto na Agenda selecionada, sem modal obrigatório e sem bloqueio operacional.
+- Não altera Financeiro, Caixa, DRE, comissões, recebíveis, capacidade física ou regras da Fila de Encaixe.

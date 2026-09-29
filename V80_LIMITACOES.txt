@@ -1,0 +1,8 @@
+V80 — LIMITAÇÕES CONHECIDAS
+
+- Protótipo ainda é frontend/local; não existe lock transacional de servidor entre duas recepções simultâneas.
+- A atribuição operacional reduz ofertas concorrentes dentro do estado local atual, mas concorrência distribuída real exigirá backend transacional na arquitetura futura.
+- Não existe E2E real em navegador nesta rodada; testes são Node/vm, DOM simulado e gateway.
+- Unidade continua obrigatória na V80; acceptedUnitIds permanece preparação de modelo, não matching multiunidade.
+- O motor não agenda automaticamente e não reserva a vaga durante contato com a cliente.
+- CONTACTED preserva o histórico de contato mesmo se a oportunidade desaparecer; opportunityActive informa se ainda existe vaga atual.

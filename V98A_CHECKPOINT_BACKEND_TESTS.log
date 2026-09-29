@@ -1,0 +1,36 @@
+
+> imperio-backend-v98a@0.98.0 test
+> npm run test:contracts && npm run test:reconciliation && npm run test:import-contract && npm run test:cutover && npm run test:cutover-normalization && npm run test:money
+
+
+> imperio-backend-v98a@0.98.0 test:contracts
+> node test/v95-contract.test.mjs && node test/v96-shadow-contract.test.mjs && node test/v97-read-through-contract.test.mjs
+
+{"ok":true,"tests":36,"feature":"v95_backend_contract"}
+{"ok":true,"tests":50,"feature":"v96_shadow_backend_contract"}
+{"ok":true,"tests":22,"feature":"v97_read_through_backend_contract"}
+
+> imperio-backend-v98a@0.98.0 test:reconciliation
+> node test/v98a-reconciliation.test.mjs
+
+{"ok":true,"tests":15,"feature":"v98a_reconciliation"}
+
+> imperio-backend-v98a@0.98.0 test:import-contract
+> node test/v98a-import-integrity.contract.mjs
+
+{"ok":true,"tests":24,"feature":"v98a_import_integrity"}
+
+> imperio-backend-v98a@0.98.0 test:cutover
+> node test/v98a-cutover-projection.test.mjs
+
+{"ok":true,"tests":19,"feature":"v98a_cutover_projection"}
+
+> imperio-backend-v98a@0.98.0 test:cutover-normalization
+> node test/v98a-cutover-normalization.contract.mjs
+
+{"ok":true,"tests":38,"feature":"v98a_cutover_normalization"}
+
+> imperio-backend-v98a@0.98.0 test:money
+> node test/v98a-decimal-money.test.mjs
+
+{"ok":true,"tests":14,"feature":"v98a_decimal_money"}

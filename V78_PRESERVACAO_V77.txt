@@ -1,0 +1,11 @@
+IMPÉRIO DAS UNHAS — V78 — PRESERVAÇÃO DA V77
+
+A versão anterior foi preservada em:
+- V77_FONTE_DE_VERDADE.zip
+- index.v77.source.html
+
+SHA-256 do ZIP V77 original preservado:
+50e51333d45ba380575e24c8589b536dbf2030ab3fc1789087399c97c29f56f3
+
+SHA-256 do index.html V77 original preservado:
+efd5aba10dee8c86a9d3ff6b93d3a6c875ee4642ee2bccc6b7b4d682fd8cc41b

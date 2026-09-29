@@ -1,0 +1,1 @@
+{"ok":true,"scripts":39,"tests":52,"fiscalPayments":true,"multiplePayments":true,"monthly":true,"directPayment":true,"economicNeutrality":true,"bookingAuthorship":true,"publicOrigin":true,"legacyUnknown":true,"audit":true,"idempotent":true}

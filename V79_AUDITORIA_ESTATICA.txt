@@ -1,0 +1,38 @@
+IMPÉRIO DAS UNHAS — V79 — SEGUNDA REVISÃO ESTÁTICA
+
+Realizada após a implementação da fila.
+
+RESULTADO
+- 42 <script> / 42 </script>
+- 42/42 blocos aprovados em node --check
+- 17 IDs HTML estáticos / 0 duplicados
+- 1 ocorrência do migrationId V79
+- 1 marcador V79_SCHEMA=79
+- 1 definição de evaluatePhysicalCapacity() no arquivo final
+- V79 é carregada depois de V78
+- V79_LAYER possui 0 addEventListener() novos; portanto não adicionou listeners duplicados
+- existe 1 ponto de push de nova solicitação em db.waitlistRequests
+- há 2 wrappers históricos chamados baseSaveReservation: V76 e V79; V79 é o último e chama a cadeia anterior
+- V79 não chama evaluatePhysicalCapacity()/__imperioV77 para contabilizar fila
+
+REVISÃO DE STATUS
+- conjunto fechado: WAITING, OPPORTUNITY, CONTACTED, BOOKED, DECLINED, EXPIRED, REMOVED
+- changeStatus() rejeita valor fora do conjunto
+- expiração é derivada somente para estados ativos
+
+REVISÃO MULTIUNIDADE/PERMISSÕES
+- lista e edição são filtradas por __imperioV63.allowedUnits()
+- escrita exige action.agenda.edit quando a V67 está disponível
+- acesso exige Agenda
+- unidade não permitida não aparece na fila do usuário
+
+REVISÃO DE DUPLICIDADE
+- possível duplicidade ativa é detectada por cliente+serviço+unidade+data+janela
+- um aviso é mostrado, sem bloqueio rígido
+- migration não cria qualquer solicitação histórica
+
+CORREÇÕES DURANTE A REVISÃO V79
+1. corrigido id de criação que podia ser sobrescrito por id vazio coletado do formulário;
+2. adicionada rejeição explícita de status técnico desconhecido.
+
+Ambas foram corrigidas e testadas antes do empacotamento.

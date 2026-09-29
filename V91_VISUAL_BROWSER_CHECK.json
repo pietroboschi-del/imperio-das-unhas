@@ -1,0 +1,145 @@
+[
+  {
+    "viewport": "desktop",
+    "width": 1440,
+    "height": 900,
+    "pageErrors": [],
+    "pages": {
+      "agenda": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      "clients": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      "pros": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      "services": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      "cash": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      "stock": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      "finance": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      "reports": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      },
+      "settings": {
+        "scrollWidth": 1440,
+        "clientWidth": 1440
+      }
+    },
+    "extra": {}
+  },
+  {
+    "viewport": "tablet",
+    "width": 820,
+    "height": 1000,
+    "pageErrors": [],
+    "pages": {
+      "agenda": {
+        "scrollWidth": 820,
+        "clientWidth": 820
+      },
+      "clients": {
+        "scrollWidth": 820,
+        "clientWidth": 820
+      },
+      "pros": {
+        "scrollWidth": 820,
+        "clientWidth": 820
+      },
+      "services": {
+        "scrollWidth": 820,
+        "clientWidth": 820
+      },
+      "cash": {
+        "scrollWidth": 820,
+        "clientWidth": 820
+      },
+      "stock": {
+        "scrollWidth": 820,
+        "clientWidth": 820
+      },
+      "finance": {
+        "scrollWidth": 820,
+        "clientWidth": 820
+      },
+      "reports": {
+        "scrollWidth": 820,
+        "clientWidth": 820
+      },
+      "settings": {
+        "scrollWidth": 820,
+        "clientWidth": 820
+      }
+    },
+    "extra": {}
+  },
+  {
+    "viewport": "mobile",
+    "width": 390,
+    "height": 844,
+    "pageErrors": [],
+    "pages": {
+      "agenda": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "clients": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "pros": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "services": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "cash": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "stock": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "finance": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "reports": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "settings": {
+        "scrollWidth": 390,
+        "clientWidth": 390
+      }
+    },
+    "extra": {
+      "drawerOpen": true,
+      "modalBox": {
+        "x": 0,
+        "y": 50.640625,
+        "width": 390,
+        "height": 793.359375
+      }
+    }
+  }
+]

@@ -1,0 +1,99 @@
+IMPÉRIO DAS UNHAS — V75 FÓRMULAS E FONTES
+
+1. COMBO
+
+Para cada linha de serviço:
+
+Preço de tabela/ref. histórico
+(-) diferença estrutural de combo
+= preço comercial antes de desconto manual/parceria
+
+A diferença estrutural do combo NÃO entra em d.discounts da DRE.
+
+Depois:
+
+Preço comercial do combo distribuído
+(-) desconto manual
+(-) redução Modelo/Parceria
+(-) outra redução histórica comprovada, se existir
+= receita realizada da linha
+
+A soma da receita realizada das linhas de um combo deve reconciliar com o valor comercial real do combo, respeitando roundMoney/snapshots.
+
+Exemplo:
+40 + 40 = 80 de referência
+Combo = 65
+DRE: receita comercial = 65; dedução de combo = 0.
+
+Se houver desconto manual adicional de 5:
+Receita antes de reduções manuais/parceria = 65
+(-) desconto manual = 5
+Receita realizada = 60.
+
+2. RENTABILIDADE POR CATEGORIA
+
+Base: faturamento REAL de serviços da categoria, após preço de combo e reduções comerciais efetivas.
+
+Para cada unidade U e categoria C:
+
+coeficiente(C,U) = faturamento_real(C,U) / faturamento_real_serviços(U)
+
+despesa_rateada(C,U) = despesas_operacionais_rateáveis(U) × coeficiente(C,U)
+
+resultado_após_rateio(C,U) = margem_contribuição_categoria(C,U) - despesa_rateada(C,U)
+
+margem_após_rateio(C,U) = resultado_após_rateio / faturamento_real_categoria
+
+Arredondamento:
+- moeda em centavos;
+- a última categoria positiva recebe o resíduo de centavos para conservar exatamente o total rateado.
+
+3. CUSTOS DIRETOS DA CATEGORIA
+
+A visão preserva separados:
+- comissão atribuível via commissionEvents/snapshot;
+- insumo apropriado por categoria;
+- taxas alocadas pela metodologia analítica já existente no sistema.
+
+CMV de produto de revenda permanece na DRE principal e NÃO é redistribuído entre categorias de serviço sem vínculo seguro.
+Remuneração reconhecida sem vínculo seguro com categoria permanece na DRE principal e é mostrada como não atribuída, sem rateio artificial.
+
+4. DESPESAS OPERACIONAIS RATEÁVEIS
+
+Fonte inicial:
+base.expenses da DRE canônica, isto é, saídas negativas produzidas por financeSyntheticEntries() que passam por financeEntryDreImpact(e).
+
+Depois são EXCLUÍDOS do bolo de rateio:
+- comissão/remuneração;
+- insumos/consumo apropriado;
+- CMV/custo de produto;
+- taxas de cartão/adquirente/processor;
+- compra de estoque/fornecedor capitalizada;
+- impostos/tributos;
+- qualquer entrada com dreImpact=false;
+- transferências, sinais/créditos, adiantamentos/vales e gorjetas já excluídos pelo helper canônico financeEntryDreImpact.
+
+Uma marcação rateableOperatingExpense=true NÃO pode reintroduzir fatos classificados como custo direto/imposto nas exclusões duras.
+rateableOperatingExpense=false pode retirar uma despesa operacional do rateio sem removê-la da DRE principal.
+
+5. CONSOLIDADO MULTIUNIDADE
+
+NÃO usa um bolo único da rede.
+
+Para cada unidade:
+- calcula faturamento rateável da unidade;
+- calcula despesas rateáveis da unidade;
+- distribui somente dentro da unidade.
+
+Depois soma as categorias/resultados das unidades.
+
+Despesa sem unitId ou unidade sem faturamento rateável permanece não alocada nessa visão; nunca é empurrada para outra unidade.
+
+6. CASOS SEM BASE
+
+Se faturamento base = 0:
+- coefficient = null;
+- despesa alocada = null/0 conforme apresentação;
+- total fica em unallocatedRateableExpense;
+- nenhuma divisão por zero;
+- nenhum NaN/Infinity.

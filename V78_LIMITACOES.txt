@@ -1,0 +1,27 @@
+IMPÉRIO DAS UNHAS — V78 — LIMITAÇÕES
+
+1. ALERTAS DERIVADOS
+Os alertas físicos são calculados a partir do estado atual dos bookings, estações e escalas. Eles não são fatos históricos imutáveis de capacidade. Quando a causa desaparece, deixam de aparecer como ativos.
+
+2. RISCO PREVENTIVO DE ESCALA
+Para evitar falsos alertas grosseiros, somente profissionais escalados cuja habilitação de serviços resulte em UMA categoria física inequívoca entram na análise preventiva.
+Profissionais habilitados em múltiplas categorias físicas são omitidos do matching preventivo e contabilizados como ambíguos no detalhe.
+Isso torna o alerta conservador: pode deixar de apontar alguns riscos em vez de inventar a categoria que o profissional atenderá.
+
+3. DESTINATÁRIOS
+A estrutura atual permite identificar administradores e gestores com acesso à unidade. Não existe conceito confiável de gerente do dia; nenhum foi inventado.
+
+4. HORIZONTE
+O horizonte inicial é fixado nesta camada em 7 dias porque a infraestrutura anterior não possuía uma configuração canônica específica para horizonte de capacidade física.
+
+5. CAPACIDADE NÃO BLOQUEIA
+Nenhum save/edit/reagendamento/agendamento público é impedido por conflito físico.
+
+6. SEM ESTAÇÕES
+Unidade sem estações permanece como "capacidade física não configurada" e não gera alertas de capacidade zero.
+
+7. SEM FILA DE ENCAIXE
+A V78 apenas mantém API reutilizável para consultas futuras. Não foi criada fila, solicitação de encaixe nem motor de oportunidade.
+
+8. NAVEGADOR REAL
+A rodada principal foi feita com validação sintática, testes lógicos automatizados e DOM simulado. Não é declarada como E2E completo em navegador real.

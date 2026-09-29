@@ -1,0 +1,15 @@
+IMPÉRIO DAS UNHAS — V79 — PRESERVAÇÃO V78
+
+ZIP V78 original:
+SHA-256 1abe76629538efc489f0684cc620e86e888a9e581c44d7d7d5fe1c0a215a8909
+
+Cópia preservada em V78_FONTE_DE_VERDADE.zip:
+SHA-256 1abe76629538efc489f0684cc620e86e888a9e581c44d7d7d5fe1c0a215a8909
+
+index.html V78 original:
+SHA-256 bb28290df7367d925f4f94078a05eab8104760fcabeb3956a5d185c79a2adab3
+
+index.v78.source.html preservado:
+SHA-256 bb28290df7367d925f4f94078a05eab8104760fcabeb3956a5d185c79a2adab3
+
+Conclusão: a fonte anterior foi preservada byte a byte.

@@ -1,0 +1,24 @@
+IMPÉRIO DAS UNHAS — V79 — MIGRAÇÃO
+
+schemaVersion alvo: 79
+migrationId: v79-waitlist-operational-foundation
+
+A migração é não destrutiva e idempotente.
+
+Ela:
+1. inclui waitlistRequests em IMPERIO_ARRAY_COLLECTIONS, se necessário;
+2. cria db.waitlistRequests = [] somente quando a coleção não existe;
+3. registra migrationHistory;
+4. eleva schemaVersion para 79.
+
+Ela NÃO:
+- transforma bookings/agendamentos antigos em solicitações;
+- inventa fila histórica;
+- altera agendamentos;
+- altera estações/capacidade física;
+- altera alertas V78;
+- altera clientes/serviços/profissionais/unidades;
+- cria qualquer fato financeiro.
+
+Bancos anteriores começam com fila vazia quando não existe solicitação real.
+Segunda execução da migration: no-op, sem nova gravação.

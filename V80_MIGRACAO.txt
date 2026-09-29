@@ -1,0 +1,11 @@
+V80_SCHEMA = 80
+MIGRATION_ID = v80-waitlist-opportunity-engine
+
+Migração idempotente e não destrutiva.
+Não cria coleção paralela. Mantém db.waitlistRequests como fonte canônica e adiciona apenas metadados de oportunidade aos registros quando detectados:
+opportunityActive, opportunityClass, opportunityStartTime, opportunityEndTime,
+opportunityProfessionalId, opportunityProfessionalName,
+opportunityPhysicalConfigured, opportunityPhysicalConflict, opportunityPhysicalUnallocated,
+opportunityDetectedAt, opportunityLastCheckedAt, opportunityReason.
+
+Bancos V79 existentes permanecem compatíveis. Nenhum histórico é apagado e nenhum fato financeiro é criado.

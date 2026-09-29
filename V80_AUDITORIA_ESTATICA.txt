@@ -1,0 +1,12 @@
+IMPÉRIO DAS UNHAS — V80 — AUDITORIA ESTÁTICA
+
+schemaVersion alvo: 80
+migration: v80-waitlist-opportunity-engine
+blocos JavaScript: 43/43 sintaticamente válidos
+IDs HTML estáticos: 17
+IDs HTML estáticos duplicados: 0 []
+evaluatePhysicalCapacity() — definições: 1
+availabilityPlacement() — definições: 1
+Motor V80: 1 camada
+
+A V80 reutiliza availabilityPlacement e evaluatePhysicalCapacity; não cria segundo motor de disponibilidade nem transforma capacidade física em bloqueio.

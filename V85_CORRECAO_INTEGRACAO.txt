@@ -1,0 +1,36 @@
+V85 — CORREÇÃO DE INTEGRAÇÃO DO PAINEL DE DESEMPENHO
+
+Problema observado em navegador:
+- O painel V85 não aparecia em Relatórios > Agenda.
+- A primeira implementação dependia de inserção assíncrona após localizar #v83BookingAudit.
+
+Correção:
+- O painel V85 passa a ser incluído diretamente no retorno final de renderReportAgendaV52().
+- Ele aparece antes do bloco V83 e do relatório histórico da Agenda.
+- Não depende de meta cadastrada para listar usuários.
+- Recepcionistas ativas podem aparecer com zero.
+- Usuários/autorias presentes nos bookings também aparecem.
+
+Indicadores por usuário:
+- Agendamentos criados (bookings distintos)
+- Serviços agendados
+- Clientes únicos
+- Valor agendado comercial
+- Cancelados
+- Faltas
+- Meta, quando houver, apenas como comparação adicional
+
+Filtros:
+- Data de criação (de/até)
+- Data do atendimento (de/até)
+- Usuário que criou
+- Status
+- Unidade
+
+Regras preservadas:
+- autoria original do booking
+- combo pelo valor comercial da V83
+- permissões de unidade da V83
+- valor agendado não é receita/DRE
+- cancelado/falta não entram no filtro padrão de realizado
+- nenhuma nova fonte financeira

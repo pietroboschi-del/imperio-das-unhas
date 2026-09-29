@@ -1,0 +1,16 @@
+V81 — CORREÇÃO ESTRUTURAL
+
+Problema encontrado após validação visual:
+- o bloco V81 havia sido inserido duas vezes;
+- uma cópia estava indevidamente dentro do template HTML de impressão do recibo de comissão;
+- a sequência </script> dessa cópia encerrava o script principal no parser HTML do navegador e fazia JavaScript subsequente aparecer como texto na interface.
+
+Correção:
+- removida exclusivamente a cópia V81 intrusa do template de impressão;
+- preservada a única camada V81 canônica no final do documento;
+- nenhuma regra financeira, Agenda, Fila, capacidade física ou dado persistido foi alterado.
+
+Validação pós-correção:
+- 1 bloco V81;
+- 44 tags <script> e 44 tags </script> balanceadas;
+- 44/44 blocos JavaScript compilam sintaticamente.

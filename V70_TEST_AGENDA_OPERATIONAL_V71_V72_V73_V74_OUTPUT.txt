@@ -1,0 +1,1 @@
+{"ok":true,"scripts":37,"tests":28,"clients":2,"services":3,"target":10,"occupancy":25,"freeMin":360,"windows":2}

@@ -1,0 +1,139 @@
+IMPÉRIO DAS UNHAS — V75 TESTES
+
+ARQUIVO PRINCIPAL
+index.html
+
+VALIDAÇÃO SINTÁTICA
+- 38 blocos <script> encontrados.
+- 38/38 compilados sem erro via vm.Script.
+
+SUÍTE ESPECÍFICA V75
+Arquivo: tests/V75_TEST_DRE_COMBO_RATEIO.js
+Resultado: 75/75 verificações aprovadas.
+
+CENÁRIOS NUMÉRICOS PRINCIPAIS
+
+COMBO 1
+40 + 40 = 80 referência
+Combo = 65
+Resultado:
+- receita de serviços DRE = 65
+- receita líquida = 65
+- diferença comercial combo = 15
+- dedução combo = 0
+- soma das categorias = 65
+
+COMBO 2
+45 + 35 = 80 referência
+Combo = 65
+Distribuição congelada testada: 36,56 + 28,44 = 65,00
+- receita total = 65
+- conservação = 65
+
+COMBO 3
+40 + 40
+Combo = 65
+Desconto manual adicional = 5
+Resultado:
+- receita comercial antes do desconto manual = 65
+- desconto manual = 5
+- diferença combo informativa = 15
+- deduções DRE = 5
+- receita realizada = 60
+
+COMBO 4 — PROFISSIONAIS DIFERENTES
+- receita = 65
+- comissão profissional/categoria 1 = 10
+- comissão profissional/categoria 2 = 20
+- comissão total = 30
+- serviços permanecem separados por categoria/profissional.
+
+RATEIO A
+Unidade A:
+Faturamento = 100.000
+Cat.1 = 30.000
+Cat.2 = 70.000
+Despesas rateáveis = 40.000
+Resultado:
+- Cat.1 = 30% = 12.000
+- Cat.2 = 70% = 28.000
+- soma rateada = 40.000
+- diferença de conservação = 0
+
+RATEIO B — MULTIUNIDADE
+Unidade A: receita 100.000 / despesas 40.000
+Unidade B: receita 50.000 / despesas 15.000
+Distribuição testada:
+- cada unidade rateia somente suas próprias despesas;
+- consolidado Cat.1 = 15.000
+- consolidado Cat.2 = 40.000
+- total consolidado rateado = 55.000
+- diferença de conservação = 0
+
+RATEIO C — ZERO
+Despesa rateável = 1.000 e faturamento base = 0
+Resultado:
+- alocado = 0
+- não alocado = 1.000
+- coeficiente não inventado
+- sem NaN
+- sem Infinity
+
+RATEIO D — COMBO
+Base de faturamento do rateio = 65 e não 80.
+
+RATEIO E — DUPLA APROPRIAÇÃO
+Cenário inclui:
+- comissão direta = 10
+- insumo direto = 5
+- entrada financeira classificada como comissão = 100
+- despesa operacional = 40
+Resultado:
+- comissão/insumo continuam diretos;
+- mesmo com flag rateableOperatingExpense=true na linha de comissão, exclusão dura impede novo rateio;
+- pool rateável = somente 40.
+
+OUTRAS VERIFICAÇÕES V75
+- Modelo/Parceria separado do combo.
+- DRE principal mantém despesa total original.
+- soma do resultado/receita/despesa das unidades reconcilia com consolidado.
+- relatório de Serviços mantém combo como informação comercial e receita real = DRE.
+- categoria histórica do snapshot prevalece sobre cadastro atual alterado.
+- filtro de período exclui fatos fora do recorte.
+- CMV permanece direto e não reaparece no rateio operacional.
+- impostos/tributos, transferências e compra capitalizada não entram no pool rateável.
+- renderização não usa a antiga linha "Descontos e combos".
+- migração V75 idempotente.
+- nenhum rateio persistido em systemSettings.
+
+REGRESSÕES EXECUTADAS SOBRE V75
+- V61 Financeiro/DRE: 91/91
+- V62 Marketing: 54/54
+- V63 Configurações/Usuários: 44/44
+- V64 Auditoria: 60/60
+- V65 Visão Executiva: 38/38
+- V66 Notificações/Tarefas: 50/50
+- V67 Permissões: 53/53
+- V68 Fiscal: 91/91
+- V69 NFS-e Nacional: 50/50
+- V70.1 Agenda carga inicial: 33/33
+- V70 Agenda operacional: 28/28
+- V71 Campos/Opções Clientes: 50/50
+- V72 Campos/Opções Agenda/Comandas: 57/57
+- V73 Campos/Opções Profissionais/Estoque: 73/73
+- V74 Campos/Opções Financeiro: 76/76
+- V75 DRE Combo/Rateio: 75/75
+- Fiscal Gateway: 3/3
+
+Total de verificações/assertions executadas nas suítes JavaScript: 923.
+Fiscal Gateway: 3 testes Node.
+Total de execuções reportadas: 926.
+Observação: algumas suítes históricas mantêm verificações herdadas internamente; o total acima representa as assertions executadas, não uma contagem de casos conceitualmente únicos.
+
+TIPOS DE TESTE REALMENTE EXECUTADOS
+- Validação sintática: SIM
+- Testes lógicos automatizados: SIM
+- DOM simulado nas suítes que já o utilizam: SIM
+- Testes numéricos controlados V75: SIM
+- Fiscal Gateway Node: SIM
+- Navegador real/E2E: NÃO nesta rodada

@@ -1,0 +1,76 @@
+IMPÉRIO DAS UNHAS — V78
+CAPACIDADE FÍSICA VISUAL + ALERTAS GERENCIAIS
+
+Base: V77 — Estações de Trabalho + Capacidade Física
+Schema: 78
+Migration ID: v78-physical-capacity-alerts
+
+ESCOPO EXCLUSIVO
+- Tornar a capacidade física V77 mais útil visualmente na Agenda.
+- Gerar alertas gerenciais derivados de conflito físico real.
+- Gerar alerta preventivo de risco pela escala, com severidade inferior.
+- Reutilizar a Central de Ações/Notificações V66 e o escopo por usuário/unidade V63/V67.
+
+NÃO IMPLEMENTADO
+- Fila de Encaixe.
+- Preferências de encaixe.
+- Bloqueio de agendamento por capacidade física.
+- Alertas de ocupação 80/90/95%.
+- Tendência histórica de demanda.
+- Meta dinâmica adicional.
+- Ranking/desempenho da recepção.
+- Alterações de DRE, Financeiro ou Fiscal.
+
+CAPACIDADE CANÔNICA
+A V78 NÃO redefine evaluatePhysicalCapacity().
+Permanece canônica a implementação V77:
+- evaluatePhysicalCapacity(input)
+- __imperioV77.evaluatePhysicalCapacityDay({unitId,date})
+
+AGENDA
+A indicação anterior, visível apenas em conflito, foi substituída por um indicador contextual compacto com três estados:
+- NORMAL;
+- CONFLITO;
+- NÃO CONFIGURADO.
+
+A apresentação evita um simples "5/6" quando isso poderia sugerir capacidade que não existe por incompatibilidade de categorias. O texto prioriza demandas/alocabilidade e o resultado do matching real.
+
+ALERTA REAL
+Derivado exclusivamente dos atendimentos efetivamente agendados nos próximos 7 dias e do matching canônico V77.
+Prioridade: alta.
+Chave lógica determinística por unidade + data + intervalo + demandas conflitantes.
+
+RISCO PREVENTIVO DE ESCALA
+Derivado da escala real dos profissionais e da compatibilidade física, sem tratá-lo como conflito efetivo da Agenda.
+Prioridade: normal/preventiva.
+Para evitar inferências excessivas, somente profissionais cuja habilitação de serviços resulte em uma única categoria física inequívoca entram na demanda preventiva. Profissionais versáteis são omitidos e contabilizados como ambíguos no detalhe.
+
+DESTINATÁRIOS
+Administradores e gestores ativos com acesso à unidade envolvida.
+Não foi criado conceito de gerente do dia.
+
+DEDUPLICAÇÃO / RESOLUÇÃO
+- Alertas derivados não são gravados como fatos duplicados.
+- A identidade é determinística.
+- Estados do usuário reutilizam db.notificationAlertStates.
+- Quando o conflito deixa de existir, o alerta derivado deixa de estar ativo na próxima avaliação.
+- Visto / Em análise / Ignorado / Adiado reutilizam a infraestrutura existente.
+
+GATILHOS DE INVALIDAÇÃO
+O cache físico é invalidado após:
+- criação de agendamento;
+- edição de agendamento;
+- drag/reagendamento;
+- agendamento público;
+- alteração de profissional/escala;
+- ativação/inativação de profissional;
+- criação/edição/ativação/inativação de estação.
+
+A invalidação não muda o retorno das funções operacionais e não adiciona bloqueios.
+
+MIGRAÇÃO
+A migração não cria uma segunda coleção de alertas e não persiste cálculos derivados.
+Ela apenas garante notificationAlertStates existente, registra migrationHistory e eleva schemaVersion para 78.
+
+PRESERVAÇÃO
+A V77 original está incluída no pacote como V77_FONTE_DE_VERDADE.zip e index.v77.source.html.

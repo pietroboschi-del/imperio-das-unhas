@@ -1,0 +1,18 @@
+IMPÉRIO DAS UNHAS — V76 — LIMITAÇÕES
+
+FISCAL / PAGAMENTOS
+- A V76 não reconstrói meios de pagamento legados sem evidência.
+- Para pagamentos imediatos legados sem movimento ligado à comanda, paymentRecords podem ser usados como fallback com confiabilidade inferior à do movimento canônico.
+- Conta Mensal depende das allocations dos recebimentos para separar com segurança pagamentos entre comandas quando um pagamento liquida vários recebíveis.
+- A V76 não altera, emite, cancela ou reconcilia NFS-e.
+
+AGENDA / AUTORIA
+- A autoria confiável começa para novas criações após V76.
+- Agendamentos legados não são atribuídos retroativamente.
+- Não existe nesta versão painel/ranking/desempenho de recepção.
+- createdByUserId vazio em agendamento público significa ausência intencional de usuário interno, não erro.
+- A Auditoria pública só é escrita automaticamente quando não existe sessão interna ativa, evitando atribuir falsamente um booking do site a uma recepcionista; o próprio booking preserva sempre sourceType=public_booking.
+
+TESTES
+- Foram executados testes sintáticos, lógicos/DOM simulado e regressões automatizadas.
+- Não foi executado E2E completo em navegador real nesta versão.

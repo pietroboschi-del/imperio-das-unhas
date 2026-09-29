@@ -1,0 +1,88 @@
+IMPÉRIO DAS UNHAS — V78 — FUNÇÕES / CADEIA
+
+FONTE CANÔNICA PRESERVADA
+- evaluatePhysicalCapacity(input) [V77]
+- __imperioV77.evaluatePhysicalCapacityDay({unitId,date}) [V77]
+- __imperioV77.mergeConflictSegments(...)
+- __imperioV77.stationRecordsForUnit(unitId)
+
+A V78 NÃO redefine evaluatePhysicalCapacity().
+
+HELPERS NOVOS PRINCIPAIS
+- indicatorModel(unitId,date)
+  Converte o resultado canônico do dia em estado visual normal/conflict/not-configured.
+
+- injectAgendaIndicator()
+  Injeta a indicação contextual compacta na Agenda sem substituir o calendário.
+
+- physicalRealAlerts()
+  Deriva alertas de conflitos físicos efetivamente presentes nos bookings.
+
+- scaleRiskDay(unitId,date)
+  Analisa risco preventivo da escala usando availabilityWorkWindow()/v52AgendaWorkWindow() e o mesmo evaluatePhysicalCapacity().
+
+- preventiveAlerts()
+  Converte riscos de escala em alertas preventivos.
+
+- computeAlerts(force=false)
+  Consolida alertas físicos reais + preventivos com cache por assinatura dos fatos relevantes.
+
+- activeAlerts()
+  Remove estados ignorados, resolvidos e adiados da contagem ativa.
+
+- recipientsForUnit(unitId)
+  Resolve administradores/gestores ativos com acesso à unidade.
+
+- setAlertState(key,status)
+- snooze(key,days)
+  Reutilizam db.notificationAlertStates e integram alteração de estado à Auditoria V64.
+
+- patchActions()
+  Injeta a seção física na Central de Ações V66 sem criar nova Central.
+
+WRAPPERS ALTERADOS/ENVOLVIDOS
+- renderAgenda()
+  Após a renderização existente, atualiza o indicador físico.
+
+- renderAdmin()
+  Mantém a renderização existente; quando page==='actions', injeta alertas físicos.
+
+- v66Refresh()
+  Atualiza a seção física após refresh da Central de Ações.
+
+- __imperioV66.activeCount()
+  Preserva contagem V66 e soma somente alertas físicos ativos.
+
+- __imperioV66.generatedAlerts()
+  Preserva alerts V66 e acrescenta os alertas físicos derivados.
+
+WRAPPERS SOMENTE PARA INVALIDAÇÃO/ATUALIZAÇÃO VISUAL
+- saveReservation()
+- saveExistingBooking()
+- agendaDrop()
+- finishBooking()
+- savePro()
+- togglePro()
+- v77SaveWorkstation()
+
+Esses wrappers chamam a implementação anterior e preservam seu retorno. A V78 não introduz validação/bloqueio físico nessas funções.
+
+API PÚBLICA V78
+window.__imperioV78 = {
+  schema,
+  migrationId,
+  horizonDays,
+  migrate,
+  indicatorModel,
+  injectAgendaIndicator,
+  physicalRealAlerts,
+  scaleRiskDay,
+  preventiveAlerts,
+  physicalAlerts,
+  activePhysicalAlerts,
+  recipientsForUnit,
+  setAlertState,
+  snooze,
+  invalidate,
+  patchActions
+}

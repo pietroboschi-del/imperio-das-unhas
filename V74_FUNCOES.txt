@@ -1,0 +1,31 @@
+IMPÉRIO DAS UNHAS — V74 — FUNÇÕES / HELPERS
+
+API exposta:
+window.__imperioV74
+
+Principais helpers:
+- migrate()
+- getField(module, key)
+- isRequired(module, key)
+- getSet(key)
+- activeOptions(key)
+- defaultValue(key)
+- optionsHtml(key, selected)
+- renderSettings(module)
+- setRequired(module, key, value)
+- collectEntry()
+- validateEntry()
+- collectAccount()
+- validateAccount()
+- collectCompany()
+- validateCompany()
+- collectMonthly()
+- validateMonthly()
+
+Wrappers integrados aos formulários reais:
+- openFinanceEntry / saveFinanceEntry
+- openFinanceAccount / saveFinanceAccount
+- openCompanyEntity / saveCompanyEntity
+- openClientMonthlySettlement / saveClientMonthlySettlement
+
+As implementações anteriores continuam sendo chamadas depois da validação central, preservando a cadeia estabilizada de Financeiro, Caixa e Auditoria.

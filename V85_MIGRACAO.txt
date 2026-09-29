@@ -1,0 +1,7 @@
+V85 — MIGRAÇÃO
+schemaVersion: 85
+migration id: v85-reception-performance-dashboard
+
+A V85 não cria nova coleção persistente nem fatos operacionais/financeiros.
+A migration apenas registra a evolução de schema e o histórico de migration.
+O painel é derivado de db.receptionBookingGoals (V84) e dos bookings/autoria/preço comercial consolidados na V83.

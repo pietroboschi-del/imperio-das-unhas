@@ -1,0 +1,1 @@
+{"ok":true,"scripts":41,"inheritedTests":53,"fiscalTests":38,"tests":91,"fiscalFoundation":true,"noFakeEmission":true,"commandLink":true,"snapshots":true,"audit":true,"economicNeutrality":true,"duplicateGuard":true,"externalEvidence":true,"cancellation":true,"errorRegistry":true}

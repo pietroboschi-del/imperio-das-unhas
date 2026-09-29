@@ -1,0 +1,21 @@
+# Dependencies / builds
+node_modules/
+dist/
+coverage/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime
+*.log
+.DS_Store
+backend/storage/
+backend/tmp/
+
+# IDE
+.vscode/
+.idea/

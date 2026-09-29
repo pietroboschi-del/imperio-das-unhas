@@ -1,0 +1,25 @@
+IMPÉRIO DAS UNHAS — V76 — MIGRAÇÃO
+
+Schema final: 76
+Migration ID: v76-fiscal-payments-booking-authorship
+
+A migração é intencionalmente mínima.
+
+Persistência nova ocorre somente em NOVOS agendamentos, durante o fluxo normal de criação:
+- createdByUserId
+- createdBy (campo já existente/reutilizado como snapshot de nome)
+- createdAt
+- sourceType/sourceId/origin já compatíveis com a arquitetura existente.
+
+A migração NÃO percorre agendamentos antigos e NÃO inventa autoria histórica.
+
+Registros antigos sem evidência permanecem sem createdByUserId.
+A interpretação visual/técnica pode classificá-los como legacy_unknown.
+
+O módulo Fiscal não recebe novos campos persistidos para pagamentos.
+Forma de pagamento e Valor pago são derivados sob demanda das fontes canônicas.
+
+Idempotência:
+- migrationHistory recebe v76-fiscal-payments-booking-authorship uma única vez;
+- schemaVersion sobe para 76 uma única vez;
+- segunda execução retorna false e não salva novamente.

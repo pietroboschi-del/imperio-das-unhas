@@ -1,0 +1,14 @@
+V85 — PAINEL DE DESEMPENHO DA RECEPÇÃO
+
+1. O painel é independente de metas. Usuários/recepcionistas aparecem pelos fatos de autoria dos bookings e recepcionistas ativas podem aparecer com zero.
+2. Meta é somente comparação adicional; ausência de meta não oculta o usuário.
+3. Agendamentos = bookings distintos criados pelo usuário no recorte.
+4. Serviços = itens/serviços dos bookings que passam pelo filtro.
+5. Clientes únicos não duplicam quando uma cliente possui vários serviços.
+6. Valor agendado usa o valor comercial corrigido pela V83, inclusive combos. Não é receita, caixa, DRE nem comissão.
+7. Autoria é a criação original do booking; edição/reagendamento posterior não transfere crédito.
+8. Filtro padrão de indicadores = válidos (sem Cancelado/Faltou).
+9. Cancelados e Faltas são exibidos em colunas próprias dentro do mesmo recorte de criação/unidade/atendimento.
+10. Permissões de unidade são herdadas da V83.
+11. Filtros próprios: criação, atendimento, usuário, status e unidade.
+12. O painel é renderizado diretamente no retorno canônico da aba Agenda, antes dos demais blocos do relatório.

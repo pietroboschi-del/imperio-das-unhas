@@ -1,0 +1,43 @@
+IMPÉRIO DAS UNHAS — V80 — TESTES
+
+SUÍTE DE PRESERVAÇÃO DA FILA V79 ADAPTADA À V80
+Arquivo: tests/V80_TEST_WAITLIST_OPPORTUNITY_ENGINE.js
+Resultado: 47/47.
+Preserva criação/edição/status, preferência x exigência, multiunidade, expiração, remoção, contato, conversão em booking real, neutralidade de capacidade e neutralidade financeira.
+
+SUÍTE ESPECÍFICA DO MOTOR V80
+Arquivo: tests/V80_TEST_OPPORTUNITY_MATCHING.js
+Resultado: 18/18.
+Cenários:
+- detecção automática de oportunidade;
+- WAITING -> OPPORTUNITY;
+- IDEAL com profissional preferida;
+- ALTERNATIVE quando preferida indisponível;
+- REQUIRED sem substituição;
+- desbloqueio gera oportunidade;
+- proteção contra atribuição simultânea da mesma faixa/profissional;
+- createdAt como desempate;
+- nenhuma criação automática de booking;
+- capacidade física em advisory, sem bloquear oportunidade;
+- alerta integrado em Notificações/Tarefas.
+
+REGRESSÃO LEGADA
+As 19 suítes *_V79.js mais a suíte V79 específica (20 suítes) foram executadas sobre a base V79 preservada pela V80, removendo somente a camada V80 para manter as expectativas históricas de 42 scripts/schema 79. Resultado: 20/20 suítes aprovadas. Isso valida que as alterações de integração feitas na camada V79 não quebraram as regressões anteriores.
+
+GATEWAY FISCAL
+3/3 testes aprovados.
+
+ESTÁTICA
+43/43 blocos JavaScript válidos.
+0 IDs HTML estáticos duplicados.
+1 definição canônica de evaluatePhysicalCapacity().
+1 definição canônica de availabilityPlacement().
+
+E2E REAL EM NAVEGADOR
+Não executado. Nenhuma alegação de E2E real é feita nesta versão.
+
+REVISAO POS-AUDITORIA
+- V80_TEST_OPPORTUNITY_MATCHING.js: 22/22.
+- Inclui condição de corrida entre oportunidade exibida e arbitragem atual no clique em Agendar.
+- V80_TEST_WAITLIST_OPPORTUNITY_ENGINE.js: 47/47.
+- O teste bruto V79 não é usado como veredito estrutural da V80 porque fixa a expectativa histórica de 42 scripts; V80 possui legitimamente 43.

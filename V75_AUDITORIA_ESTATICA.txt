@@ -1,0 +1,19 @@
+IMPÉRIO DAS UNHAS — V75 AUDITORIA ESTÁTICA
+
+index.html final:
+- <script> abertura: 38
+- </script> fechamento: 38
+- blocos JavaScript compilados: 38/38
+- IDs HTML estáticos: 17
+- IDs HTML estáticos duplicados: 0
+
+FUNÇÕES DRE NO ARQUIVO FINAL
+- financeDreDataV40: 4 definições/camadas encontradas (V40 base, V42, V49, V75 final)
+- renderFinanceDreBody: múltiplas camadas históricas; V75 é a implementação final ativa
+- openDreCategoryV40: base + V75 final
+- v60DreHtml: base V60 + V75 final
+
+CADEIA CANÔNICA FINAL
+V40 base -> V42 -> V49 -> V75
+
+A V75 não cria função DRE paralela com outro nome de negócio; preserva financeDreDataV40 como ponto canônico consumido pela interface e relatórios.

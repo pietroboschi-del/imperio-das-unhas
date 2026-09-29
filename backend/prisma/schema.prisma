@@ -1,0 +1,393 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ImportStatus {
+  RECEIVED
+  VALIDATED
+  IMPORTED
+  REJECTED
+  FAILED
+}
+
+enum SessionStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+model Unit {
+  id           String   @id
+  name         String
+  timezone     String   @default("America/Sao_Paulo")
+  active       Boolean  @default(true)
+  legacyPayload Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  version      Int      @default(1)
+  userAccesses UserUnitAccess[]
+  professionals ProfessionalUnit[]
+  clients      Client[] @relation("ClientRegistrationUnit")
+  clientLinks  ClientUnitLink[]
+  bookings     Booking[]
+
+  @@index([active])
+}
+
+model User {
+  id                    String   @id @default(cuid())
+  legacyId              String?  @unique
+  username              String   @unique
+  displayName           String
+  passwordHash          String?
+  passwordResetRequired Boolean  @default(true)
+  active                Boolean  @default(true)
+  networkAdmin          Boolean  @default(false)
+  permissions           Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  version               Int      @default(1)
+  unitAccesses          UserUnitAccess[]
+  sessions              Session[]
+  auditEvents           AuditEvent[]
+}
+
+model UserUnitAccess {
+  id          String   @id @default(cuid())
+  userId      String
+  unitId      String
+  role        String
+  permissions Json?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unit        Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, unitId])
+  @@index([unitId, active])
+}
+
+model Session {
+  id         String        @id @default(cuid())
+  userId     String
+  tokenHash  String        @unique
+  csrfHash   String
+  status     SessionStatus @default(ACTIVE)
+  expiresAt  DateTime
+  lastSeenAt DateTime      @default(now())
+  createdAt  DateTime      @default(now())
+  revokedAt  DateTime?
+  ipHash     String?
+  userAgent  String?
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([expiresAt])
+}
+
+model ServiceCategory {
+  id            String   @id
+  name          String
+  description   String?
+  sortOrder     Int      @default(0)
+  active        Boolean  @default(true)
+  legacyPayload Json?
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  services      Service[]
+}
+
+model Service {
+  id            String           @id
+  categoryId    String?
+  name          String
+  price         Decimal          @db.Decimal(12, 2)
+  durationMin   Int
+  active        Boolean          @default(true)
+  legacyPayload Json?
+  version       Int              @default(1)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  category      ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([categoryId, active])
+}
+
+model Professional {
+  id            String   @id
+  name          String
+  publicName    String?
+  active        Boolean  @default(true)
+  legacyPayload Json?
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  units         ProfessionalUnit[]
+}
+
+model ProfessionalUnit {
+  id             String       @id @default(cuid())
+  professionalId String
+  unitId         String
+  active         Boolean      @default(true)
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  unit           Unit         @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([professionalId, unitId])
+  @@index([unitId, active])
+}
+
+model Client {
+  id                 String   @id
+  name               String
+  active             Boolean  @default(true)
+  phone              String?
+  email              String?
+  registrationUnitId String?
+  legacyPayload      Json?
+  version            Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  registrationUnit   Unit?    @relation("ClientRegistrationUnit", fields: [registrationUnitId], references: [id], onDelete: SetNull)
+  bookings           Booking[]
+  unitLinks          ClientUnitLink[]
+
+  @@index([registrationUnitId])
+  @@index([phone])
+}
+
+
+model ClientUnitLink {
+  id        String   @id @default(cuid())
+  clientId  String
+  unitId    String
+  source    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  client    Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  unit      Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, unitId])
+  @@index([unitId, active])
+  @@index([clientId, active])
+}
+
+model Booking {
+  id            String   @id
+  unitId        String
+  clientId      String?
+  serviceDate   DateTime @db.Date
+  status        String
+  legacyPayload Json
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  unit          Unit     @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  client        Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([unitId, serviceDate])
+  @@index([clientId, serviceDate])
+  @@index([status])
+}
+
+model WaitlistRequest {
+  id            String   @id
+  unitId        String
+  clientId      String?
+  status        String
+  legacyPayload Json
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([unitId, status])
+  @@index([clientId])
+}
+
+model WaitlistOpportunity {
+  id            String   @id
+  unitId        String
+  requestId     String?
+  status        String
+  bookingId     String?
+  legacyPayload Json
+  createdAt     DateTime @default(now())
+
+  @@index([unitId, status])
+  @@index([requestId])
+  @@index([bookingId])
+}
+
+model AuditEvent {
+  id            String   @id
+  userId        String?
+  unitId        String?
+  action        String
+  entityType    String?
+  entityId      String?
+  legacyPayload Json
+  occurredAt    DateTime
+  createdAt     DateTime @default(now())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([unitId, occurredAt])
+  @@index([entityType, entityId])
+  @@index([userId, occurredAt])
+}
+
+model MigrationEnvelope {
+  id                   String       @id @default(cuid())
+  instanceId           String
+  revision             Int
+  schemaVersion        Int
+  contractVersion      Int
+  dataHash             String
+  canonicalDataHash    String?
+  sourceKind           String       @default("INSTANCE_EXPORT")
+  reconciliationId     String?
+  sourceGeneratedAt    DateTime?
+  status               ImportStatus @default(RECEIVED)
+  summary              Json?
+  cutoverManifest      Json?
+  cutoverVerification  Json?
+  cutoverVerifiedAt    DateTime?
+  importedAt           DateTime?
+  reconciledAt         DateTime?
+  purgeAfter           DateTime?
+  errorSummary         Json?
+  createdAt            DateTime     @default(now())
+  entities             MigrationEntity[]
+
+  @@unique([instanceId, revision])
+  @@index([status, createdAt])
+}
+
+model MigrationEntity {
+  id               String            @id @default(cuid())
+  envelopeId       String
+  sourceCollection String
+  sourceId         String
+  unitId           String?
+  payloadHash      String
+  payload          Json
+  createdAt        DateTime          @default(now())
+  envelope         MigrationEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+
+  @@unique([envelopeId, sourceCollection, sourceId])
+  @@index([sourceCollection, sourceId])
+  @@index([unitId])
+}
+
+
+model OpenCommand {
+  id                  String   @id
+  unitId              String
+  clientId            String?
+  serviceDate         DateTime @db.Date
+  status              String
+  grossAmount         Decimal  @db.Decimal(14,2)
+  discountAmount      Decimal  @db.Decimal(14,2)
+  appliedSignalAmount Decimal  @db.Decimal(14,2)
+  appliedCreditAmount Decimal  @db.Decimal(14,2)
+  customerFeeAmount   Decimal  @db.Decimal(14,2)
+  remainingAmount     Decimal  @db.Decimal(14,2)
+  legacyPayload       Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([unitId, serviceDate])
+  @@index([clientId])
+}
+
+model ClientCreditOpening {
+  id        String   @id
+  clientId  String
+  amount    Decimal  @db.Decimal(14,2)
+  currency  String   @default("BRL")
+  source    String
+  createdAt DateTime @default(now())
+
+  @@index([clientId])
+}
+
+model ClientPackageOpening {
+  id             String   @id
+  clientId       String
+  name           String
+  remainingUnits Decimal  @db.Decimal(14,4)
+  totalUnits     Decimal  @db.Decimal(14,4)
+  expiresAt      DateTime? @db.Date
+  status         String
+  legacyPayload  Json?
+  createdAt      DateTime @default(now())
+
+  @@index([clientId, status])
+}
+
+model ReceivableOpening {
+  id             String   @id
+  clientId       String?
+  unitId         String?
+  sourceDate     DateTime? @db.Date
+  dueDate        DateTime? @db.Date
+  originalAmount Decimal  @db.Decimal(14,2)
+  balance        Decimal  @db.Decimal(14,2)
+  status         String
+  legacyPayload  Json?
+  createdAt      DateTime @default(now())
+
+  @@index([unitId, status])
+  @@index([clientId, status])
+}
+
+model StockBalanceOpening {
+  id            String   @id
+  productId     String
+  locationId    String
+  qty           Decimal  @db.Decimal(18,4)
+  avgCost       Decimal  @db.Decimal(14,4)
+  legacyPayload Json?
+  createdAt     DateTime @default(now())
+
+  @@unique([productId, locationId])
+  @@index([locationId])
+}
+
+model ProfessionalPayableOpening {
+  id             String   @id
+  kind           String
+  professionalId String
+  unitId         String?
+  amount         Decimal  @db.Decimal(14,2)
+  sourceId       String?
+  legacyPayload  Json?
+  createdAt      DateTime @default(now())
+
+  @@index([unitId, kind])
+  @@index([professionalId, kind])
+}
+
+model FiscalPendingDocument {
+  id                String   @id
+  unitId            String
+  commandId         String?
+  clientId          String?
+  documentType      String?
+  status            String
+  amount            Decimal  @db.Decimal(14,2)
+  referenceDate     DateTime? @db.Date
+  transmissionState String?
+  legacyPayload     Json?
+  createdAt         DateTime @default(now())
+
+  @@index([unitId, status])
+  @@index([clientId])
+}

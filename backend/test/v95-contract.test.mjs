@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {fnv1a32,validateEnvelope} from '../tools/validate-envelope.mjs';
+const root=new URL('../',import.meta.url);
+const read=p=>fs.readFileSync(new URL(p,root),'utf8');
+let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+const pkg=JSON.parse(read('package.json'));
+ok(/^imperio-backend-v9(?:[5-7]|8a)$/.test(pkg.name),'package V95/V96');ok(pkg.dependencies['@nestjs/core'],'NestJS declarado');ok(pkg.dependencies['@prisma/client'],'Prisma client declarado');ok(pkg.dependencies.argon2,'Argon2 declarado');
+const schema=read('prisma/schema.prisma');for(const name of ['Unit','User','UserUnitAccess','Session','ServiceCategory','Service','Professional','Client','Booking','MigrationEnvelope','MigrationEntity','AuditEvent'])ok(schema.includes(`model ${name} {`),`modelo ${name}`);ok(schema.includes('@@unique([userId, unitId])'),'acesso por unidade único');ok(schema.includes('tokenHash  String        @unique'),'token de sessão só em hash');ok(schema.includes('passwordResetRequired Boolean  @default(true)'),'reset de senha padrão');
+const auth=read('src/auth/auth.service.ts');ok(auth.includes('argon2.verify'),'verificação Argon2');ok(auth.includes('sha256(sessionToken)'),'token de sessão persistido em hash');ok(!auth.includes('passwordHash: password'),'senha não gravada em claro');
+const access=read('src/auth/access.guard.ts');ok(access.includes("x-unit-id"),'escopo unitário por header');ok(access.includes('principal.unitIds.includes(unitId)'),'autorização por unidade');
+const csrf=read('src/auth/csrf.guard.ts');ok(csrf.includes("x-csrf-token"),'CSRF obrigatório para mutações');
+const imp=read('src/migration/import.service.ts');ok(imp.includes("mode === 'dry-run'"),'dry-run suportado');ok(imp.includes('MIGRATION_IMPORT_ENABLED'),'commit protegido por flag');ok(imp.includes('MIGRATION_PROMOTION_TX_TIMEOUT_MS'),'promoção usa timeout explícito');ok(imp.includes('TransactionIsolationLevel.ReadCommitted'),'promoção atômica em transação única');ok(imp.includes('passwordHash:null'),'usuário legado sem senha');ok(imp.includes('passwordResetRequired:true'),'usuário legado exige reset');
+const core=read('src/core/core-read.controller.ts');ok(!/@(Post|Patch|Put|Delete)\(/.test(core),'API operacional inicial é somente leitura');ok((core.match(/@UnitScoped\(\)/g)||[]).length>=3,'leituras sensíveis têm escopo por unidade');
+const envData={units:[{id:'u1'}],userAccounts:[{id:'u',password:'[REDACTED]'}]};const env={format:'imperio-central-migration',contractVersion:1,schemaVersion:95,instanceId:'i1',revision:1,sensitiveIncluded:false,data:envData,dataHash:`fnv1a32:${fnv1a32(JSON.stringify(envData))}`};ok(validateEnvelope(env).ok,'envelope válido');const tampered=structuredClone(env);tampered.data.units.push({id:'x'});ok(!validateEnvelope(tampered).ok,'hash detecta adulteração');const secret=structuredClone(env);secret.dataHash=`fnv1a32:${fnv1a32(JSON.stringify({...envData,userAccounts:[{id:'u',password:'segredo'}]}))}`;secret.data={...envData,userAccounts:[{id:'u',password:'segredo'}]};ok(!validateEnvelope(secret).ok,'segredo em claro recusado');
+console.log(JSON.stringify({ok:true,tests,feature:'v95_backend_contract'}));

@@ -1,0 +1,55 @@
+IMPÉRIO DAS UNHAS — V79 — FUNÇÕES E FONTES CANÔNICAS
+
+FONTES REUTILIZADAS
+- db.clients                 clientes canônicos
+- db.services                serviços canônicos
+- db.pros                    profissionais canônicos
+- db.units                   unidades canônicas
+- db.bookings                Agenda canônica
+- professionalCanDo()        habilitação canônica profissional × serviço
+- openReservation()          abertura do formulário normal da Agenda
+- saveReservation()          persistência canônica do agendamento
+- __imperioV63.allowedUnits() / currentUser*() — unidade/autoria
+- __imperioV67.can()/canPage() — permissões
+- __imperioV64.persistEvent() — Auditoria
+
+COLEÇÃO NOVA
+- db.waitlistRequests
+
+API V79
+- __imperioV79.migrate()
+- __imperioV79.normalize(req)
+- __imperioV79.effectiveStatus(req, date)
+- __imperioV79.isActive(req, date)
+- __imperioV79.activeRequests(unitId)
+- __imperioV79.visible(req)
+- __imperioV79.eligiblePros(serviceId, unitId)
+- __imperioV79.duplicateOf(data, excludeId)
+- __imperioV79.validateData(data)
+- __imperioV79.snapshot(req)
+- __imperioV79.openQueue(view)
+- __imperioV79.saveRequest(id)
+- __imperioV79.changeStatus(id,status,extra)
+- __imperioV79.markContacted(id)
+- __imperioV79.beginBooking(id)
+- __imperioV79.bookingMatchesRequest(req, booking)
+- __imperioV79.markBooked(requestId, bookingId)
+- __imperioV79.injectButton()
+- __imperioV79.refreshAgendaButton()
+
+WRAPPERS NOVOS
+1. renderAgenda()
+   Apenas injeta/atualiza o botão compacto da fila depois da Agenda canônica.
+
+2. saveReservation()
+   Chama integralmente a implementação anterior (incluindo V76 autoria e V78 invalidação de capacidade).
+   Depois, somente se resDraft.waitlistRequestId existir, verifica se um booking novo real corresponde à solicitação e então marca a fila como BOOKED.
+   Não cria booking diretamente.
+
+3. renderAdmin()
+   Somente atualiza a identificação visual de versão no diagnóstico.
+
+CAPACIDADE FÍSICA
+V79 não chama nem redefine evaluatePhysicalCapacity().
+A fila não é convertida em demanda física.
+A implementação canônica permanece única na V77 e os alertas V78 permanecem derivados de bookings reais.

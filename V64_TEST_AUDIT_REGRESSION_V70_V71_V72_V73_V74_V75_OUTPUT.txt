@@ -1,0 +1,1 @@
+{"ok":true,"scripts":38,"tests":60,"audit":true,"legacyPolicy":true,"actor":true,"cash":true,"finance":true,"commands":true,"commission":true,"stock":true,"settings":true,"idempotent":true}

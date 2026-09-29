@@ -1,0 +1,32 @@
+V84 — MIGRAÇÃO
+
+ID: v84-reception-booking-goals
+schemaVersion: 84
+
+A migration é idempotente e não destrutiva.
+
+Ela:
+1. registra receptionBookingGoals em IMPERIO_ARRAY_COLLECTIONS quando ainda não existir;
+2. cria db.receptionBookingGoals = [] apenas se a coleção ainda não existir;
+3. adiciona uma única entrada ao migrationHistory;
+4. eleva schemaVersion para 84 somente quando necessário.
+
+Estrutura principal de cada meta:
+- id
+- receptionUserId
+- receptionUserNameSnapshot
+- unitIds[]
+- unitNamesSnapshot[]
+- periodFrom
+- periodTo
+- targetValue
+- targetServices
+- targetClients
+- status: ACTIVE | ARCHIVED
+- notes
+- createdAt / createdByUserId / createdByUserName
+- updatedAt / updatedByUserId / updatedByUserName
+- archivedAt / archivedByUserId / archivedByUserName
+- version
+
+Metas arquivadas permanecem persistidas para preservar histórico.

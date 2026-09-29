@@ -1,0 +1,1 @@
+{"ok":true,"scripts":41,"tests":50,"nfseNationalDirect":true,"homologationFirst":true,"certificateOutsideBrowser":true,"payloadSnapshot":true,"validateNoEmission":true,"issueBoundary":true,"productionLock":true,"uncertainTransport":true,"reconcileNoResend":true,"economicNeutrality":true,"idempotent":true}

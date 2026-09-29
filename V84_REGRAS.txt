@@ -1,0 +1,31 @@
+V84 — REGRAS DAS METAS DE AGENDAMENTOS
+
+1. RESPONSÁVEL
+A meta é creditada ao usuário que CRIOU originalmente o booking. Editar ou reagendar posteriormente não transfere autoria.
+
+2. PERÍODO
+periodFrom/periodTo filtram createdDate (data local de criação original do booking), e não a data futura do atendimento.
+
+3. STATUS
+Cancelado e Faltou não compõem realizado. Outros status válidos permanecem no realizado.
+
+4. VALOR
+Reutiliza commercialPrice da V83, baseado no preço histórico do item do booking e na regra comercial de combos. Não consulta cegamente o preço atual do serviço.
+
+5. SERVIÇOS
+Cada item/serviço válido do booking conta uma vez.
+
+6. CLIENTES
+Clientes são únicos dentro do escopo inteiro da meta. Uma mesma cliente com múltiplos serviços ou reservas conta uma vez na métrica de clientes.
+
+7. UNIDADES
+A meta guarda unitIds explícitos e unitNamesSnapshot. O progresso considera apenas bookings das unidades da meta.
+
+8. SOBREPOSIÇÃO
+Não é permitido manter duas metas ACTIVE da mesma recepcionista com períodos sobrepostos quando os conjuntos de unidades também se sobrepõem. Metas no mesmo período para unidades totalmente distintas são permitidas.
+
+9. HISTÓRICO
+Arquivar não exclui. Criação, alteração, arquivamento e reativação são auditáveis.
+
+10. FINANCEIRO
+Metas e progresso são exclusivamente indicadores comerciais/operacionais. Não criam receita, despesa, comissão, recebível ou movimento de caixa.

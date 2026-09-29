@@ -1,0 +1,47 @@
+IMPÉRIO DAS UNHAS — V76 — FUNÇÕES E CADEIAS
+
+FISCAL
+Cadeia efetiva antes da V76:
+- renderFinanceInvoices() histórico/placeholder antigo;
+- implementação fiscal V68;
+- wrapper V69 (NFS-e Nacional / textos);
+- V76 captura a implementação final anterior em _renderFinanceInvoicesV76 e, após o render canônico, apenas enriquece a tabela.
+
+Funções V76:
+- fiscalPaymentSummary(commandId)
+- monthlyAllocationsForCommand(commandId)
+- fiscalPaymentText(summary)
+- fiscalPaidText(summary)
+- fiscalRow(document)
+- enhanceFiscalList()
+- wrapper final renderFinanceInvoices()
+
+A V76 NÃO altera finalizeCommandPayment() nem saveClientMonthlySettlement().
+
+AGENDA
+Cadeia efetiva de criação interna:
+- saveReservation() base
+- wrapper V28
+- wrapper V72 (validação central Campos e Opções)
+- wrapper V76 (somente detecta novo booking, congela autoria e audita)
+
+Criação pública:
+- finishBooking() antigo existe historicamente;
+- implementação V56 é a implementação pública ativa;
+- wrapper V76 congela createdByUserId vazio/origem pública sem atribuir recepcionista.
+
+Reagendamento:
+- saveExistingBooking() continua com Auditoria V64 e validação V72; não altera autoria de criação.
+- agendaDrop() base -> wrapper V56 de escala -> wrapper V76 de Auditoria; autoria original permanece intacta.
+
+Helpers V76 de autoria:
+- currentActor()
+- stampInternalBooking(booking)
+- stampPublicBooking(booking)
+- bookingAttribution(booking)
+- auditCreatedBooking(booking, sourceFunction)
+
+MIGRAÇÃO
+- migrate()
+- apenas schemaVersion/migrationHistory;
+- não retropreenche bookings antigos.

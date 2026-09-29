@@ -1,0 +1,77 @@
+IMPÉRIO DAS UNHAS — V74
+Campos e Opções · Financeiro
+Data: 28/09/2026
+
+BASE
+- Construída diretamente sobre V73 — Campos e Opções · Profissionais + Estoque.
+- V73 preservada byte a byte em V73_FONTE_DE_VERDADE.zip.
+- Nenhuma regra financeira, de Caixa, DRE, Conta Mensal ou Fiscal foi substituída.
+
+VERSÃO
+schemaVersion = 74
+migrationId = v74-configurable-fields-options-finance
+
+ESCOPO DA V74 — ETAPA B4
+A Central Configurações > Campos e opções passa a considerar os seis módulos previstos como configuráveis:
+Clientes, Agenda, Comandas, Profissionais, Estoque e Financeiro.
+
+FINANCEIRO — CAMPOS COBERTOS
+1. Lançamento manual
+- Tipo do lançamento — obrigatório pelo sistema.
+- Status — obrigatório pelo sistema.
+- Data da obrigação/competência — obrigatório pelo sistema.
+- Vencimento — configurável.
+- Unidade — obrigatório pelo sistema.
+- Conta financeira — obrigatório pelo sistema.
+- Categoria / DRE — obrigatório pelo sistema.
+- Descrição / origem — configurável.
+- Valor — obrigatório pelo sistema.
+
+2. Contas financeiras
+- Nome — obrigatório pelo sistema.
+- Tipo — obrigatório pelo sistema.
+- Unidade — obrigatório pelo sistema.
+- Empresa/CNPJ — configurável.
+- Instituição/operadora — configurável.
+- Identificação interna — configurável.
+- Saldo inicial — configurável.
+- Data-base do saldo inicial — configurável.
+- Formas de pagamento aceitas — configurável.
+
+3. CNPJs / empresas
+- Razão social — obrigatório pelo sistema.
+- Unidade — obrigatório pelo sistema.
+- Nome fantasia — configurável.
+- CNPJ — configurável.
+- Inscrição municipal — configurável.
+- Regime tributário — configurável quanto à obrigatoriedade; catálogo fiscal existente não foi alterado.
+- Cidade — configurável.
+- UF — configurável.
+
+4. Conta Mensal — recebimento
+- Data do recebimento — obrigatório pelo sistema.
+- Forma de pagamento — obrigatório pelo sistema.
+- Conta/destino — obrigatório pelo sistema.
+- Valor recebido — obrigatório pelo sistema.
+- Observação — configurável.
+
+OPTION SETS TÉCNICOS
+Foram centralizados sem permitir criação/renomeação arbitrária dos valores técnicos:
+- finance.entryDirection: income / expense.
+- finance.entryStatus: Efetivado / Previsto.
+- finance.accountType: CASH / BANK / PROCESSOR.
+
+A gestão pode alterar ordem, ativar/inativar para novos usos e definir padrão através da infraestrutura já existente, mas os valores técnicos permanecem protegidos. Valores inativos continuam disponíveis ao explicar/editar histórico.
+
+NÃO DUPLICADO
+- Categorias de DRE permanecem em db.financeCategories e na lógica financeira canônica.
+- Formas de pagamento permanecem em db.paymentMethods / Financeiro.
+- Taxas, settlementDays e regras de adquirente continuam nas contas financeiras.
+- A Central não cria um segundo catálogo de pagamento ou DRE.
+
+HISTÓRICO
+Nenhum lançamento, recebível, conta histórica, movimento de Caixa, comissão, DRE ou snapshot fiscal é reescrito pela migração V74.
+
+AUDITORIA
+Alterações de obrigatoriedade continuam registradas pela Auditoria existente.
+Alterações nos optionSets técnicos usam os mesmos eventos de configuração já consolidados na V73.
