@@ -1,4 +1,4 @@
-name: V98a Backend CI
+name: V98 Backend CI
 
 on:
   push:
@@ -43,6 +43,12 @@ jobs:
       MIGRATION_PROMOTION_TX_TIMEOUT_MS: "180000"
       MIGRATION_STAGE_RETENTION_DAYS: "30"
       BUSINESS_TIMEZONE: America/Sao_Paulo
+      OPENAPI_ENABLED: "true"
+      LOGIN_RATE_LIMIT_MAX: "5"
+      LOGIN_RATE_LIMIT_WINDOW_MS: "900000"
+      LOGIN_RATE_LIMIT_BLOCK_MS: "900000"
+      ACTIVATION_TOKEN_TTL_MS: "86400000"
+      RESET_TOKEN_TTL_MS: "1800000"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -62,3 +68,5 @@ jobs:
         run: npm run admin:create
       - name: PostgreSQL/Nest integration tests
         run: npm run test:integration
+      - name: V98b security integration tests
+        run: npm run test:security-integration

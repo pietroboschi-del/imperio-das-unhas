@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+const mod=await import('../src/auth/permission-policy.ts');
+assert.deepEqual(mod.normalizePermissions({b:false,a:true,c:true}),['a','c']);
+assert.deepEqual(mod.normalizePermissions(['b','a','a']),['a','b']);
+assert.equal(mod.hasPermissions(new Set(['agenda.read']),['agenda.read']),true);
+assert.equal(mod.hasPermissions(new Set(['agenda.read']),['agenda.manage']),false);
+assert.equal(mod.hasPermissions(new Set(['*']),['anything']),true);
+const merged=mod.permissionSet(['agenda.read'],{clients:true,no:false});
+assert.equal(merged.has('agenda.read'),true);
+assert.equal(merged.has('clients'),true);
+console.log(JSON.stringify({ok:true,assertions:7,suite:'V98b permission policy'}));

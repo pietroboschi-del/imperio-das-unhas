@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ENTITY_CONTRACTS, MigrationEnvelope } from './contracts';
 import { assertValidEnvelope, validateEnvelope } from './envelope-validator';
 import { payloadHash } from './hash';
+import { legacySystemRole, mapLegacyPermissions } from './legacy-permission-mapper';
 
 const positiveInt=(value:unknown,fallback:number,max=1_000_000)=>{const n=Number(value);return Number.isInteger(n)&&n>0?Math.min(n,max):fallback};
 const dateOnly=(value:unknown)=>new Date(`${String(value)}T00:00:00.000Z`);
@@ -94,7 +95,19 @@ export class ImportService {
     const bookingIds=ids(bookingRows);if(bookingIds.length)await tx.booking.deleteMany({where:{id:{notIn:bookingIds}}});else await tx.booking.deleteMany({});await each(bookingRows,async b=>{await tx.booking.upsert({where:{id:String(b.id)},create:{id:String(b.id),unitId:String(b.unit),clientId:b.clientId?String(b.clientId):null,serviceDate:dateOnly(b.date),status:String(b.status||''),legacyPayload:json(b)},update:{unitId:String(b.unit),clientId:b.clientId?String(b.clientId):null,serviceDate:dateOnly(b.date),status:String(b.status||''),legacyPayload:json(b),version:{increment:1}}});if(b.clientId)await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:String(b.clientId),unitId:String(b.unit)}},create:{clientId:String(b.clientId),unitId:String(b.unit),source:'booking'},update:{active:true,source:'booking'}})});
     const wait=d.waitlistRequests||[];await tx.waitlistRequest.deleteMany({});if(wait.length)await tx.waitlistRequest.createMany({data:wait.map((w:any)=>({id:String(w.id),unitId:String(w.unitId||w.unit||''),clientId:w.clientId?String(w.clientId):null,status:String(w.status||''),legacyPayload:json(w)}))});
     const opp=d.waitlistOpportunities||[];await tx.waitlistOpportunity.deleteMany({});if(opp.length)await tx.waitlistOpportunity.createMany({data:opp.map((o:any)=>({id:String(o.id),unitId:String(o.unitId||o.unit||''),requestId:o.requestId?String(o.requestId):null,status:String(o.status||''),bookingId:o.bookingId?String(o.bookingId):null,legacyPayload:json(o)}))});
-    await each(userRows,async u=>{const username=String(u.username||u.email||u.id||'').trim();if(!username)return;const user=await tx.user.upsert({where:{username},create:{legacyId:String(u.id||''),username,displayName:String(u.name||username),passwordHash:null,passwordResetRequired:true,active:u.active!==false,networkAdmin:!!u.allUnits,permissions:u.permissions?json(u.permissions):undefined},update:{legacyId:String(u.id||''),displayName:String(u.name||username),active:u.active!==false,networkAdmin:!!u.allUnits,permissions:u.permissions?json(u.permissions):undefined,version:{increment:1}}});await tx.userUnitAccess.deleteMany({where:{userId:user.id}});if(Array.isArray(u.unitIds)&&u.unitIds.length)await tx.userUnitAccess.createMany({data:u.unitIds.map((unitId:any)=>({userId:user.id,unitId:String(unitId),role:String(u.role||'operator'),permissions:u.permissions?json(u.permissions):undefined,active:true}))});});
+    await each(userRows,async u=>{
+      const username=String(u.username||u.email||u.id||'').trim();if(!username)return;
+      const mappedPermissions=mapLegacyPermissions(u);
+      const explicitUnits=Array.isArray(u.unitIds)?u.unitIds:[u.unitId||u.unit].filter(Boolean);
+      const assignedUnits=(u.allUnits?unitRows.map((x:any)=>x.id):explicitUnits).map(String).filter(Boolean);
+      const user=await tx.user.upsert({
+        where:{username},
+        create:{legacyId:String(u.id||''),username,displayName:String(u.name||username),passwordHash:null,passwordResetRequired:true,active:u.active!==false,networkAdmin:false,systemRole:legacySystemRole(u),permissions:json(mappedPermissions)},
+        update:{legacyId:String(u.id||''),displayName:String(u.name||username),active:u.active!==false,networkAdmin:false,systemRole:legacySystemRole(u),permissions:json(mappedPermissions),version:{increment:1}},
+      });
+      await tx.userUnitAccess.deleteMany({where:{userId:user.id}});
+      if(assignedUnits.length)await tx.userUnitAccess.createMany({data:[...new Set(assignedUnits)].map((unitId:string)=>({userId:user.id,unitId,role:String(u.role||'operator'),permissions:json(mappedPermissions),active:true}))});
+    });
     if(userRows.length){const legacyIds=ids(userRows);await tx.user.updateMany({where:{legacyId:{notIn:legacyIds},networkAdmin:false},data:{active:false}})}
     await tx.openCommand.deleteMany({});if((d.openingCommands||[]).length)await tx.openCommand.createMany({data:d.openingCommands.map((r:any)=>({id:String(r.id),unitId:String(r.unitId),clientId:r.clientId?String(r.clientId):null,serviceDate:dateOnly(r.serviceDate),status:String(r.status||'open'),grossAmount:decimal(r.grossAmount),discountAmount:decimal(r.discountAmount),appliedSignalAmount:decimal(r.appliedSignalAmount),appliedCreditAmount:decimal(r.appliedCreditAmount),customerFeeAmount:decimal(r.customerFeeAmount),remainingAmount:decimal(r.remainingAmount),legacyPayload:r.legacyPayload?json(r.legacyPayload):Prisma.JsonNull}))});
     await tx.clientCreditOpening.deleteMany({});if((d.openingClientCredits||[]).length)await tx.clientCreditOpening.createMany({data:d.openingClientCredits.map((r:any)=>({id:String(r.id),clientId:String(r.clientId),amount:decimal(r.amount),currency:String(r.currency||'BRL'),source:String(r.source||'migration')}))});

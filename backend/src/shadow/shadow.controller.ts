@@ -5,6 +5,7 @@ import type { ImperioRequest } from '../common/request-context';
 import { ShadowService } from './shadow.service';
 
 @Controller('api/v1/shadow')
+@NetworkAdmin()
 export class ShadowController {
   constructor(private readonly shadow: ShadowService) {}
 

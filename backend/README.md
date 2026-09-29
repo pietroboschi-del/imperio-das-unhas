@@ -1,30 +1,48 @@
-# Império das Unhas — Backend V97
+# Império das Unhas — Backend V98b
 
-Backend em homologação para a migração progressiva do sistema local para PostgreSQL. **A V97 ainda não habilita escrita operacional remota.**
+Backend em homologação para migração progressiva do sistema local para PostgreSQL. **A V98b ainda não habilita escrita operacional remota.**
 
-## V97
-A V97 acrescenta read-through verificado:
-- `READ_THROUGH_ENABLED=false` por padrão;
-- snapshot exato (`instanceId` + `revision` + `dataHash`) obrigatório;
-- Serviços/Categorias disponíveis para read-through controlado;
-- Profissionais/Clientes/Bookings disponíveis apenas em preview por unidade/data;
-- se `OPERATIONAL_WRITES_ENABLED=true`, o módulo V97 bloqueia a leitura operacional por segurança.
+## V98a preservada
+
+- reconciliação multi-export;
+- SHA-256 e revisão monotônica;
+- staging em lote e retenção;
+- normalização do estado vigente da DEC-011;
+- promoção atômica + conferência de cutover;
+- testes reais PostgreSQL/Nest preparados no CI.
+
+## V98b
+
+- autorização deny-by-default;
+- `networkAdmin` separado de `allUnits`;
+- `SystemRole` separado de escopo/permissões;
+- permissões funcionais server-side;
+- administração de usuários somente pelo dono;
+- ativação/reset com token de uso único;
+- rate limit persistente no PostgreSQL;
+- recuperação de CSRF;
+- DTOs seguros sem `legacyPayload` nas APIs Core;
+- OpenAPI sob `OPENAPI_ENABLED`;
+- teste de segurança para as três unidades preparado para CI.
 
 ## Inicialização de homologação
+
 1. Copie `.env.example` para `.env`.
 2. Ajuste `DATABASE_URL`, CORS e segredos do ambiente.
 3. `npm install`
 4. `npm run prisma:generate`
 5. `npm run prisma:migrate`
-6. Crie um administrador de homologação.
-7. Suba o backend.
-8. Importe um envelope atual em dry-run e depois commit controlado.
-9. Valide V96 shadow.
-10. Só então habilite `READ_THROUGH_ENABLED=true`.
+6. Defina `ADMIN_USERNAME`, `ADMIN_PASSWORD` e `ADMIN_NAME` e execute `npm run admin:create`.
+7. `npm run build`
+8. `npm start`
+9. Execute `npm test`.
+10. Em banco de homologação, execute `npm run test:integration` e `npm run test:security-integration`.
 
-## Testes de contrato
-- `npm run test:contract`
-- `npm run test:shadow`
-- `npm run test:readthrough`
+## Regra de cutover
 
-Nunca habilite escrita operacional remota antes do cutover formal e dos testes de concorrência, backup, auditoria e autorização.
+Nenhum módulo deve passar a escrever operacionalmente no PostgreSQL antes de:
+
+- CI/runtime real aprovado;
+- reconciliação dos três exports reais;
+- conferência do estado vigente por unidade;
+- autorização e concorrência testadas no módulo correspondente.

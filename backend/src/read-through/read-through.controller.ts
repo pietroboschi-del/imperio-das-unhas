@@ -5,6 +5,7 @@ import type { ImperioRequest } from '../common/request-context';
 import { ReadThroughService } from './read-through.service';
 
 @Controller('api/v1/read-through')
+@NetworkAdmin()
 export class ReadThroughController {
   constructor(private readonly service:ReadThroughService) {}
   @Get('status') @NetworkAdmin() status(){ return this.service.status(); }

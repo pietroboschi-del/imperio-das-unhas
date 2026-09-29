@@ -1,8 +1,8 @@
 {
-  "name": "imperio-backend-v98a",
-  "version": "0.98.0",
+  "name": "imperio-backend-v98b",
+  "version": "0.98.1",
   "private": true,
-  "description": "V98a — backend executável, reconciliação e integridade de migração do Império das Unhas.",
+  "description": "V98b — segurança, autorização deny-by-default, ativação de credenciais e contrato HTTP do Império das Unhas.",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main.js",
@@ -25,9 +25,11 @@
     "test:cutover": "node test/v98a-cutover-projection.test.mjs",
     "test:cutover-normalization": "node test/v98a-cutover-normalization.contract.mjs",
     "test:money": "node test/v98a-decimal-money.test.mjs",
-    "test": "npm run test:contracts && npm run test:reconciliation && npm run test:import-contract && npm run test:cutover && npm run test:cutover-normalization && npm run test:money",
-    "ci": "npm run prisma:generate && npm run prisma:migrate && npm run build && npm test && npm run test:integration",
-    "reconcile:exports": "node tools/reconcile-exports.mjs"
+    "test": "npm run test:contracts && npm run test:reconciliation && npm run test:import-contract && npm run test:cutover && npm run test:cutover-normalization && npm run test:money && npm run test:v98b",
+    "ci": "npm run prisma:generate && npm run prisma:migrate && npm run build && npm test && npm run test:integration && npm run test:security-integration",
+    "reconcile:exports": "node tools/reconcile-exports.mjs",
+    "test:v98b": "node --experimental-strip-types test/v98b-security-contract.test.mjs && node --experimental-strip-types test/v98b-permission-policy.test.mjs && node --experimental-strip-types test/v98b-legacy-permissions.test.mjs && node --experimental-strip-types test/v98b-three-units.test.mjs",
+    "test:security-integration": "node test/v98b-security.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
@@ -42,7 +44,8 @@
     "helmet": "^8.0.0",
     "prisma": "^6.0.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "@nestjs/swagger": "11.4.7"
   },
   "devDependencies": {
     "@nestjs/cli": "^11.0.0",

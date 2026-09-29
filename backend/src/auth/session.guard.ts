@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { IS_PUBLIC_KEY } from '../common/public.decorator';
 import type { ImperioRequest } from '../common/request-context';
 import { sha256 } from './crypto';
+import { normalizePermissions } from './permission-policy';
 
 @Injectable()
 export class SessionGuard implements CanActivate {
@@ -24,12 +25,22 @@ export class SessionGuard implements CanActivate {
       userId: session.user.id,
       username: session.user.username,
       displayName: session.user.displayName,
+      systemRole: session.user.systemRole,
       networkAdmin: session.user.networkAdmin,
       unitIds: session.user.unitAccesses.map(x => x.unitId),
-      permissions: session.user.permissions,
+      permissions: normalizePermissions(session.user.permissions),
+      unitAccesses: session.user.unitAccesses.map(x => ({
+        unitId: x.unitId,
+        role: x.role,
+        permissions: normalizePermissions(x.permissions),
+      })),
       sessionId: session.id,
     };
-    void this.prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } }).catch(() => undefined);
+
+    // Evita write em toda leitura: atualiza lastSeenAt no máximo a cada 5 minutos.
+    if (Date.now() - session.lastSeenAt.getTime() >= 5 * 60_000) {
+      void this.prisma.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } }).catch(() => undefined);
+    }
     return true;
   }
 }
