@@ -1,0 +1,272 @@
+{
+  "formatVersion": 1,
+  "baselineVersion": "V98b",
+  "purpose": "Golden master de comportamento crítico antes da migração backend-owned.",
+  "referenceFrontendSha256": "c6a130a0fabeffb27e396e316e1a3521e37bfdaa3908e1c8019ad9d948bef6b9",
+  "fullRegression": {
+    "path": "tests_v97_current/V97_RUN_CURRENT_REGRESSION.js",
+    "suites": 42,
+    "passed": 42,
+    "failed": 0,
+    "assertions": 2043
+  },
+  "criticalSuites": [
+    {
+      "key": "finance_dre_commissions_tips",
+      "path": "tests_v97_current/V61_TEST_FINANCE_DRE_REGRESSION_V68_V71_V72_V73_V74_V76_V79.js",
+      "assertions": 91,
+      "testFileSha256": "fbb0f0786e4a63496c4db21e6b4e6637ba88b76629af2737f98e03e708f29105",
+      "resultSha256": "d5f0596a46854d7bdc2bae91b5b0119908aeed51171b50f655654cf797d3aa74",
+      "baselineResult": {
+        "ok": true,
+        "scripts": 61,
+        "tests": 91,
+        "stage1": true,
+        "stage2": true,
+        "stage3": true
+      }
+    },
+    {
+      "key": "agenda_operational",
+      "path": "tests_v97_current/V70_TEST_AGENDA_OPERATIONAL_V71_V72_V73_V74_V76_V79.js",
+      "assertions": 28,
+      "testFileSha256": "9de0535a5d41c0855965d77e225f950d2b8a19c79b492751d0a2c0c5b115677e",
+      "resultSha256": "56c1c686dd14c15ba4293509b8d469fe2d63f44a6c36c40f770e0558e46618bf",
+      "baselineResult": {
+        "ok": true,
+        "scripts": 61,
+        "tests": 28,
+        "clients": 2,
+        "services": 3,
+        "target": 10,
+        "occupancy": 25,
+        "freeMin": 360,
+        "windows": 2
+      }
+    },
+    {
+      "key": "dre_combo_allocation",
+      "path": "tests_v97_current/V75_TEST_DRE_COMBO_RATEIO_V76_V79.js",
+      "assertions": 75,
+      "testFileSha256": "0cfba2fa65af696f3d5b62a690e87c4cc934ee88b257bd53701b60f2030a9508",
+      "resultSha256": "5c54828d997fe6820a8d043b90552413a07cd79bae575557b6a290f71ac8eb2a",
+      "baselineResult": {
+        "ok": true,
+        "scripts": 61,
+        "tests": 75,
+        "combo": true,
+        "allocation": true,
+        "multiunit": true,
+        "zeroSafe": true,
+        "noDoubleAllocation": true,
+        "conservation": true,
+        "idempotent": true
+      }
+    },
+    {
+      "key": "fiscal_payments_booking_authorship",
+      "path": "tests_v97_current/V76_TEST_FISCAL_PAYMENTS_BOOKING_AUTHORSHIP_V79.js",
+      "assertions": 52,
+      "testFileSha256": "8dc3d5f2c2c085c01dfec345160175f8a91be4255da76a2d6e083d7d089664cc",
+      "resultSha256": "3ce5d8568084b453485c0c534f924063cc0fe7bd0bd9a24c6f36ea809746eb75",
+      "baselineResult": {
+        "ok": true,
+        "scripts": 61,
+        "tests": 52,
+        "fiscalPayments": true,
+        "multiplePayments": true,
+        "monthly": true,
+        "directPayment": true,
+        "economicNeutrality": true,
+        "bookingAuthorship": true,
+        "publicOrigin": true,
+        "legacyUnknown": true,
+        "audit": true,
+        "idempotent": true
+      }
+    },
+    {
+      "key": "physical_capacity",
+      "path": "tests_v97_current/V77_TEST_WORKSTATIONS_PHYSICAL_CAPACITY_V79.js",
+      "assertions": 39,
+      "testFileSha256": "86de5dc48bcafbe4e46f6c74edad1e8d2c64d0a30f62b453979c6c216e7bfa1a",
+      "resultSha256": "a32a3e7a6edc7a3a6bba035c700408cb009b92b6d8be1cebf53e921acbf2eafd",
+      "baselineResult": {
+        "ok": true,
+        "scripts": 61,
+        "tests": 39,
+        "matching": true,
+        "adverse": true,
+        "excess": true,
+        "multiunit": true,
+        "inactive": true,
+        "notConfigured": true,
+        "noCompatible": true,
+        "sequential": true,
+        "overlap": true,
+        "combo": true,
+        "versatile": true,
+        "editNonBlocking": true,
+        "settings": true,
+        "idempotent": true
+      }
+    },
+    {
+      "key": "physical_capacity_alerts",
+      "path": "tests_v97_current/V78_TEST_PHYSICAL_CAPACITY_ALERTS_V79.js",
+      "assertions": 33,
+      "testFileSha256": "76e678508bed1d9ab76e6c4dbf33d9539238b68ff6256d7dc5f6d65fcad1c0d3",
+      "resultSha256": "63b5d241f0293246d792b446051fc779e6a5186584f2a0dd727e12cb97f9c68b",
+      "baselineResult": {
+        "ok": true,
+        "scripts": 61,
+        "tests": 33,
+        "normal": true,
+        "realConflict": true,
+        "matching": true,
+        "versatile": true,
+        "cancelResolve": true,
+        "reschedule": true,
+        "notConfigured": true,
+        "multiunit": true,
+        "preventive": true,
+        "dedupe": true,
+        "stationToggle": true,
+        "nonBlocking": true,
+        "states": true,
+        "idempotent": true
+      }
+    },
+    {
+      "key": "waitlist_operational",
+      "path": "tests_v97_current/V79_TEST_WAITLIST_OPERATIONAL.js",
+      "assertions": 47,
+      "testFileSha256": "1d569019e0d8ef34c567332bc6c0f37821c66f20c3f17f14dd8f524a967f5000",
+      "resultSha256": "deed6f0dd174725bd2efabcb9596de5adeef2f67ab3e67f976bf3d606cb83933",
+      "baselineResult": {
+        "ok": true,
+        "scripts": 61,
+        "tests": 47,
+        "basic": true,
+        "preference": true,
+        "required": true,
+        "invalidWindow": true,
+        "multiunit": true,
+        "expiration": true,
+        "removal": true,
+        "contact": true,
+        "booking": true,
+        "cancelForm": true,
+        "duplicate": true,
+        "capacityNeutral": true,
+        "financialNeutral": true,
+        "legacy": true,
+        "audit": true,
+        "idempotent": true
+      }
+    },
+    {
+      "key": "waitlist_opportunity_matching",
+      "path": "tests_v97_current/V80_TEST_OPPORTUNITY_MATCHING.js",
+      "assertions": 22,
+      "testFileSha256": "d6216d9655a05789e393745bedac4c95be2f2e5f6e1c220c00e468f9cd179cf4",
+      "resultSha256": "2eecc226c98fab930e951e3c2bc5746eea2dde1d94044f923cde9c2902207686",
+      "baselineResult": {
+        "ok": true,
+        "tests": 22,
+        "opportunity": true,
+        "idealAlternative": true,
+        "required": true,
+        "collisionProtection": true,
+        "physicalAdvisory": true,
+        "notifications": true,
+        "noAutoBooking": true
+      }
+    },
+    {
+      "key": "waitlist_opportunity_engine",
+      "path": "tests_v97_current/V80_TEST_WAITLIST_OPPORTUNITY_ENGINE.js",
+      "assertions": 47,
+      "testFileSha256": "79e7627cebb2501b3ea62a3ff2e573d504fac665e3f28de62fd8fdb0c9d09e65",
+      "resultSha256": "deed6f0dd174725bd2efabcb9596de5adeef2f67ab3e67f976bf3d606cb83933",
+      "baselineResult": {
+        "ok": true,
+        "scripts": 61,
+        "tests": 47,
+        "basic": true,
+        "preference": true,
+        "required": true,
+        "invalidWindow": true,
+        "multiunit": true,
+        "expiration": true,
+        "removal": true,
+        "contact": true,
+        "booking": true,
+        "cancelForm": true,
+        "duplicate": true,
+        "capacityNeutral": true,
+        "financialNeutral": true,
+        "legacy": true,
+        "audit": true,
+        "idempotent": true
+      }
+    },
+    {
+      "key": "cross_module_business_rules",
+      "path": "tests_v97_current/V86_TEST_INTEGRATION_BUSINESS_RULES.js",
+      "assertions": 18,
+      "testFileSha256": "3fe436874d1e67cdae02933f752b4335f103d77b0a738d405d7182f10ea0bb34",
+      "resultSha256": "a100e7bc4952bc969c78392e472952e031dc72ffffe287a6701e356913771965",
+      "baselineResult": {
+        "ok": true,
+        "tests": 18
+      }
+    },
+    {
+      "key": "waitlist_trace_recovery",
+      "path": "tests_v97_current/V87_TEST_WAITLIST_TRACE_RECOVERY.js",
+      "assertions": 64,
+      "testFileSha256": "7ecee6da0811bcd4e39ea6ccbbe9af41071221022353c139b65c3b9d0e2f77f4",
+      "resultSha256": "622dcfe0c6c6848e821475754114c35a1f5154519753bc31f852c2cf66347a50",
+      "baselineResult": {
+        "ok": true,
+        "tests": 64,
+        "scripts": 61,
+        "mandatoryScenarios": 18,
+        "schema": 87
+      }
+    },
+    {
+      "key": "agenda_fill_trend",
+      "path": "tests_v97_current/V88_TEST_AGENDA_FILL_TREND.js",
+      "assertions": 54,
+      "testFileSha256": "8db8b1eba25a8f41db1af93214fa79d54d260492d0bc48d83a7ef88554cc6141",
+      "resultSha256": "42b0f39546030c8e79a064c99ac981d1149ee408b309e4a21ce13c749a8418a8",
+      "baselineResult": {
+        "ok": true,
+        "tests": 54,
+        "scripts": 61,
+        "schema": 88,
+        "feature": "agenda_fill_trend"
+      }
+    }
+  ],
+  "backendParity": [
+    {
+      "key": "decimal_money",
+      "command": [
+        "node",
+        "backend/test/v98a-decimal-money.test.mjs"
+      ],
+      "tests": 14
+    },
+    {
+      "key": "professional_obligations_v97",
+      "command": [
+        "python3",
+        "backend/test/v98a-professional-obligation-parity.test.py"
+      ],
+      "tests": 8
+    }
+  ]
+}

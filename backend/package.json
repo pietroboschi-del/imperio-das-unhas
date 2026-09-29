@@ -29,7 +29,8 @@
     "ci": "npm run prisma:generate && npm run prisma:migrate && npm run build && npm test && npm run test:integration && npm run test:security-integration",
     "reconcile:exports": "node tools/reconcile-exports.mjs",
     "test:v98b": "node --experimental-strip-types test/v98b-security-contract.test.mjs && node --experimental-strip-types test/v98b-permission-policy.test.mjs && node --experimental-strip-types test/v98b-legacy-permissions.test.mjs && node --experimental-strip-types test/v98b-three-units.test.mjs",
-    "test:security-integration": "node test/v98b-security.integration.mjs"
+    "test:security-integration": "node test/v98b-security.integration.mjs",
+    "test:characterization": "node ../tests_characterization/run-characterization-gate.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

@@ -64,6 +64,8 @@ jobs:
         run: npm run build
       - name: Static and projector tests
         run: npm test
+      - name: Critical behavior characterization gate
+        run: npm run test:characterization
       - name: Create CI administrator
         run: npm run admin:create
       - name: PostgreSQL/Nest integration tests
