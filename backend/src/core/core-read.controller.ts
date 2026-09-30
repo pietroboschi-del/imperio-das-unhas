@@ -62,7 +62,7 @@ export class CoreReadController {
     if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date))where.serviceDate=new Date(`${date}T00:00:00.000Z`);
     return this.prisma.booking.findMany({
       where,
-      select:{id:true,unitId:true,clientId:true,serviceDate:true,status:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}}},
+      select:{id:true,unitId:true,clientId:true,serviceDate:true,startAt:true,serviceId:true,professionalId:true,notes:true,status:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}},service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}}},
       orderBy:[{serviceDate:'asc'},{id:'asc'}],take:500,
     });
   }
@@ -73,7 +73,7 @@ export class CoreReadController {
   async booking(@Req() req: ImperioRequest,@Param('id') id:string) {
     return this.prisma.booking.findFirst({
       where:{id,unitId:req.unitId!},
-      select:{id:true,unitId:true,clientId:true,serviceDate:true,status:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}}},
+      select:{id:true,unitId:true,clientId:true,serviceDate:true,startAt:true,serviceId:true,professionalId:true,notes:true,status:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}},service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}}},
     });
   }
 }
