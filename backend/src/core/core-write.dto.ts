@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsBoolean, IsEmail, IsISO8601, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsBoolean, IsEmail, IsISO8601, IsIn, IsInt, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, Matches, MaxLength, Min, ValidateNested } from 'class-validator';
 
 export class CreateClientDto {
   @IsString() @IsNotEmpty() @MaxLength(160) name!: string;
@@ -50,6 +50,7 @@ export class CreateBookingDto {
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
   @IsOptional() @IsIn(BOOKING_STATUSES) status?: string;
   @IsOptional() @ArrayMinSize(1) @ValidateNested({each:true}) @Type(()=>BookingItemWriteDto) items?: BookingItemWriteDto[];
+  @IsOptional() @IsBoolean() blockAllDay?: boolean;
 }
 
 export class UpdateBookingDto {
@@ -57,6 +58,8 @@ export class UpdateBookingDto {
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
   @IsOptional() @IsIn(BOOKING_STATUSES) status?: string;
   @IsOptional() @ArrayMinSize(1) @ValidateNested({each:true}) @Type(()=>BookingItemWriteDto) items?: BookingItemWriteDto[];
+  @IsOptional() @IsBoolean() blockAllDay?: boolean;
+  @IsOptional() @IsBoolean() blockException?: boolean;
 }
 
 export class BlockOccurrenceDto {
@@ -68,5 +71,7 @@ export class CreateBlockSeriesDto {
   @IsString() @IsNotEmpty() @MaxLength(128) professionalId!: string;
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
   @IsOptional() @IsBoolean() forceFit?: boolean;
+  @IsOptional() @IsBoolean() blockAllDay?: boolean;
+  @IsOptional() @IsObject() recurrence?: Record<string,unknown>;
   @ArrayMinSize(1) @ValidateNested({each:true}) @Type(()=>BlockOccurrenceDto) occurrences!: BlockOccurrenceDto[];
 }
