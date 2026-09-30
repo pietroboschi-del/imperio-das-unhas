@@ -231,6 +231,10 @@ model Booking {
   professionalId String?
   notes         String?
   status        String
+  blockAllDay   Boolean  @default(false)
+  blockSeriesId String?
+  blockRecurrence Json?
+  blockException Boolean @default(false)
   legacyPayload Json
   version       Int      @default(1)
   createdAt     DateTime @default(now())
