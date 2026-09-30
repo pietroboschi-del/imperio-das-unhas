@@ -18,6 +18,7 @@ const publicBooking=read('src/core/public-booking.controller.ts');
 ok(pkg.scripts.start==='node dist/main.js','entrypoint aponta para artefato real do Nest');
 ok(pkg.scripts['start:prod']==='node dist/main.js','start:prod consistente');
 ok(docker.includes('npm run prisma:migrate && npm start'),'container aplica migrations antes de iniciar');
+ok(docker.indexOf('apt-get install -y --no-install-recommends ca-certificates openssl')<docker.indexOf('RUN npm run prisma:generate'),'build instala OpenSSL antes de gerar Prisma Client');
 ok(docker.includes('HEALTHCHECK')&&docker.includes('/api/v1/health'),'container possui healthcheck');
 ok(env.includes('COOKIE_SECURE=true'),'cookie seguro em produção');
 ok(env.includes('OPERATIONAL_WRITES_ENABLED=true')&&env.includes('OPERATIONAL_WRITES_UNITS=centro'),'template inicial limita escrita ao Centro');
