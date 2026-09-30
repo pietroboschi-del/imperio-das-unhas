@@ -30,7 +30,7 @@ export class UpdateClientDto {
 }
 
 export class BookingItemWriteDto {
-  @IsString() @IsNotEmpty() @MaxLength(128) serviceId!: string;
+  @IsOptional() @IsString() @MaxLength(128) serviceId?: string;
   @IsString() @IsNotEmpty() @MaxLength(128) professionalId!: string;
   @IsISO8601({strict:true}) startAt!: string;
   @IsOptional() @IsInt() @Min(1) durationMin?: number;
@@ -39,7 +39,7 @@ export class BookingItemWriteDto {
   @IsOptional() @IsBoolean() forceFit?: boolean;
 }
 
-const BOOKING_STATUSES=['Agendado','Aguardando confirmação','Confirmado','Em atendimento','Concluído','Faltou','Cancelado','Encaixe'] as const;
+const BOOKING_STATUSES=['Agendado','Aguardando confirmação','Confirmado','Em atendimento','Concluído','Faltou','Cancelado','Encaixe','Bloqueado'] as const;
 
 export class CreateBookingDto {
   @IsOptional() @IsString() @MaxLength(128) clientId?: string;
