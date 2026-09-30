@@ -20,5 +20,10 @@ ok(!html.includes("if(!centralEnabled()||id)return legacySaveClient"),'edição 
 ok(!html.includes("if(!centralEnabled()||resDraft?.appendToBookingId)return legacySaveReservation"),'edição de agenda não cai silenciosamente no legado');
 ok(html.includes("Edição de cliente ainda não liberada no modo central; nenhuma alteração foi salva."),'edição de cliente central bloqueada explicitamente');
 ok(html.includes("Alteração de agendamento existente ainda não liberada no modo central; nenhuma alteração foi salva."),'edição de agenda central bloqueada explicitamente');
+ok(html.includes("let wrapped=function auditClientBridge(id=''){if(!centralEnabled())return legacySaveClient.apply(this,arguments)"),'fallback de cliente preserva retorno síncrono legado');
+ok(html.includes("let wrapped=function(){if(!centralEnabled())return legacySaveReservation.apply(this,arguments)"),'fallback de agenda preserva retorno síncrono legado');
+ok(!html.includes("let wrapped=async function(id=''){if(!centralEnabled())return legacySaveClient"),'cliente não converte fallback legado em Promise');
+ok(!html.includes("let wrapped=async function(){if(!centralEnabled())return legacySaveReservation"),'agenda não converte fallback legado em Promise');
+ok(html.includes("function auditClientBridge"),'wrapper de cliente mantém marcador de auditoria detectável');
 
 console.log(JSON.stringify({ok:true,tests,feature:'v99_frontend_central_bridge'}));
