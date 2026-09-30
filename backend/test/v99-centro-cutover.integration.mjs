@@ -1,21 +1,24 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
+import {once} from 'node:events';
 import {PrismaClient} from '@prisma/client';
 
 const prisma=new PrismaClient();let tests=0;
 const ok=(v,m)=>{tests++;assert.ok(v,m)};
-const base='http://127.0.0.1:'+(process.env.PORT||3100);
+const port=Number(process.env.CENTRO_CUTOVER_TEST_PORT||3102),base='http://127.0.0.1:'+port;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-async function health(){for(let i=0;i<60;i++){try{if((await fetch(base+'/api/v1/health')).ok)return}catch{}await sleep(500)}throw Error('backend start timeout')}
+let childStdout='',childStderr='',childError=null,childExit=null;
+async function health(server){for(let i=0;i<60;i++){if(childError)throw childError;if(childExit)throw Error(`backend exited before health: code=${childExit.code} signal=${childExit.signal} stderr=${childStderr.trim()} stdout=${childStdout.trim()}`);try{if((await fetch(base+'/api/v1/health')).ok)return}catch{}await sleep(500)}throw Error(`backend start timeout: stderr=${childStderr.trim()} stdout=${childStdout.trim()}`)}
 const cookieOf=r=>(r.headers.get('set-cookie')||'').split(';')[0];
 async function main(){
  await prisma.auditEvent.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.serviceCategory.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.unit.deleteMany();
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
  await prisma.service.createMany({data:[{id:'s1',name:'Manicure',price:'50.00',durationMin:60},{id:'s2',name:'Pedicure',price:'60.00',durationMin:45}]});
  await prisma.professional.create({data:{id:'p1',name:'Profissional 1',legacyPayload:{services:['s1','s2']},units:{create:[{unitId:'centro'}]}}});
- const server=spawn(process.execPath,['dist/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ server.stdout.on('data',d=>{childStdout+=String(d)});server.stderr.on('data',d=>{childStderr+=String(d)});server.on('error',e=>{childError=e});server.on('exit',(code,signal)=>{childExit={code,signal}});
  try{
-  await health();
+  await health(server);
   let r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');
   const cookie=cookieOf(r),auth=await r.json(),headers={'content-type':'application/json','x-csrf-token':auth.csrfToken,'cookie':cookie,'x-unit-id':'centro'};
   r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...headers,'idempotency-key':'client-a'},body:JSON.stringify({name:'Maria Teste',phone:'(31) 99999-1111',city:'Contagem',source:'WhatsApp'})});ok(r.ok,'cria cliente');const client=await r.json();ok(client.phone==='+5531999991111','telefone canônico');ok(client.city==='Contagem'&&client.source==='WhatsApp','perfil preservado');
@@ -33,6 +36,6 @@ async function main(){
   r=await fetch(base+'/api/v1/booking-block-series',{method:'POST',headers:{...headers,'idempotency-key':'series-1'},body:JSON.stringify(seriesBody)});ok(r.ok,'repetição da série é idempotente');const seriesAgain=await r.json();ok(seriesAgain.bookings.map(x=>x.id).join('|')===series.bookings.map(x=>x.id).join('|'),'mesmas ocorrências retornadas no retry');
   r=await fetch(base+`/api/v1/bookings/${booking.id}`,{method:'PATCH',headers,body:JSON.stringify({status:'Cancelado'})});ok(r.ok,'cancela no central');
   console.log(JSON.stringify({ok:true,tests,feature:'centro_cutover_hardening'}));
- }finally{server.kill('SIGTERM');await prisma.$disconnect()}
+ }finally{if(server.exitCode===null&&server.signalCode===null){server.kill('SIGTERM');await Promise.race([once(server,'exit'),sleep(3000)]).catch(()=>{})}await prisma.$disconnect()}
 }
 main().catch(async e=>{console.error(e.stack||e);await prisma.$disconnect().catch(()=>{});process.exit(1)});
