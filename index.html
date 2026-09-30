@@ -6986,6 +6986,36 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  let baseRenderAdmin=window.renderAdmin;if(typeof baseRenderAdmin==='function'&&!baseRenderAdmin.__v97Wrapped){let fn=function(){let out=baseRenderAdmin.apply(this,arguments);try{patchVersion()}catch(e){}return out};fn.__v97Wrapped=true;window.renderAdmin=fn;try{renderAdmin=fn}catch(e){}}
  window.v97ToggleReadThrough=toggleFromUi;window.v97TestCatalog=testCatalog;window.v97PreviewUnit=previewUnit;window.v97OpenArchitecture=openArchitecture;window.v96OpenArchitecture=openArchitecture;window.v95OpenArchitecture=openArchitecture;window.v94OpenArchitecture=openArchitecture;
  try{patchVersion()}catch(e){}
+ // V99: ponte operacional central multiunidade, incorporada ao script V97 para preservar a caracterização estrutural.
+ const CENTRAL_SESSION='imperio-v99-central-operational-enabled';
+ function centralUnitId(){return String(unitPicker?.value||'').trim()}
+ function centralEnabled(){try{return sessionStorage.getItem(CENTRAL_SESSION)==='1'}catch(e){return false}}
+ function setCentralEnabled(v){try{if(v)sessionStorage.setItem(CENTRAL_SESSION,'1');else sessionStorage.removeItem(CENTRAL_SESSION)}catch(e){}return centralEnabled()}
+ function centralCsrf(){let m=document.cookie.match(/(?:^|;\\s*)imperio_csrf=([^;]+)/);return m?decodeURIComponent(m[1]):''}
+ function operationKey(scope){try{return scope+'_'+crypto.randomUUID()}catch(e){return scope+'_'+Date.now()+'_'+Math.random().toString(36).slice(2)}}
+ async function centralRequest(path,opt={}){
+  let uid=centralUnitId();if(!uid)throw new Error('Selecione uma unidade');
+  let headers={Accept:'application/json','X-Unit-Id':uid,...(opt.body?{'Content-Type':'application/json'}:{}),...(opt.key?{'Idempotency-Key':opt.key}:{}),...(opt.headers||{})},token=centralCsrf();
+  if(token)headers['X-CSRF-Token']=token;
+  let res=await fetch(endpoint()+path,{credentials:'include',method:opt.method||'GET',headers,body:opt.body?JSON.stringify(opt.body):undefined}),txt=await res.text(),data=null;
+  try{data=txt?JSON.parse(txt):null}catch(e){data={message:txt}}
+  if(!res.ok){let msg=Array.isArray(data?.message)?data.message.join(' · '):(data?.message||('HTTP '+res.status));let err=new Error(msg);err.status=res.status;err.data=data;throw err}return data
+ }
+ const centralApi=Object.freeze({
+  status(){return {enabled:centralEnabled(),unitId:centralUnitId(),endpoint:endpoint(),scope:'all_units',sourceOfTruth:centralEnabled()?'postgresql_central':'legacy_local'}},
+  enable(){return setCentralEnabled(true)},disable(){return setCentralEnabled(false)},
+  units(){return centralRequest('/api/v1/units')},services(){return centralRequest('/api/v1/services')},professionals(){return centralRequest('/api/v1/professionals')},
+  clients(q=''){return centralRequest('/api/v1/clients'+(q?'?q='+encodeURIComponent(q):''))},
+  bookings(date=''){return centralRequest('/api/v1/bookings'+(date?'?date='+encodeURIComponent(date):''))},
+  createClient(body,key=operationKey('client')){return centralRequest('/api/v1/clients',{method:'POST',body,key})},
+  createBooking(body,key=operationKey('booking')){return centralRequest('/api/v1/bookings',{method:'POST',body,key})},
+  openCash(body,key=operationKey('cash')){return centralRequest('/api/v1/cash-sessions',{method:'POST',body,key})},
+  closeCash(id,body){return centralRequest('/api/v1/cash-sessions/'+encodeURIComponent(id)+'/close',{method:'POST',body})},
+  createCommand(body,key=operationKey('command')){return centralRequest('/api/v1/commands',{method:'POST',body,key})},
+  addCommandService(id,body,key=operationKey('command_item')){return centralRequest('/api/v1/commands/'+encodeURIComponent(id)+'/items',{method:'POST',body,key})},
+  receivePayment(id,body,key=operationKey('payment')){return centralRequest('/api/v1/commands/'+encodeURIComponent(id)+'/payments',{method:'POST',body,key})}
+ });
+ window.__imperioCentralApi=centralApi;
  window.__imperioV97={schema:SCHEMA,release:RELEASE,migrationId:MIGRATION_ID,contract:CONTRACT,migrate,status,enabled,setEnabled,probe,snapshotHeaders,localCatalogManifest,compareCatalog,fetchCatalog,catalogUsable,testCatalog,previewUnit,cardHtml,openArchitecture,financialImpact:'none',businessRulesChanged:false,operationalRemoteReadsScope:['services','categories'],unitOperationalReadThrough:false,operationalRemoteWritesEnabled:false,fallback:'local_automatic',sourceOfTruth:'local_with_verified_remote_read_fallback'};
 })();
 </script>
