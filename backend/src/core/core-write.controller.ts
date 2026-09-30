@@ -129,19 +129,20 @@ export class CoreWriteController {
   async createBlockSeries(@Req() req:ImperioRequest,@Body() body:CreateBlockSeriesDto,@Headers('idempotency-key') key?:string){
     this.assertWritesEnabled();const unitId=req.unitId!,seriesKey=key||randomUUID();
     return this.prisma.$transaction(async tx=>{
+      const ids=body.occurrences.map((_,i)=>this.operationId(unitId+'|block-series|'+i,seriesKey));
+      const existing=await tx.booking.findMany({where:{id:{in:ids},unitId},include:{items:true}});
+      if(existing.length===ids.length)return {seriesKey,count:existing.length,bookings:ids.map(id=>existing.find(x=>x.id===id)!)};
+      if(existing.length)throw new ConflictException('Série de bloqueios parcialmente existente; revise antes de repetir a operação');
       const unit=await tx.unit.findFirst({where:{id:unitId,active:true}});if(!unit)throw new NotFoundException('Unidade não encontrada ou inativa');
       const pro=await tx.professionalUnit.findFirst({where:{professionalId:body.professionalId,unitId,active:true,professional:{active:true}}});if(!pro)throw new NotFoundException('Profissional não atende nesta unidade');
       const prepared:any[]=[];
       for(let i=0;i<body.occurrences.length;i++){
         const o=body.occurrences[i],items=await this.prepareItems(tx,unitId,o.serviceDate,[{professionalId:body.professionalId,startAt:o.startAt,durationMin:o.durationMin,unitPrice:0,forceFit:!!body.forceFit}],'Bloqueado');
         await this.lockAndCheck(tx,unitId,o.serviceDate,null,items,'Bloqueado');
-        prepared.push({index:i,occurrence:o,item:items[0]});
+        prepared.push({index:i,id:ids[i],occurrence:o,item:items[0]});
       }
       const rows:any[]=[];
-      for(const x of prepared){
-        const id=this.operationId(unitId+'|block-series|'+x.index,seriesKey),prior=await tx.booking.findUnique({where:{id},include:{items:true}});if(prior){rows.push(prior);continue}
-        const row=await tx.booking.create({data:{id,unitId,clientId:null,serviceDate:new Date(x.occurrence.serviceDate+'T00:00:00.000Z'),startAt:x.item.startAt,serviceId:null,professionalId:body.professionalId,notes:body.notes?.trim()||'Horário bloqueado',status:'Bloqueado',blockAllDay:!!body.blockAllDay,blockSeriesId:'bs_'+createHash('sha256').update(String(seriesKey)).digest('hex').slice(0,24),blockRecurrence:body.recurrence?body.recurrence as Prisma.InputJsonValue:Prisma.JsonNull,legacyPayload:{source:'central_api',blockSeries:true,seriesKey},items:{create:{...x.item,id:x.item.id}}},include:{items:true}});rows.push(row);
-      }
+      for(const x of prepared){const row=await tx.booking.create({data:{id:x.id,unitId,clientId:null,serviceDate:new Date(x.occurrence.serviceDate+'T00:00:00.000Z'),startAt:x.item.startAt,serviceId:null,professionalId:body.professionalId,notes:body.notes?.trim()||'Horário bloqueado',status:'Bloqueado',blockAllDay:!!body.blockAllDay,blockSeriesId:'bs_'+createHash('sha256').update(String(seriesKey)).digest('hex').slice(0,24),blockRecurrence:body.recurrence?body.recurrence as Prisma.InputJsonValue:Prisma.JsonNull,legacyPayload:{source:'central_api',blockSeries:true,seriesKey},items:{create:{...x.item,id:x.item.id}}},include:{items:true}});rows.push(row)}
       await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId,action:'booking.block_series_created',entityType:'Booking',entityId:String(seriesKey),legacyPayload:{source:'central_api',professionalId:body.professionalId,count:rows.length,forceFit:!!body.forceFit},occurredAt:new Date()}});
       return {seriesKey,count:rows.length,bookings:rows};
     });
@@ -153,7 +154,7 @@ export class CoreWriteController {
   async updateBooking(@Req() req:ImperioRequest,@Param('id') id:string,@Body() body:UpdateBookingDto){
     this.assertWritesEnabled();
     await this.prisma.$transaction(async tx=>{const current=await tx.booking.findFirst({where:{id,unitId:req.unitId!},include:{items:{orderBy:{sortOrder:'asc'}}}});if(!current)throw new NotFoundException('Agendamento não encontrado nesta unidade');const serviceDate=body.serviceDate||current.serviceDate.toISOString().slice(0,10),status=body.status||current.status;let items:any[]=current.items;
-      if(body.items?.length){items=await this.prepareItems(tx,req.unitId!,serviceDate,body.items,status);await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status);await tx.bookingItem.deleteMany({where:{bookingId:id}});await tx.bookingItem.createMany({data:items.map(x=>({...x,bookingId:id}))});}
+      if(body.items?.length){items=await this.prepareItems(tx,req.unitId!,serviceDate,body.items,status);await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status);await tx.bookingItem.deleteMany({where:{bookingId:id}});await tx.bookingItem.createMany({data:items.map(x=>({...x,bookingId:id}))});}else if(status!==current.status&&!TERMINAL_BOOKING.includes(status)){await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status)}
       const first=items[0]||null;await tx.booking.update({where:{id},data:{serviceDate:new Date(serviceDate+'T00:00:00.000Z'),status,notes:body.notes===undefined?current.notes:(body.notes.trim()||null),startAt:first?.startAt||current.startAt,serviceId:first?first.serviceId:(current.serviceId||null),professionalId:first?.professionalId||current.professionalId,...(body.blockAllDay===undefined?{}:{blockAllDay:body.blockAllDay}),...(body.blockException===undefined?{}:{blockException:body.blockException}),version:{increment:1}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.updated',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',status,itemCount:items.length},occurredAt:new Date()}})});
     return this.bookingView(req.unitId!,id);
   }
