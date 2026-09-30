@@ -24,7 +24,11 @@ async function main(){
   const concurrent=await Promise.all([book('centro','2026-10-06T16:00','3199999051','race-a','short'),book('centro','2026-10-06T16:00','3199999052','race-b','short')]);
   const statuses=concurrent.map(x=>x.status).sort((a,b)=>a-b);ok(statuses[0]>=200&&statuses[0]<300,'one concurrent booking accepted');ok(statuses[1]===409,'other concurrent booking rejected');
   ok(await prisma.booking.count({where:{unitId:'centro',professionalId:'p-all',startAt:new Date('2026-10-06T19:00:00.000Z')}})===1,'only one concurrent slot persisted');
-  ok(await prisma.auditEvent.count({where:{action:'booking.created_online'}})===7,'online bookings audited');
+  r=await book('centro','2026-10-06T18:00:30','3199999060','seconds','short');ok(r.ok,'seconds timestamp accepted');ok(await prisma.booking.count({where:{unitId:'centro',startAt:new Date('2026-10-06T21:00:30.000Z')}})===1,'seconds timestamp persisted correctly');
+  await prisma.booking.create({data:{id:'legacy-cancelled',unitId:'centro',serviceDate:new Date('2026-10-06T00:00:00.000Z'),startAt:new Date('2026-10-06T20:00:00.000Z'),serviceId:'short',professionalId:'p-all',status:'Cancelado',legacyPayload:{durationMin:30}}});
+  r=await book('centro','2026-10-06T17:00','3199999070','reuse-cancelled','short');ok(r.ok,'legacy cancelled slot can be reused');
+  r=await book('big','2026-10-06T18:00','---','invalid-phone','short');ok(r.status===409,'empty normalized phone rejected');
+  ok(await prisma.auditEvent.count({where:{action:'booking.created_online'}})===9,'online bookings audited');
   console.log(JSON.stringify({ok:true,tests:n,feature:'public_booking_three_units'}));
  }finally{server.kill('SIGTERM');await prisma.$disconnect()}
 }
