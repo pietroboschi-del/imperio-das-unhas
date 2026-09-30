@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {PrismaClient} from '@prisma/client';
+
+const prisma=new PrismaClient();let tests=0;
+const ok=(v,m)=>{tests++;assert.ok(v,m)};
+const base='http://127.0.0.1:'+(process.env.PORT||3100);
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function health(){for(let i=0;i<60;i++){try{if((await fetch(base+'/api/v1/health')).ok)return}catch{}await sleep(500)}throw Error('backend start timeout')}
+const cookieOf=r=>(r.headers.get('set-cookie')||'').split(';')[0];
+async function main(){
+ await prisma.auditEvent.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.serviceCategory.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.unit.deleteMany();
+ for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
+ await prisma.service.createMany({data:[{id:'s1',name:'Manicure',price:'50.00',durationMin:60},{id:'s2',name:'Pedicure',price:'60.00',durationMin:45}]});
+ await prisma.professional.create({data:{id:'p1',name:'Profissional 1',legacyPayload:{services:['s1','s2']},units:{create:[{unitId:'centro'}]}}});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ try{
+  await health();
+  let r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');
+  const cookie=cookieOf(r),auth=await r.json(),headers={'content-type':'application/json','x-csrf-token':auth.csrfToken,'cookie':cookie,'x-unit-id':'centro'};
+  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...headers,'idempotency-key':'client-a'},body:JSON.stringify({name:'Maria Teste',phone:'(31) 99999-1111',city:'Contagem',source:'WhatsApp'})});ok(r.ok,'cria cliente');const client=await r.json();ok(client.phone==='+5531999991111','telefone canônico');ok(client.city==='Contagem'&&client.source==='WhatsApp','perfil preservado');
+  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...headers,'idempotency-key':'client-a-repeat'},body:JSON.stringify({name:'Maria Teste',phone:'+55 31 99999-1111'})});ok(r.ok,'mesma pessoa deduplicada');const same=await r.json();ok(same.id===client.id,'dedupe usa identidade e contato');
+  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...headers,'idempotency-key':'client-family'},body:JSON.stringify({name:'Ana Teste',phone:'(31) 99999-1111'})});ok(r.ok,'telefone familiar compartilhado');const family=await r.json();ok(family.id!==client.id,'familiares não são fundidas');
+  r=await fetch(base+`/api/v1/clients/${client.id}`,{method:'PATCH',headers,body:JSON.stringify({profession:'Arquiteta',notes:'Prefere manhã'})});ok(r.ok,'edita cliente');const edited=await r.json();ok(edited.profession==='Arquiteta'&&edited.notes==='Prefere manhã','perfil editado retorna seguro');
+  const items=[{serviceId:'s1',professionalId:'p1',startAt:'2026-10-06T09:00:00-03:00',durationMin:60,unitPrice:50},{serviceId:'s2',professionalId:'p1',startAt:'2026-10-06T10:00:00-03:00',durationMin:45,unitPrice:60,preference:true}];
+  r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{...headers,'idempotency-key':'multi-1'},body:JSON.stringify({clientId:client.id,serviceDate:'2026-10-06',items})});ok(r.ok,'cria visita multi-serviço');const booking=await r.json();ok(booking.items.length===2,'dois itens retornados');ok(await prisma.bookingItem.count({where:{bookingId:booking.id}})===2,'dois itens persistidos');
+  r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{...headers,'idempotency-key':'overlap-1'},body:JSON.stringify({clientId:client.id,serviceDate:'2026-10-06',items:[{serviceId:'s1',professionalId:'p1',startAt:'2026-10-06T09:30:00-03:00'}]})});ok(r.status===409,'conflito por duração rejeitado');
+  r=await fetch(base+`/api/v1/bookings/${booking.id}`,{method:'PATCH',headers,body:JSON.stringify({status:'Confirmado',items:[{serviceId:'s1',professionalId:'p1',startAt:'2026-10-06T11:00:00-03:00',durationMin:60,unitPrice:50},{serviceId:'s2',professionalId:'p1',startAt:'2026-10-06T12:00:00-03:00',durationMin:45,unitPrice:60}]})});ok(r.ok,'reagenda visita completa');const moved=await r.json();ok(moved.status==='Confirmado'&&moved.items.length===2,'reagendamento preserva itens');
+  r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{...headers,'idempotency-key':'block-1'},body:JSON.stringify({serviceDate:'2026-10-06',status:'Bloqueado',notes:'Almoço',items:[{professionalId:'p1',startAt:'2026-10-06T14:00:00-03:00',durationMin:60,unitPrice:0}]})});ok(r.ok,'cria bloqueio sem serviço');const block=await r.json();ok(block.items[0].serviceId===null,'bloqueio sem serviço preservado');
+  r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{...headers,'idempotency-key':'blocked-overlap'},body:JSON.stringify({clientId:client.id,serviceDate:'2026-10-06',items:[{serviceId:'s1',professionalId:'p1',startAt:'2026-10-06T14:30:00-03:00'}]})});ok(r.status===409,'bloqueio impede sobreposição');
+  const seriesBody={professionalId:'p1',notes:'Curso',blockAllDay:false,recurrence:{freq:'weekly',interval:1,weekdays:[3],until:'2026-10-14'},occurrences:[{serviceDate:'2026-10-07',startAt:'2026-10-07T15:00:00-03:00',durationMin:60},{serviceDate:'2026-10-14',startAt:'2026-10-14T15:00:00-03:00',durationMin:60}]};
+  r=await fetch(base+'/api/v1/booking-block-series',{method:'POST',headers:{...headers,'idempotency-key':'series-1'},body:JSON.stringify(seriesBody)});ok(r.ok,'série de bloqueios atômica');const series=await r.json();ok(series.count===2,'duas ocorrências criadas');
+  r=await fetch(base+'/api/v1/booking-block-series',{method:'POST',headers:{...headers,'idempotency-key':'series-1'},body:JSON.stringify(seriesBody)});ok(r.ok,'repetição da série é idempotente');const seriesAgain=await r.json();ok(seriesAgain.bookings.map(x=>x.id).join('|')===series.bookings.map(x=>x.id).join('|'),'mesmas ocorrências retornadas no retry');
+  r=await fetch(base+`/api/v1/bookings/${booking.id}`,{method:'PATCH',headers,body:JSON.stringify({status:'Cancelado'})});ok(r.ok,'cancela no central');
+  console.log(JSON.stringify({ok:true,tests,feature:'centro_cutover_hardening'}));
+ }finally{server.kill('SIGTERM');await prisma.$disconnect()}
+}
+main().catch(async e=>{console.error(e.stack||e);await prisma.$disconnect().catch(()=>{});process.exit(1)});

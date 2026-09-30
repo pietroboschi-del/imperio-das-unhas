@@ -17,7 +17,7 @@
     "test:shadow": "node test/v96-shadow-contract.test.mjs",
     "test:readthrough": "node test/v97-read-through-contract.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:contracts": "node test/v95-contract.test.mjs && node test/v96-shadow-contract.test.mjs && node test/v97-read-through-contract.test.mjs",
+    "test:contracts": "node test/v95-contract.test.mjs && node test/v96-shadow-contract.test.mjs && node test/v97-read-through-contract.test.mjs && node test/v99-frontend-cutover.contract.mjs",
     "test:reconciliation": "node test/v98a-reconciliation.test.mjs",
     "test:integration": "node test/v98a-postgres.integration.mjs",
     "test:import-contract": "node test/v98a-import-integrity.contract.mjs",
@@ -32,7 +32,7 @@
     "test:security-integration": "node test/v98b-security.integration.mjs",
     "test:characterization": "node ../tests_characterization/run-characterization-gate.mjs",
     "test:professional-obligations": "python3 test/v98a-professional-obligation-parity.test.py",
-    "test:operational-writes": "node test/v99-operational-writes.integration.mjs",
+    "test:operational-writes": "node test/v99-operational-writes.integration.mjs && node test/v99-centro-cutover.integration.mjs",
     "test:finance-flow": "node test/v99-finance-flow.integration.mjs",
     "test:public-booking": "node test/v99-public-booking.integration.mjs"
   },
