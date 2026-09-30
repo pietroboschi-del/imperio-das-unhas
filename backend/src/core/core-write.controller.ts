@@ -44,22 +44,23 @@ export class CoreWriteController {
     if(rule?.enabled===true)return true;
     return services.length?services.includes(serviceId):true;
   }
-  private async prepareItems(tx:Prisma.TransactionClient,unitId:string,serviceDate:string,items:BookingItemWriteDto[]){
+  private async prepareItems(tx:Prisma.TransactionClient,unitId:string,serviceDate:string,items:BookingItemWriteDto[],status:string){
     const out:any[]=[];
     for(let i=0;i<items.length;i++){
       const it=items[i],startAt=new Date(it.startAt);if(Number.isNaN(startAt.getTime()))throw new ConflictException('Horário inválido');
       if(String(it.startAt).slice(0,10)!==serviceDate)throw new ConflictException('Horário do serviço deve pertencer à data da visita');
+      const isBlock=status==='Bloqueado';if(!isBlock&&!it.serviceId)throw new ConflictException('Serviço é obrigatório para atendimentos');
       const [service,pro]=await Promise.all([
-        tx.service.findFirst({where:{id:it.serviceId,active:true},select:{id:true,price:true,durationMin:true,legacyPayload:true}}),
+        it.serviceId?tx.service.findFirst({where:{id:it.serviceId,active:true},select:{id:true,price:true,durationMin:true,legacyPayload:true}}):Promise.resolve(null),
         tx.professionalUnit.findFirst({where:{professionalId:it.professionalId,unitId,active:true,professional:{active:true}},select:{professional:{select:{id:true,legacyPayload:true}}}}),
       ]);
-      if(!service)throw new NotFoundException('Serviço não encontrado ou inativo');
+      if(it.serviceId&&!service)throw new NotFoundException('Serviço não encontrado ou inativo');
       if(!pro)throw new NotFoundException('Profissional não atende nesta unidade');
-      if(!this.professionalCanDo(pro.professional.legacyPayload,service.legacyPayload,it.professionalId,it.serviceId))throw new ConflictException('Profissional não executa este serviço');
-      const rule=(service.legacyPayload as any)?.proRules?.[it.professionalId];
-      const duration=Math.max(1,Number(it.durationMin??rule?.duration??service.durationMin??30));
-      const unitPrice=new Prisma.Decimal(Number(it.unitPrice??rule?.price??service.price??0).toFixed(2));
-      out.push({id:'bi_'+createHash('sha256').update(unitId+'|'+i+'|'+it.serviceId+'|'+it.professionalId+'|'+it.startAt+'|'+randomUUID()).digest('hex').slice(0,40),unitId,serviceId:it.serviceId,professionalId:it.professionalId,startAt,durationMin:duration,unitPrice,preference:!!it.preference,forceFit:!!it.forceFit,sortOrder:i,legacyPayload:{source:'central_api'}});
+      if(service&&it.serviceId&&!this.professionalCanDo(pro.professional.legacyPayload,service.legacyPayload,it.professionalId,it.serviceId))throw new ConflictException('Profissional não executa este serviço');
+      const rule=service&&it.serviceId?(service.legacyPayload as any)?.proRules?.[it.professionalId]:null;
+      const duration=Math.max(1,Number(it.durationMin??rule?.duration??service?.durationMin??30));
+      const unitPrice=new Prisma.Decimal(Number(isBlock?0:(it.unitPrice??rule?.price??service?.price??0)).toFixed(2));
+      out.push({id:'bi_'+createHash('sha256').update(unitId+'|'+i+'|'+(it.serviceId||'block')+'|'+it.professionalId+'|'+it.startAt+'|'+randomUUID()).digest('hex').slice(0,40),unitId,serviceId:it.serviceId||null,professionalId:it.professionalId,startAt,durationMin:duration,unitPrice,preference:!!it.preference,forceFit:!!it.forceFit,sortOrder:i,legacyPayload:{source:'central_api'}});
     }
     return out;
   }
@@ -118,7 +119,7 @@ export class CoreWriteController {
     const rawItems=body.items?.length?body.items:(body.serviceId&&body.professionalId&&body.startAt?[{serviceId:body.serviceId,professionalId:body.professionalId,startAt:body.startAt} as BookingItemWriteDto]:[]);
     if(!rawItems.length)throw new ConflictException('Informe pelo menos um serviço do agendamento');
     const id=this.operationId(req.unitId!,key),status=body.status||'Agendado';
-    await this.prisma.$transaction(async tx=>{const existing=await tx.booking.findUnique({where:{id}});if(existing)return;const unit=await tx.unit.findFirst({where:{id:req.unitId!,active:true}});if(!unit)throw new NotFoundException('Unidade não encontrada ou inativa');const items=await this.prepareItems(tx,req.unitId!,body.serviceDate,rawItems);await this.lockAndCheck(tx,req.unitId!,body.serviceDate,null,items,status);const first=items[0];await tx.booking.create({data:{id,unitId:req.unitId!,clientId:body.clientId||null,serviceId:first.serviceId,professionalId:first.professionalId,serviceDate:new Date(body.serviceDate+'T00:00:00.000Z'),startAt:first.startAt,notes:body.notes?.trim()||null,status,legacyPayload:{source:'central_api',multiItem:true},items:{create:items.map(x=>({...x,id:x.id}))}}});if(body.clientId)await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:body.clientId,unitId:req.unitId!}},create:{clientId:body.clientId,unitId:req.unitId!,source:'booking'},update:{active:true}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.created',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',itemCount:items.length},occurredAt:new Date()}})});
+    await this.prisma.$transaction(async tx=>{const existing=await tx.booking.findUnique({where:{id}});if(existing)return;const unit=await tx.unit.findFirst({where:{id:req.unitId!,active:true}});if(!unit)throw new NotFoundException('Unidade não encontrada ou inativa');const items=await this.prepareItems(tx,req.unitId!,body.serviceDate,rawItems,status);await this.lockAndCheck(tx,req.unitId!,body.serviceDate,null,items,status);const first=items[0];await tx.booking.create({data:{id,unitId:req.unitId!,clientId:body.clientId||null,serviceId:first.serviceId||null,professionalId:first.professionalId,serviceDate:new Date(body.serviceDate+'T00:00:00.000Z'),startAt:first.startAt,notes:body.notes?.trim()||null,status,legacyPayload:{source:'central_api',multiItem:true},items:{create:items.map(x=>({...x,id:x.id}))}}});if(body.clientId)await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:body.clientId,unitId:req.unitId!}},create:{clientId:body.clientId,unitId:req.unitId!,source:'booking'},update:{active:true}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.created',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',itemCount:items.length},occurredAt:new Date()}})});
     return this.bookingView(req.unitId!,id);
   }
 
@@ -128,7 +129,7 @@ export class CoreWriteController {
   async updateBooking(@Req() req:ImperioRequest,@Param('id') id:string,@Body() body:UpdateBookingDto){
     this.assertWritesEnabled();
     await this.prisma.$transaction(async tx=>{const current=await tx.booking.findFirst({where:{id,unitId:req.unitId!},include:{items:{orderBy:{sortOrder:'asc'}}}});if(!current)throw new NotFoundException('Agendamento não encontrado nesta unidade');const serviceDate=body.serviceDate||current.serviceDate.toISOString().slice(0,10),status=body.status||current.status;let items:any[]=current.items;
-      if(body.items?.length){items=await this.prepareItems(tx,req.unitId!,serviceDate,body.items);await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status);await tx.bookingItem.deleteMany({where:{bookingId:id}});await tx.bookingItem.createMany({data:items.map(x=>({...x,bookingId:id}))});}
+      if(body.items?.length){items=await this.prepareItems(tx,req.unitId!,serviceDate,body.items,status);await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status);await tx.bookingItem.deleteMany({where:{bookingId:id}});await tx.bookingItem.createMany({data:items.map(x=>({...x,bookingId:id}))});}
       const first=items[0]||null;await tx.booking.update({where:{id},data:{serviceDate:new Date(serviceDate+'T00:00:00.000Z'),status,notes:body.notes===undefined?current.notes:(body.notes.trim()||null),startAt:first?.startAt||current.startAt,serviceId:first?.serviceId||current.serviceId,professionalId:first?.professionalId||current.professionalId,version:{increment:1}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.updated',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',status,itemCount:items.length},occurredAt:new Date()}})});
     return this.bookingView(req.unitId!,id);
   }
