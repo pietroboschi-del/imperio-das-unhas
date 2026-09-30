@@ -18,3 +18,12 @@ export class ReceivePaymentDto {
  @IsIn(['CASH','PIX','DEBIT_CARD','CREDIT_CARD','TRANSFER','OTHER']) method!:string;
  @IsNumber({maxDecimalPlaces:2}) @Min(0.01) amount!:number;
 }
+
+export class AddCommandServiceDto {
+ @IsString() @IsNotEmpty() @MaxLength(128) serviceId!:string;
+ @IsString() @IsNotEmpty() @MaxLength(128) professionalId!:string;
+ @IsNumber({maxDecimalPlaces:2}) @Min(0) unitPrice!:number;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) discountAmount?:number;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) commissionPercent?:number;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) commissionFixedAmount?:number;
+}
