@@ -8,7 +8,7 @@ import { legacySystemRole, mapLegacyPermissions } from './legacy-permission-mapp
 
 const positiveInt=(value:unknown,fallback:number,max=1_000_000)=>{const n=Number(value);return Number.isInteger(n)&&n>0?Math.min(n,max):fallback};
 const dateOnly=(value:unknown)=>new Date(`${String(value)}T00:00:00.000Z`);
-const phoneDigits=(value:unknown)=>{const d=String(value||'').replace(/\D/g,'');return d||null};
+const phoneDigits=(value:unknown)=>{const d=String(value||'').replace(/\D/g,'');if(!d)return null;if(d.startsWith('55')&&d.length>=12)return `+${d}`;if(d.length===10||d.length===11)return `+55${d}`;return `+${d}`};
 const bookingStart=(date:unknown,time:unknown)=>{const d=String(date||''),t=String(time||'');if(!/^\d{4}-\d{2}-\d{2}$/.test(d)||!/^\d{2}:\d{2}(:\d{2})?$/.test(t))return null;const x=new Date(`${d}T${t.length===5?t+':00':t}-03:00`);return Number.isNaN(x.getTime())?null:x};
 const decimal=(value:unknown)=>new Prisma.Decimal(String(value==null||value===''?'0':value));
 const json=(value:unknown)=>value as Prisma.InputJsonValue;
