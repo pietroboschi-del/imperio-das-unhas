@@ -15,8 +15,8 @@ const core=read('src/core/core-write.controller.ts');
 const finance=read('src/core/finance-write.controller.ts');
 const publicBooking=read('src/core/public-booking.controller.ts');
 
-ok(pkg.scripts.start==='node dist/src/main.js','entrypoint aponta para artefato real do Nest');
-ok(pkg.scripts['start:prod']==='node dist/src/main.js','start:prod consistente');
+ok(pkg.scripts.start==='node dist/main.js','entrypoint aponta para artefato real do Nest');
+ok(pkg.scripts['start:prod']==='node dist/main.js','start:prod consistente');
 ok(docker.includes('npm run prisma:migrate && npm start'),'container aplica migrations antes de iniciar');
 ok(docker.includes('HEALTHCHECK')&&docker.includes('/api/v1/health'),'container possui healthcheck');
 ok(env.includes('COOKIE_SECURE=true'),'cookie seguro em produção');
