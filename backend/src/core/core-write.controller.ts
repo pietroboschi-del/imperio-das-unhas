@@ -1,20 +1,16 @@
-import { Body, ConflictException, Controller, Headers, NotFoundException, Post, Req, ServiceUnavailableException } from '@nestjs/common';
+import { Body, ConflictException, Controller, Headers, NotFoundException, Post, Req } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequirePermissions } from '../common/permissions.decorator';
 import { UnitScoped } from '../common/unit-scope.decorator';
 import type { ImperioRequest } from '../common/request-context';
+import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { CreateBookingDto, CreateClientDto } from './core-write.dto';
 
 @Controller('api/v1')
 export class CoreWriteController {
   constructor(private readonly prisma: PrismaService) {}
 
-  private assertWritesEnabled(){
-    if(String(process.env.OPERATIONAL_WRITES_ENABLED||'false')!=='true'){
-      throw new ServiceUnavailableException('Escrita operacional central ainda não habilitada neste ambiente');
-    }
-  }
   private operationId(unitId:string,key?:string){
     if(!key)return randomUUID();
     const normalized=String(key).trim();
@@ -26,7 +22,7 @@ export class CoreWriteController {
   @UnitScoped()
   @RequirePermissions('clients.manage')
   async createClient(@Req() req:ImperioRequest,@Body() body:CreateClientDto,@Headers('idempotency-key') key?:string){
-    this.assertWritesEnabled();
+    assertOperationalWriteEnabled(req.unitId!);
     const rawPhone=body.phone?.trim()||null,phone=rawPhone?rawPhone.replace(/\\D/g,''):null,email=body.email?.trim().toLowerCase()||null;
     if(!phone&&!email)throw new ConflictException('Informe telefone ou e-mail para identificar o cliente na rede');
     const duplicate=await this.prisma.client.findFirst({where:{active:true,OR:[...(phone?[{phone}]:[]),...(email?[{email}]:[])]}});
@@ -54,7 +50,7 @@ export class CoreWriteController {
   @UnitScoped()
   @RequirePermissions('agenda.manage')
   async createBooking(@Req() req:ImperioRequest,@Body() body:CreateBookingDto,@Headers('idempotency-key') key?:string){
-    this.assertWritesEnabled();
+    assertOperationalWriteEnabled(req.unitId!);
     const [unit,service,professional,client]=await Promise.all([
       this.prisma.unit.findFirst({where:{id:req.unitId!,active:true}}),
       this.prisma.service.findFirst({where:{id:body.serviceId,active:true}}),
