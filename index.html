@@ -6897,7 +6897,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(Number(db.schemaVersion||0)<SCHEMA){db.schemaVersion=SCHEMA;db.schemaMigratedAt=now();changed=true}
   if(changed&&typeof save==='function')save({render:false,reason:'v96_migration'});return changed
  }
- function endpoint(){try{return String(sessionStorage.getItem(SESSION_URL)||'http://127.0.0.1:3000').replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
+ function endpoint(){try{let configured=sessionStorage.getItem(SESSION_URL)||window.IMPERIO_API_BASE||'',fallback=(typeof location!=='undefined'&&/^https?:$/.test(location.protocol))?location.origin:'http://127.0.0.1:3000';return String(configured||fallback).replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
  function setEndpoint(v){v=String(v||'').trim().replace(/\/+$/,'');if(!/^https?:\/\//i.test(v))throw new Error('Informe URL http:// ou https://');try{sessionStorage.setItem(SESSION_URL,v)}catch(e){}return v}
  function csrf(){try{return sessionStorage.getItem(SESSION_CSRF)||''}catch(e){return ''}}
  function setCsrf(v){try{if(v)sessionStorage.setItem(SESSION_CSRF,String(v));else sessionStorage.removeItem(SESSION_CSRF)}catch(e){}}
@@ -6957,7 +6957,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function stableHash(v){return payloadHash(stableValue(v))}
  function aggregateRows(rows){let pairs=(rows||[]).map((r,i)=>[String(r?.id||`__index_${i}`),stableHash(r)]).sort((a,b)=>a[0].localeCompare(b[0]));return payloadHash(pairs)}
  function migrate(){let changed=false;db.storageMeta=db.storageMeta&&typeof db.storageMeta==='object'&&!Array.isArray(db.storageMeta)?db.storageMeta:{};if(db.storageMeta.readThroughArchitectureVersion!==CONTRACT){db.storageMeta.readThroughArchitectureVersion=CONTRACT;changed=true}if(db.storageMeta.operationalRemoteWritesEnabled!==false){db.storageMeta.operationalRemoteWritesEnabled=false;changed=true}db.migrationHistory=Array.isArray(db.migrationHistory)?db.migrationHistory:[];if(!db.migrationHistory.some(x=>(typeof x==='string'?x:x?.id)===MIGRATION_ID)){db.migrationHistory.push({id:MIGRATION_ID,version:SCHEMA,status:'applied',appliedAt:now(),note:'Read-through V97: catálogo Serviços/Categorias pode usar backend somente com envelope exato verificado e fallback local automático. Profissionais/Clientes/Agenda permanecem preview nesta etapa. Escrita remota segue desativada.'});changed=true}if(Number(db.schemaVersion||0)<SCHEMA){db.schemaVersion=SCHEMA;db.schemaMigratedAt=now();changed=true}if(changed&&typeof save==='function')save({render:false,reason:'v97_migration'});return changed}
- function endpoint(){try{return String(sessionStorage.getItem(SESSION_URL)||'http://127.0.0.1:3000').replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
+ function endpoint(){try{let configured=sessionStorage.getItem(SESSION_URL)||window.IMPERIO_API_BASE||'',fallback=(typeof location!=='undefined'&&/^https?:$/.test(location.protocol))?location.origin:'http://127.0.0.1:3000';return String(configured||fallback).replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
  function enabled(){try{return sessionStorage.getItem(SESSION_ENABLED)==='1'}catch(e){return false}}
  function setEnabled(v){try{if(v)sessionStorage.setItem(SESSION_ENABLED,'1');else sessionStorage.removeItem(SESSION_ENABLED)}catch(e){}if(!v)cache={catalog:null,key:'',verified:false,inFlight:false,lastError:'',lastAttemptAt:0};return enabled()}
  function probe(){if(!window.__imperioV96?.localProbe)throw new Error('Probe V96 indisponível');return window.__imperioV96.localProbe()}
@@ -6998,7 +6998,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function centralEnabled(){return centralAuthenticated()&&centralUnitId()==='centro'&&centralCanUse('centro')}
  function setCentralSession(principal,csrfToken=''){try{if(principal){sessionStorage.setItem(CENTRAL_SESSION,'1');sessionStorage.setItem(CENTRAL_PRINCIPAL,JSON.stringify(principal));if(csrfToken)sessionStorage.setItem(CENTRAL_CSRF_KEY,csrfToken)}else{sessionStorage.removeItem(CENTRAL_SESSION);sessionStorage.removeItem(CENTRAL_PRINCIPAL);sessionStorage.removeItem(CENTRAL_CSRF_KEY)}}catch(e){}return centralAuthenticated()}
  function setCentralEnabled(v){if(!v)return setCentralSession(null);if(!centralAuthenticated())throw new Error('Faça login no backend central primeiro');return centralEnabled()}
- function centralCsrf(){try{return csrf()||sessionStorage.getItem(CENTRAL_CSRF_KEY)||''}catch(e){return ''}}
+ function centralCsrf(){try{return sessionStorage.getItem(CENTRAL_CSRF_KEY)||''}catch(e){return ''}}
  function operationKey(scope){try{return scope+'_'+crypto.randomUUID()}catch(e){return scope+'_'+Date.now()+'_'+Math.random().toString(36).slice(2)}}
  function centralError(data,status){let msg=Array.isArray(data?.message)?data.message.join(' · '):(data?.message||('HTTP '+status));let err=new Error(msg);err.status=status;err.data=data;return err}
  async function centralRequest(path,opt={}){
