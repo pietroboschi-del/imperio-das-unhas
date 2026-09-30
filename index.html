@@ -6897,7 +6897,9 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(Number(db.schemaVersion||0)<SCHEMA){db.schemaVersion=SCHEMA;db.schemaMigratedAt=now();changed=true}
   if(changed&&typeof save==='function')save({render:false,reason:'v96_migration'});return changed
  }
- function endpoint(){try{return String(sessionStorage.getItem(SESSION_URL)||'http://127.0.0.1:3000').replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
+ const PRODUCTION_API='https://imperio-backend-production-5086.up.railway.app';
+ function defaultEndpoint(){try{let h=String(location?.hostname||'').toLowerCase();return h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'?PRODUCTION_API:'http://127.0.0.1:3000'}catch(e){return 'http://127.0.0.1:3000'}}
+ function endpoint(){try{return String(sessionStorage.getItem(SESSION_URL)||defaultEndpoint()).replace(/\/+$/,'')}catch(e){return defaultEndpoint()}}
  function setEndpoint(v){v=String(v||'').trim().replace(/\/+$/,'');if(!/^https?:\/\//i.test(v))throw new Error('Informe URL http:// ou https://');try{sessionStorage.setItem(SESSION_URL,v)}catch(e){}return v}
  function csrf(){try{return sessionStorage.getItem(SESSION_CSRF)||''}catch(e){return ''}}
  function setCsrf(v){try{if(v)sessionStorage.setItem(SESSION_CSRF,String(v));else sessionStorage.removeItem(SESSION_CSRF)}catch(e){}}
