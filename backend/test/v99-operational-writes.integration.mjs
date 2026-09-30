@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {PrismaClient} from '@prisma/client';
+const prisma=new PrismaClient();let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+const base='http://127.0.0.1:'+(process.env.PORT||3100),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function waitHealth(){for(let i=0;i<60;i++){try{const r=await fetch(base+'/api/v1/health');if(r.ok)return}catch{}await sleep(500)}throw new Error('backend não iniciou')}
+const cookieOf=r=>(r.headers.get('set-cookie')||'').split(';')[0];
+async function main(){
+ await prisma.auditEvent.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.serviceCategory.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.unit.deleteMany();
+ for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
+ await prisma.service.create({data:{id:'s1',name:'Manicure',price:'50.00',durationMin:60}});
+ await prisma.professional.create({data:{id:'p1',name:'Profissional 1',units:{create:[{unitId:'centro'},{unitId:'big'}]}}});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ try{
+  await waitHealth();
+  let r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');
+  const oc=cookieOf(r),oa=await r.json(),oh={'content-type':'application/json','x-csrf-token':oa.csrfToken,'cookie':oc};
+  r=await fetch(base+'/api/v1/admin/users',{method:'POST',headers:oh,body:JSON.stringify({username:'recepcao_centro_ci',displayName:'Recepção Centro CI',systemRole:'OPERATOR',permissions:[],units:[{unitId:'centro',role:'reception',permissions:['clients.read','clients.manage','agenda.read','agenda.manage']}]})});ok(r.ok,'cria recepção Centro');const user=await r.json();
+  r=await fetch(base+`/api/v1/auth/users/${user.id}/activation-token`,{method:'POST',headers:oh,body:'{}'});const invite=await r.json();
+  r=await fetch(base+'/api/v1/auth/activate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:invite.token,newPassword:'centro-password-123'})});ok(r.ok,'ativa recepção');
+  r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'recepcao_centro_ci',password:'centro-password-123'})});ok(r.ok,'login recepção');const uc=cookieOf(r),ua=await r.json(),h={'content-type':'application/json','x-csrf-token':ua.csrfToken,'cookie':uc,'x-unit-id':'centro','idempotency-key':'client-1'};
+  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:h,body:JSON.stringify({name:'Cliente Piloto',phone:'+5531999990001'})});ok(r.ok,'Centro cria cliente');const client=await r.json();
+  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:h,body:JSON.stringify({name:'Cliente Piloto',phone:'+5531999990001'})});ok(r.ok,'repetição idempotente');ok(await prisma.client.count({where:{phone:'+5531999990001'}})===1,'cliente não duplica');
+  const bh={...h,'idempotency-key':'booking-1'};
+  r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:bh,body:JSON.stringify({clientId:client.id,serviceId:'s1',professionalId:'p1',serviceDate:'2026-10-06',startAt:'2026-10-06T12:00:00.000Z'})});ok(r.ok,'Centro cria agendamento');
+  r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:bh,body:JSON.stringify({clientId:client.id,serviceId:'s1',professionalId:'p1',serviceDate:'2026-10-06',startAt:'2026-10-06T12:00:00.000Z'})});ok(r.ok,'agendamento idempotente');ok(await prisma.booking.count({where:{unitId:'centro'}})===1,'agendamento não duplica');
+  for(const unitId of ['big','shopping-contagem']){r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{...bh,'x-unit-id':unitId,'idempotency-key':'cross-'+unitId},body:JSON.stringify({clientId:client.id,serviceId:'s1',professionalId:'p1',serviceDate:'2026-10-06',startAt:'2026-10-06T13:00:00.000Z'})});ok(r.status===403,`Centro não escreve em ${unitId}`)}
+  ok(await prisma.booking.count({where:{unitId:{not:'centro'}}})===0,'outras unidades permanecem intactas');
+  ok(await prisma.auditEvent.count({where:{unitId:'centro'}})===2,'cliente e agendamento auditados');
+  console.log(JSON.stringify({ok:true,tests,feature:'multi_unit_operational_writes'}));
+ }finally{server.kill('SIGTERM');await prisma.$disconnect()}
+}
+main().catch(async e=>{console.error(e.stack||e);await prisma.$disconnect().catch(()=>{});process.exit(1)});
