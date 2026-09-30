@@ -58,3 +58,15 @@ export class UpdateBookingDto {
   @IsOptional() @IsIn(BOOKING_STATUSES) status?: string;
   @IsOptional() @ArrayMinSize(1) @ValidateNested({each:true}) @Type(()=>BookingItemWriteDto) items?: BookingItemWriteDto[];
 }
+
+export class BlockOccurrenceDto {
+  @Matches(/^\d{4}-\d{2}-\d{2}$/) serviceDate!: string;
+  @IsISO8601({strict:true}) startAt!: string;
+  @IsInt() @Min(1) durationMin!: number;
+}
+export class CreateBlockSeriesDto {
+  @IsString() @IsNotEmpty() @MaxLength(128) professionalId!: string;
+  @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+  @IsOptional() @IsBoolean() forceFit?: boolean;
+  @ArrayMinSize(1) @ValidateNested({each:true}) @Type(()=>BlockOccurrenceDto) occurrences!: BlockOccurrenceDto[];
+}
