@@ -46,6 +46,7 @@ model Unit {
   clients      Client[] @relation("ClientRegistrationUnit")
   clientLinks  ClientUnitLink[]
   bookings     Booking[]
+  bookingItems BookingItem[]
 
   @@index([active])
 }
@@ -153,6 +154,7 @@ model Service {
   updatedAt     DateTime         @updatedAt
   category      ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   bookings      Booking[]
+  bookingItems  BookingItem[]
 
   @@index([categoryId, active])
 }
@@ -168,6 +170,7 @@ model Professional {
   updatedAt     DateTime @updatedAt
   units         ProfessionalUnit[]
   bookings      Booking[]
+  bookingItems  BookingItem[]
 }
 
 model ProfessionalUnit {
@@ -236,6 +239,7 @@ model Booking {
   client        Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
   service       Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   professional  Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
+  items         BookingItem[]
 
   @@index([unitId, serviceDate])
   @@index([unitId, startAt])
@@ -243,6 +247,32 @@ model Booking {
   @@index([professionalId])
   @@index([clientId, serviceDate])
   @@index([status])
+}
+
+
+model BookingItem {
+  id             String   @id
+  bookingId      String
+  unitId         String
+  serviceId      String
+  professionalId String
+  startAt        DateTime
+  durationMin    Int
+  unitPrice      Decimal  @db.Decimal(14,2)
+  preference     Boolean  @default(false)
+  forceFit       Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  legacyPayload  Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  booking        Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  unit           Unit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  service        Service @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  professional   Professional @relation(fields: [professionalId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId, sortOrder])
+  @@index([unitId, startAt])
+  @@index([professionalId, startAt])
 }
 
 model WaitlistRequest {
