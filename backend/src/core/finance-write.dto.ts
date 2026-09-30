@@ -27,3 +27,8 @@ export class AddCommandServiceDto {
  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) commissionPercent?:number;
  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) commissionFixedAmount?:number;
 }
+
+export class SettleProfessionalDto {
+ @IsString() @IsNotEmpty() @MaxLength(128) professionalId!:string;
+ @IsNumber({maxDecimalPlaces:2}) @Min(0.01) amount!:number;
+}
