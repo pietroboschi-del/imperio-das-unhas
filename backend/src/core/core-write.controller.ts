@@ -22,7 +22,7 @@ export class CoreWriteController {
     if(!normalized||normalized.length>200)throw new ConflictException('Idempotency-Key inválida');
     return 'op_'+createHash('sha256').update(scope+'|'+normalized).digest('hex').slice(0,40);
   }
-  private phone(value?:string|null){const d=String(value||'').replace(/\D/g,'');return d||null}
+  private phone(value?:string|null){const d=String(value||'').replace(/\D/g,'');if(!d)return null;if(d.startsWith('55')&&d.length>=12)return '+'+d;if(d.length===10||d.length===11)return '+55'+d;return '+'+d}
   private normName(value?:string|null){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
   private profile(body:CreateClientDto|UpdateClientDto){
     return Object.fromEntries(Object.entries({cpf:body.cpf,birthDate:body.birthDate,cep:body.cep,neighborhood:body.neighborhood,city:body.city,profession:body.profession,source:body.source,notes:body.notes}).filter(([,v])=>v!==undefined));
