@@ -64,6 +64,8 @@ jobs:
         run: npm run build
       - name: Static and projector tests
         run: npm test
+      - name: Frontend central bridge contract
+        run: npm run test:frontend-central-bridge
       - name: Install Python parity dependency
         run: |
           python3 -m pip install --user playwright
