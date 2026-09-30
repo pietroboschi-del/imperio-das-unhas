@@ -67,6 +67,7 @@ export class CoreWriteController {
     if(body.clientId&&!client)throw new NotFoundException('Cliente não encontrado ou inativo');
     const id=this.operationId(req.unitId!,key);
     return this.prisma.$transaction(async tx=>{
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${body.professionalId+'|'+body.serviceDate}))`;
       const existing=await tx.booking.findUnique({where:{id}});
       if(existing)return existing;
       const startAt=new Date(body.startAt);

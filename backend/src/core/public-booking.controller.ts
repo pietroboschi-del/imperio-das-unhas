@@ -12,7 +12,7 @@ export class PublicBookingController {
  @Public() @Post('bookings')
  async book(@Body() b:PublicBookingDto,@Headers('idempotency-key') key?:string){
   this.enabled();const startAt=new Date(b.startAt+':00-03:00');if(Number.isNaN(startAt.getTime()))throw new ConflictException('Horário inválido');const serviceDate=new Date(b.startAt.slice(0,10)+'T00:00:00.000Z');const bookingId=this.id(b.unitId+'|site-booking',key);
-  return this.prisma.$transaction(async tx=>{const prior=await tx.booking.findUnique({where:{id:bookingId}});if(prior)return prior;
+  return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${b.unitId}), hashtext(${b.professionalId+'|'+b.startAt.slice(0,10)}))`;const prior=await tx.booking.findUnique({where:{id:bookingId}});if(prior)return prior;
    const unit=await tx.unit.findFirst({where:{id:b.unitId,active:true}});if(!unit)throw new NotFoundException('Unidade indisponível');
    const service=await tx.service.findFirst({where:{id:b.serviceId,active:true}});if(!service)throw new NotFoundException('Serviço indisponível');
    const pro=await tx.professionalUnit.findFirst({where:{unitId:b.unitId,professionalId:b.professionalId,active:true,professional:{active:true}}});if(!pro)throw new NotFoundException('Profissional indisponível nesta unidade');
