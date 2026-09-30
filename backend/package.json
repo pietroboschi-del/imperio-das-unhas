@@ -30,7 +30,8 @@
     "reconcile:exports": "node tools/reconcile-exports.mjs",
     "test:v98b": "node --experimental-strip-types test/v98b-security-contract.test.mjs && node --experimental-strip-types test/v98b-permission-policy.test.mjs && node --experimental-strip-types test/v98b-legacy-permissions.test.mjs && node --experimental-strip-types test/v98b-three-units.test.mjs",
     "test:security-integration": "node test/v98b-security.integration.mjs",
-    "test:characterization": "node ../tests_characterization/run-characterization-gate.mjs"
+    "test:characterization": "node ../tests_characterization/run-characterization-gate.mjs",
+    "test:professional-obligations": "python3 test/v98a-professional-obligation-parity.test.py"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
