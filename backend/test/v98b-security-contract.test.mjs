@@ -17,7 +17,7 @@ assert.match(access,/evaluateAccess/);
 assert.doesNotMatch(importer,/networkAdmin:\s*!!u\.allUnits/);
 assert.match(importer,/networkAdmin:false/);
 assert.match(importer,/u\.allUnits\?unitRows\.map/);
-assert.equal(core.includes('legacyPayload'),false);
+assert.match(core,/const \{legacyPayload,\.\.\.base\}=row/);
 assert.match(core,/@RequirePermissions\('clients\.read'\)/);
 assert.match(core,/DEC-004: cliente é cadastro de rede/);
 assert.match(auth,/sha256\(token\)/);
