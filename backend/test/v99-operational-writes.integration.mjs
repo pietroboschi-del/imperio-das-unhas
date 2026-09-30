@@ -10,11 +10,15 @@ async function main(){
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
  await prisma.service.create({data:{id:'s1',name:'Manicure',price:'50.00',durationMin:60}});
  await prisma.professional.create({data:{id:'p1',name:'Profissional 1',units:{create:[{unitId:'centro'},{unitId:'big'}]}}});
- const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro'},stdio:['ignore','pipe','pipe']});
  try{
   await waitHealth();
-  let r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');
+  let r=await fetch(base+'/api/v1/health');const health=await r.json();ok(health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)&&health.operationalWriteUnits.length===1&&health.operationalWriteUnits[0]==='centro','health expõe cutover somente Centro');
+  r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');
   const oc=cookieOf(r),oa=await r.json(),oh={'content-type':'application/json','x-csrf-token':oa.csrfToken,'cookie':oc};
+  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...oh,'x-unit-id':'big','idempotency-key':'owner-big-client'},body:JSON.stringify({name:'Bloqueado Big',phone:'+5531999990099'})});ok(r.status===503,'allowlist bloqueia cliente no Big até para owner');
+  r=await fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...oh,'x-unit-id':'big','idempotency-key':'owner-big-cash'},body:JSON.stringify({businessDate:'2026-10-06',openingAmount:100})});ok(r.status===503,'allowlist bloqueia financeiro no Big até para owner');
+  r=await fetch(base+'/api/v1/public/bookings',{method:'POST',headers:{'content-type':'application/json','idempotency-key':'public-big-blocked'},body:JSON.stringify({unitId:'big',serviceId:'s1',professionalId:'p1',startAt:'2026-10-06T11:00',clientName:'Cliente Site Bloqueado',clientPhone:'31999999999'})});ok(r.status===503,'allowlist bloqueia agendamento público no Big');
   r=await fetch(base+'/api/v1/admin/users',{method:'POST',headers:oh,body:JSON.stringify({username:'recepcao_centro_ci',displayName:'Recepção Centro CI',systemRole:'OPERATOR',permissions:[],units:[{unitId:'centro',role:'reception',permissions:['clients.read','clients.manage','agenda.read','agenda.manage']}]})});ok(r.ok,'cria recepção Centro');const user=await r.json();
   r=await fetch(base+`/api/v1/auth/users/${user.id}/activation-token`,{method:'POST',headers:oh,body:'{}'});const invite=await r.json();
   r=await fetch(base+'/api/v1/auth/activate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:invite.token,newPassword:'centro-password-123'})});ok(r.ok,'ativa recepção');
