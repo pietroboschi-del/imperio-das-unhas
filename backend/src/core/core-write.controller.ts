@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RequirePermissions } from '../common/permissions.decorator';
 import { UnitScoped } from '../common/unit-scope.decorator';
 import type { ImperioRequest } from '../common/request-context';
-import { BookingItemWriteDto, CreateBookingDto, CreateClientDto, UpdateBookingDto, UpdateClientDto } from './core-write.dto';
+import { BookingItemWriteDto, CreateBlockSeriesDto, CreateBookingDto, CreateClientDto, UpdateBookingDto, UpdateClientDto } from './core-write.dto';
 
 const TERMINAL_BOOKING=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
 
@@ -121,6 +121,30 @@ export class CoreWriteController {
     const id=this.operationId(req.unitId!,key),status=body.status||'Agendado';
     await this.prisma.$transaction(async tx=>{const existing=await tx.booking.findUnique({where:{id}});if(existing)return;const unit=await tx.unit.findFirst({where:{id:req.unitId!,active:true}});if(!unit)throw new NotFoundException('Unidade não encontrada ou inativa');const items=await this.prepareItems(tx,req.unitId!,body.serviceDate,rawItems,status);await this.lockAndCheck(tx,req.unitId!,body.serviceDate,null,items,status);const first=items[0];await tx.booking.create({data:{id,unitId:req.unitId!,clientId:body.clientId||null,serviceId:first.serviceId||null,professionalId:first.professionalId,serviceDate:new Date(body.serviceDate+'T00:00:00.000Z'),startAt:first.startAt,notes:body.notes?.trim()||null,status,legacyPayload:{source:'central_api',multiItem:true},items:{create:items.map(x=>({...x,id:x.id}))}}});if(body.clientId)await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:body.clientId,unitId:req.unitId!}},create:{clientId:body.clientId,unitId:req.unitId!,source:'booking'},update:{active:true}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.created',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',itemCount:items.length},occurredAt:new Date()}})});
     return this.bookingView(req.unitId!,id);
+  }
+
+  @Post('booking-block-series')
+  @UnitScoped()
+  @RequirePermissions('agenda.manage')
+  async createBlockSeries(@Req() req:ImperioRequest,@Body() body:CreateBlockSeriesDto,@Headers('idempotency-key') key?:string){
+    this.assertWritesEnabled();const unitId=req.unitId!,seriesKey=key||randomUUID();
+    return this.prisma.$transaction(async tx=>{
+      const unit=await tx.unit.findFirst({where:{id:unitId,active:true}});if(!unit)throw new NotFoundException('Unidade não encontrada ou inativa');
+      const pro=await tx.professionalUnit.findFirst({where:{professionalId:body.professionalId,unitId,active:true,professional:{active:true}}});if(!pro)throw new NotFoundException('Profissional não atende nesta unidade');
+      const prepared:any[]=[];
+      for(let i=0;i<body.occurrences.length;i++){
+        const o=body.occurrences[i],items=await this.prepareItems(tx,unitId,o.serviceDate,[{professionalId:body.professionalId,startAt:o.startAt,durationMin:o.durationMin,unitPrice:0,forceFit:!!body.forceFit}],'Bloqueado');
+        await this.lockAndCheck(tx,unitId,o.serviceDate,null,items,'Bloqueado');
+        prepared.push({index:i,occurrence:o,item:items[0]});
+      }
+      const rows:any[]=[];
+      for(const x of prepared){
+        const id=this.operationId(unitId+'|block-series|'+x.index,seriesKey),prior=await tx.booking.findUnique({where:{id},include:{items:true}});if(prior){rows.push(prior);continue}
+        const row=await tx.booking.create({data:{id,unitId,clientId:null,serviceDate:new Date(x.occurrence.serviceDate+'T00:00:00.000Z'),startAt:x.item.startAt,serviceId:null,professionalId:body.professionalId,notes:body.notes?.trim()||'Horário bloqueado',status:'Bloqueado',legacyPayload:{source:'central_api',blockSeries:true,seriesKey},items:{create:{...x.item,id:x.item.id}}},include:{items:true}});rows.push(row);
+      }
+      await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId,action:'booking.block_series_created',entityType:'Booking',entityId:String(seriesKey),legacyPayload:{source:'central_api',professionalId:body.professionalId,count:rows.length,forceFit:!!body.forceFit},occurredAt:new Date()}});
+      return {seriesKey,count:rows.length,bookings:rows};
+    });
   }
 
   @Patch('bookings/:id')
