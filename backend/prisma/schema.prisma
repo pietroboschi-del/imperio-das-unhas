@@ -351,6 +351,7 @@ model OpenCommand {
   updatedAt           DateTime @updatedAt
   version             Int      @default(1)
   payments            CommandPayment[]
+  items               CommandServiceItem[]
 
   @@index([unitId, serviceDate])
   @@index([clientId])
@@ -476,4 +477,25 @@ model FiscalPendingDocument {
 
   @@index([unitId, status])
   @@index([clientId])
+}
+
+
+model CommandServiceItem {
+  id                    String   @id
+  commandId             String
+  unitId                 String
+  serviceId              String
+  professionalId         String
+  unitPrice              Decimal  @db.Decimal(14,2)
+  discountAmount         Decimal  @default(0) @db.Decimal(14,2)
+  netServiceAmount       Decimal  @db.Decimal(14,2)
+  commissionPercent      Decimal? @db.Decimal(7,4)
+  commissionFixedAmount  Decimal? @db.Decimal(14,2)
+  commissionAmount       Decimal  @default(0) @db.Decimal(14,2)
+  createdAt              DateTime @default(now())
+  command                OpenCommand @relation(fields: [commandId], references: [id], onDelete: Restrict)
+
+  @@index([commandId])
+  @@index([unitId, professionalId])
+  @@index([serviceId])
 }
