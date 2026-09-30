@@ -349,9 +349,48 @@ model OpenCommand {
   legacyPayload       Json?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  version             Int      @default(1)
+  payments            CommandPayment[]
 
   @@index([unitId, serviceDate])
   @@index([clientId])
+}
+
+model CashSession {
+  id            String   @id
+  unitId        String
+  businessDate  DateTime @db.Date
+  status        String
+  openingAmount Decimal  @db.Decimal(14,2)
+  closingAmount Decimal? @db.Decimal(14,2)
+  openedByUserId String
+  closedByUserId String?
+  openedAt      DateTime @default(now())
+  closedAt      DateTime?
+  version       Int      @default(1)
+  legacyPayload Json?
+  payments      CommandPayment[]
+
+  @@index([unitId, businessDate, status])
+}
+
+model CommandPayment {
+  id            String   @id
+  commandId     String
+  cashSessionId String?
+  unitId        String
+  method        String
+  amount        Decimal  @db.Decimal(14,2)
+  status        String   @default("CONFIRMED")
+  receivedByUserId String
+  receivedAt    DateTime @default(now())
+  legacyPayload Json?
+  command       OpenCommand @relation(fields: [commandId], references: [id], onDelete: Restrict)
+  cashSession   CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: Restrict)
+
+  @@index([unitId, receivedAt])
+  @@index([commandId, status])
+  @@index([cashSessionId])
 }
 
 model ClientCreditOpening {
