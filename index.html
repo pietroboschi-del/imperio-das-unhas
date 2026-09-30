@@ -7010,7 +7010,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   createClient(body,key=operationKey('client')){return centralRequest('/api/v1/clients',{method:'POST',body,key})},
   createBooking(body,key=operationKey('booking')){return centralRequest('/api/v1/bookings',{method:'POST',body,key})},
   openCash(body,key=operationKey('cash')){return centralRequest('/api/v1/cash-sessions',{method:'POST',body,key})},
-  closeCash(id,body){return centralRequest('/api/v1/cash-sessions/'+encodeURIComponent(id)+'/close',{method:'POST',body})},
+  closeCash(id,body,key=operationKey('cash_close')){return centralRequest('/api/v1/cash-sessions/'+encodeURIComponent(id)+'/close',{method:'POST',body,key})},
   createCommand(body,key=operationKey('command')){return centralRequest('/api/v1/commands',{method:'POST',body,key})},
   addCommandService(id,body,key=operationKey('command_item')){return centralRequest('/api/v1/commands/'+encodeURIComponent(id)+'/items',{method:'POST',body,key})},
   receivePayment(id,body,key=operationKey('payment')){return centralRequest('/api/v1/commands/'+encodeURIComponent(id)+'/payments',{method:'POST',body,key})}
@@ -7051,6 +7051,8 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  }
  const legacySaveOpenCashSession=window.saveOpenCashSession||((typeof saveOpenCashSession==='function')?saveOpenCashSession:null);
  if(legacySaveOpenCashSession){let wrapped=async function(){if(!centralEnabled())return legacySaveOpenCashSession.apply(this,arguments);let uid=cashUnitId();if(cashSessionFor(uid,cashDate)){toast('Já existe um caixa para esta unidade e data');return}let opening=Math.max(0,Number(document.getElementById('cashOpeningAmount')?.value||0));try{await centralOpenCashFromUi(uid,cashDate,opening);return legacySaveOpenCashSession.apply(this,arguments)}catch(e){toast('Caixa não aberto: '+e.message)}};window.saveOpenCashSession=wrapped;try{saveOpenCashSession=wrapped}catch(e){}}
+ const legacySaveCloseCash=window.saveCloseCash||((typeof saveCloseCash==='function')?saveCloseCash:null);
+ if(legacySaveCloseCash){let wrapped=async function(){if(!centralEnabled())return legacySaveCloseCash.apply(this,arguments);let t=cashTotals(),local=t.session;if(!local||local.status!=='open')return;let central=centralFinanceState.cash.get(local.unitId+'|'+local.date);if(!central){toast('Caixa central não localizado; fechamento bloqueado');return}let counted=Math.max(0,Number(document.getElementById('cashCounted')?.value||0));try{await centralApi.closeCash(central.id,{closingAmount:counted},operationKey('cash_close_'+central.id));return legacySaveCloseCash.apply(this,arguments)}catch(e){toast('Caixa não fechado: '+e.message)}};window.saveCloseCash=wrapped;try{saveCloseCash=wrapped}catch(e){}}
  const legacyFinalizeCommandPayment=window.finalizeCommandPayment||((typeof finalizeCommandPayment==='function')?finalizeCommandPayment:null);
  if(legacyFinalizeCommandPayment){let wrapped=async function(cmdId){if(!centralEnabled())return legacyFinalizeCommandPayment.apply(this,arguments);let c=db.clientCommands.find(x=>x.id===cmdId);if(!c)return;paymentReadDraft(c);let t=paymentTotals(c);if(t.remaining>.009){toast('Ainda falta '+money(t.remaining)+' para fechar a comanda');return}try{await centralCreateAndPayCommand(c,t);return legacyFinalizeCommandPayment.apply(this,arguments)}catch(e){toast('Comanda não finalizada: '+e.message)}};window.finalizeCommandPayment=wrapped;try{finalizeCommandPayment=wrapped}catch(e){}}
  window.__imperioCentralApi=centralApi;
