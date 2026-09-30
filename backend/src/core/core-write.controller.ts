@@ -69,7 +69,18 @@ export class CoreWriteController {
     return this.prisma.$transaction(async tx=>{
       const existing=await tx.booking.findUnique({where:{id}});
       if(existing)return existing;
-      const booking=await tx.booking.create({data:{id,unitId:req.unitId!,clientId:body.clientId||null,serviceId:body.serviceId,professionalId:body.professionalId,serviceDate:new Date(body.serviceDate+'T00:00:00.000Z'),startAt:new Date(body.startAt),notes:body.notes?.trim()||null,status:body.status||'Agendado',legacyPayload:{source:'central_api'}}});
+      const startAt=new Date(body.startAt);
+      if(Number.isNaN(startAt.getTime()))throw new ConflictException('Horário inválido');
+      const endAt=new Date(startAt.getTime()+service.durationMin*60000);
+      const candidates=await tx.booking.findMany({where:{unitId:req.unitId!,professionalId:body.professionalId,startAt:{gte:new Date(startAt.getTime()-12*60*60*1000),lt:endAt},status:{notIn:['CANCELLED','CANCELED','Cancelado','CANCELADO']}},include:{service:{select:{durationMin:true}}}});
+      for(const x of candidates){
+        if(!x.startAt)continue;
+        const xs=x.startAt.getTime();
+        const existingDuration=x.service?.durationMin||Number((x.legacyPayload as any)?.durationMin)||60;
+        const xe=xs+existingDuration*60000;
+        if(xs<endAt.getTime()&&xe>startAt.getTime())throw new ConflictException('Horário não está mais disponível');
+      }
+      const booking=await tx.booking.create({data:{id,unitId:req.unitId!,clientId:body.clientId||null,serviceId:body.serviceId,professionalId:body.professionalId,serviceDate:new Date(body.serviceDate+'T00:00:00.000Z'),startAt,notes:body.notes?.trim()||null,status:body.status||'Agendado',legacyPayload:{source:'central_api',durationMin:service.durationMin}}});
       if(body.clientId)await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:body.clientId,unitId:req.unitId!}},create:{clientId:body.clientId,unitId:req.unitId!,source:'booking'},update:{active:true}});
       await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.created',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',serviceId:body.serviceId,professionalId:body.professionalId},occurredAt:new Date()}});
       return booking;
