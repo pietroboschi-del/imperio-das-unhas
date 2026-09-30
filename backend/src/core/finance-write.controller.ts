@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RequirePermissions } from '../common/permissions.decorator';
 import { UnitScoped } from '../common/unit-scope.decorator';
 import type { ImperioRequest } from '../common/request-context';
-import { CloseCashDto, CreateCommandDto, OpenCashDto, ReceivePaymentDto } from './finance-write.dto';
+import { AddCommandServiceDto, CloseCashDto, CreateCommandDto, OpenCashDto, ReceivePaymentDto } from './finance-write.dto';
 
 @Controller('api/v1')
 export class FinanceWriteController {
@@ -39,6 +39,13 @@ export class FinanceWriteController {
   this.enabled();if(b.clientId&&!await this.prisma.client.findFirst({where:{id:b.clientId,active:true}}))throw new NotFoundException('Cliente não encontrado');
   const id=this.id(req.unitId!+'|command',key),gross=this.money(b.grossAmount),discount=this.money(b.discountAmount||0);if(discount.gt(gross))throw new ConflictException('Desconto não pode superar valor bruto');const remaining=gross.minus(discount);
   return this.prisma.$transaction(async tx=>{const prior=await tx.openCommand.findUnique({where:{id}});if(prior)return prior;const row=await tx.openCommand.create({data:{id,unitId:req.unitId!,clientId:b.clientId||null,serviceDate:new Date(b.serviceDate+'T00:00:00.000Z'),status:'OPEN',grossAmount:gross,discountAmount:discount,appliedSignalAmount:0,appliedCreditAmount:0,customerFeeAmount:0,remainingAmount:remaining,legacyPayload:{source:'central_api'}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'command.opened',entityType:'OpenCommand',entityId:id,legacyPayload:{grossAmount:String(gross)},occurredAt:new Date()}});return row;});
+ }
+
+ @Post('commands/:id/items')
+ @UnitScoped() @RequirePermissions('finance.manage')
+ async addService(@Req() req:ImperioRequest,@Param('id') commandId:string,@Body() b:AddCommandServiceDto,@Headers('idempotency-key') key?:string){
+  this.enabled();const id=this.id(req.unitId!+'|command-item|'+commandId,key),price=this.money(b.unitPrice),discount=this.money(b.discountAmount||0);if(discount.gt(price))throw new ConflictException('Desconto do serviço não pode superar o preço');
+  return this.prisma.$transaction(async tx=>{const prior=await tx.commandServiceItem.findUnique({where:{id}});if(prior)return prior;const cmd=await tx.openCommand.findFirst({where:{id:commandId,unitId:req.unitId!}});if(!cmd)throw new NotFoundException('Comanda não encontrada nesta unidade');if(cmd.status!=='OPEN')throw new ConflictException('Comanda não está aberta');const service=await tx.service.findFirst({where:{id:b.serviceId,unitId:req.unitId!,active:true}});if(!service)throw new NotFoundException('Serviço não encontrado nesta unidade');const pro=await tx.professionalUnit.findFirst({where:{professionalId:b.professionalId,unitId:req.unitId!,active:true,professional:{active:true}}});if(!pro)throw new NotFoundException('Profissional não vinculada a esta unidade');const net=price.minus(discount),pct=b.commissionPercent==null?null:new Prisma.Decimal(b.commissionPercent.toFixed(4)),fixed=b.commissionFixedAmount==null?null:this.money(b.commissionFixedAmount);if(pct&&pct.gt(100))throw new ConflictException('Comissão percentual inválida');const commission=fixed??(pct?net.mul(pct).div(100).toDecimalPlaces(2):this.money(0));const row=await tx.commandServiceItem.create({data:{id,commandId,unitId:req.unitId!,serviceId:b.serviceId,professionalId:b.professionalId,unitPrice:price,discountAmount:discount,netServiceAmount:net,commissionPercent:pct,commissionFixedAmount:fixed,commissionAmount:commission}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'command.service_attributed',entityType:'CommandServiceItem',entityId:id,legacyPayload:{commandId,serviceId:b.serviceId,professionalId:b.professionalId,commissionAmount:String(commission)},occurredAt:new Date()}});return row;});
  }
 
  @Post('commands/:id/payments')
