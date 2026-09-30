@@ -12,6 +12,8 @@ ok(html.includes("const CENTRAL_UNIT_MAP=Object.freeze({u1:'big',u2:'shopping-co
 ok(html.includes("const LOCAL_UNIT_MAP=Object.freeze({big:'u1','shopping-contagem':'u2',centro:'u3'"),'mapeamento central para local');
 ok(html.includes("function centralUnitId(){let local=localUnitId();return CENTRAL_UNIT_MAP[local]||local}"),'header usa ID central');
 ok(html.includes("function centralCsrf(){try{return csrf()}catch(e){return ''}}"),'ponte reutiliza CSRF autenticado');
+ok(html.includes("const PRODUCTION_API='https://imperio-backend-production-5086.up.railway.app'"),'frontend conhece API central de produção');
+ok(html.includes("function defaultEndpoint(){try{let h=String(location?.hostname||'').toLowerCase();"),'frontend diferencia ambiente local de produção');
 ok(html.includes("let uid=localUnitId();for(const x of rows||[])"),'agendamentos centrais entram no shape local');
 ok(html.includes("localUid=localUnitId();for(const p of pros||[])"),'profissionais centrais entram na unidade local');
 ok(html.includes("registrationUnit:toLocalUnitId(x.registrationUnitId)"),'unidade de cadastro de cliente volta ao ID local');
