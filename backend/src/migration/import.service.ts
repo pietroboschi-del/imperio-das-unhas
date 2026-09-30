@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+﻿import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { ImportStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ENTITY_CONTRACTS, MigrationEnvelope } from './contracts';
@@ -23,17 +23,17 @@ export class ImportService {
     const env = input as MigrationEnvelope;
     const canonicalDataHash=validation.canonicalDataHash!;
     if (mode === 'dry-run') return { ok:true, mode, validation, sourceKind:env.sourceKind||'INSTANCE_EXPORT', canonicalDataHash, normalization:this.normalizationPlan(env) };
-    if (String(process.env.MIGRATION_IMPORT_ENABLED || 'false') !== 'true') throw new ForbiddenException('Importação commit desabilitada no ambiente');
+    if (String(process.env.MIGRATION_IMPORT_ENABLED || 'false') !== 'true') throw new ForbiddenException('ImportaÃ§Ã£o commit desabilitada no ambiente');
     if (String(process.env.MIGRATION_REQUIRE_CANONICAL || 'true') === 'true' && env.sourceKind !== 'CANONICAL_RECONCILED') throw new ConflictException('Commit exige snapshot CANONICAL_RECONCILED');
 
     const previous=await this.prisma.migrationEnvelope.findUnique({where:{instanceId_revision:{instanceId:env.instanceId,revision:env.revision}}});
     if(previous){
       if(previous.status===ImportStatus.IMPORTED && previous.canonicalDataHash===canonicalDataHash) return {ok:true,mode,duplicate:true,envelopeId:previous.id,validation};
       if(previous.status===ImportStatus.FAILED && previous.canonicalDataHash===canonicalDataHash) await this.prisma.migrationEnvelope.delete({where:{id:previous.id}});
-      else throw new ConflictException('A revisão já existe com outro conteúdo/estado');
+      else throw new ConflictException('A revisÃ£o jÃ¡ existe com outro conteÃºdo/estado');
     }
     const latest=await this.prisma.migrationEnvelope.findFirst({where:{instanceId:env.instanceId,status:ImportStatus.IMPORTED},orderBy:{revision:'desc'}});
-    if(latest && env.revision<=latest.revision) throw new ConflictException(`Revisão regressiva: atual=${latest.revision}, recebida=${env.revision}`);
+    if(latest && env.revision<=latest.revision) throw new ConflictException(`RevisÃ£o regressiva: atual=${latest.revision}, recebida=${env.revision}`);
 
     const retentionDays=positiveInt(process.env.MIGRATION_STAGE_RETENTION_DAYS,30,3650);
     const purgeAfter=new Date(Date.now()+retentionDays*86400000);
@@ -71,7 +71,7 @@ export class ImportService {
 
   async cutoverReport(id:string){
     const row=await this.prisma.migrationEnvelope.findUnique({where:{id},select:{id:true,instanceId:true,revision:true,status:true,sourceKind:true,reconciliationId:true,canonicalDataHash:true,cutoverManifest:true,cutoverVerification:true,cutoverVerifiedAt:true,importedAt:true,reconciledAt:true,purgeAfter:true,errorSummary:true}});
-    if(!row)throw new ConflictException('Importação não encontrada');
+    if(!row)throw new ConflictException('ImportaÃ§Ã£o nÃ£o encontrada');
     return {...row,releaseGate:{automatedVerificationRequired:!!row.cutoverManifest,automatedVerificationPassed:!!row.cutoverManifest&&!!row.cutoverVerifiedAt&&row.status===ImportStatus.IMPORTED,manualApprovalRequired:true}};
   }
 
@@ -106,7 +106,7 @@ export class ImportService {
         update:{legacyId:String(u.id||''),displayName:String(u.name||username),active:u.active!==false,networkAdmin:false,systemRole:legacySystemRole(u),permissions:json(mappedPermissions),version:{increment:1}},
       });
       await tx.userUnitAccess.deleteMany({where:{userId:user.id}});
-      if(assignedUnits.length)await tx.userUnitAccess.createMany({data:[...new Set(assignedUnits)].map((unitId:string)=>({userId:user.id,unitId,role:String(u.role||'operator'),permissions:json(mappedPermissions),active:true}))});
+      if(assignedUnits.length)await tx.userUnitAccess.createMany({data:[...new Set<string>(assignedUnits)].map((unitId:string)=>({userId:user.id,unitId,role:String(u.role||'operator'),permissions:json(mappedPermissions),active:true}))});
     });
     if(userRows.length){const legacyIds=ids(userRows);await tx.user.updateMany({where:{legacyId:{notIn:legacyIds},networkAdmin:false},data:{active:false}})}
     await tx.openCommand.deleteMany({});if((d.openingCommands||[]).length)await tx.openCommand.createMany({data:d.openingCommands.map((r:any)=>({id:String(r.id),unitId:String(r.unitId),clientId:r.clientId?String(r.clientId):null,serviceDate:dateOnly(r.serviceDate),status:String(r.status||'open'),grossAmount:decimal(r.grossAmount),discountAmount:decimal(r.discountAmount),appliedSignalAmount:decimal(r.appliedSignalAmount),appliedCreditAmount:decimal(r.appliedCreditAmount),customerFeeAmount:decimal(r.customerFeeAmount),remainingAmount:decimal(r.remainingAmount),legacyPayload:r.legacyPayload?json(r.legacyPayload):Prisma.JsonNull}))});
@@ -122,7 +122,7 @@ export class ImportService {
   private async verifyCutoverState(manifest:any,db:any=this.prisma){
     if(!manifest?.verification)return {required:false,passed:true,checks:[]};
     if(Array.isArray(manifest.blockers)&&manifest.blockers.length)throw new ConflictException(`Cutover bloqueado: ${manifest.blockers.join(', ')}`);
-    const exp=manifest.verification,checks:any[]=[];const add=(name:string,expected:any,actual:any)=>{const pass=String(expected)===String(actual);checks.push({name,expected:String(expected),actual:String(actual),pass});if(!pass)throw new ConflictException(`Divergência de cutover em ${name}: esperado=${expected}, atual=${actual}`)};
+    const exp=manifest.verification,checks:any[]=[];const add=(name:string,expected:any,actual:any)=>{const pass=String(expected)===String(actual);checks.push({name,expected:String(expected),actual:String(actual),pass});if(!pass)throw new ConflictException(`DivergÃªncia de cutover em ${name}: esperado=${expected}, atual=${actual}`)};
     const moneySum=async(model:any,field:string,where?:any)=>{const x=await model.aggregate({_sum:{[field]:true},where});return String(x?._sum?.[field]??'0.00')};
     const n=exp.network||{};add('network.futureBookings',n.futureBookings,await db.booking.count());add('network.activeWaitlist',n.activeWaitlist,await db.waitlistRequest.count());add('network.openCommands',n.openCommands,await db.openCommand.count());add('network.openCommandBalanceTotal',n.openCommandBalanceTotal,await moneySum(db.openCommand,'remainingAmount'));add('network.creditClients',n.creditClients,await db.clientCreditOpening.count());add('network.creditTotal',n.creditTotal,await moneySum(db.clientCreditOpening,'amount'));add('network.activePackages',n.activePackages,await db.clientPackageOpening.count());add('network.receivables',n.receivables,await db.receivableOpening.count());add('network.receivableTotal',n.receivableTotal,await moneySum(db.receivableOpening,'balance'));add('network.stockRows',n.stockRows,await db.stockBalanceOpening.count());add('network.professionalPayables',n.professionalPayables,await db.professionalPayableOpening.count());add('network.professionalPayableTotal',n.professionalPayableTotal,await moneySum(db.professionalPayableOpening,'amount'));add('network.pendingFiscal',n.pendingFiscal,await db.fiscalPendingDocument.count());
     for(const [unitId,u] of Object.entries<any>(exp.byUnit||{})){add(`unit.${unitId}.futureBookings`,u.futureBookings,await db.booking.count({where:{unitId}}));add(`unit.${unitId}.activeWaitlist`,u.activeWaitlist,await db.waitlistRequest.count({where:{unitId}}));add(`unit.${unitId}.openCommands`,u.openCommands,await db.openCommand.count({where:{unitId}}));add(`unit.${unitId}.openCommandBalanceTotal`,u.openCommandBalanceTotal,await moneySum(db.openCommand,'remainingAmount',{unitId}));add(`unit.${unitId}.receivables`,u.receivables,await db.receivableOpening.count({where:{unitId}}));add(`unit.${unitId}.receivableTotal`,u.receivableTotal,await moneySum(db.receivableOpening,'balance',{unitId}));add(`unit.${unitId}.professionalPayables`,u.professionalPayables,await db.professionalPayableOpening.count({where:{unitId}}));add(`unit.${unitId}.professionalPayableTotal`,u.professionalPayableTotal,await moneySum(db.professionalPayableOpening,'amount',{unitId}));add(`unit.${unitId}.pendingFiscal`,u.pendingFiscal,await db.fiscalPendingDocument.count({where:{unitId}}));}
@@ -130,3 +130,4 @@ export class ImportService {
     return {required:true,passed:true,checkedAt:new Date().toISOString(),checks};
   }
 }
+

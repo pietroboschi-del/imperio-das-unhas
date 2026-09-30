@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, TooManyRequestsException, UnauthorizedException } from '@nestjs/common';
+﻿import { ForbiddenException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { CredentialTokenPurpose, Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
@@ -18,7 +18,7 @@ export class AuthService {
   private async assertLoginAllowed(username:string,ip?:string){
     const now=new Date();
     const rows=await this.prisma.loginRateLimit.findMany({where:{keyHash:{in:this.loginKeys(username,ip)}}});
-    if(rows.some(x=>x.blockedUntil&&x.blockedUntil>now)) throw new TooManyRequestsException('Muitas tentativas. Tente novamente mais tarde.');
+    if(rows.some(x=>x.blockedUntil&&x.blockedUntil>now)) throw new HttpException('Muitas tentativas. Tente novamente mais tarde.', HttpStatus.TOO_MANY_REQUESTS);
   }
 
   private async registerLoginFailure(username:string,ip?:string){
@@ -47,8 +47,8 @@ export class AuthService {
     await this.assertLoginAllowed(username,meta.ip);
     const user = await this.prisma.user.findUnique({ where: { username }, include: { unitAccesses: { where: { active: true } } } });
     const valid=!!user?.active&&!!user.passwordHash&&await argon2.verify(user.passwordHash,password).catch(()=>false);
-    if(!valid){await this.registerLoginFailure(username,meta.ip);throw new UnauthorizedException('Credenciais inválidas');}
-    if(user.passwordResetRequired) throw new ForbiddenException('Redefinição de senha obrigatória');
+    if(!valid){await this.registerLoginFailure(username,meta.ip);throw new UnauthorizedException('Credenciais invÃ¡lidas');}
+    if(user.passwordResetRequired) throw new ForbiddenException('RedefiniÃ§Ã£o de senha obrigatÃ³ria');
     await this.clearLoginFailures(username,meta.ip);
     const sessionToken = randomToken(48);
     const csrfToken = randomToken(32);
@@ -90,7 +90,7 @@ export class AuthService {
 
   async issueCredentialToken(userId:string,purpose:CredentialTokenPurpose,createdByUserId:string){
     const user=await this.prisma.user.findUnique({where:{id:userId},select:{id:true,active:true,username:true}});
-    if(!user?.active) throw new UnauthorizedException('Usuário indisponível');
+    if(!user?.active) throw new UnauthorizedException('UsuÃ¡rio indisponÃ­vel');
     const token=randomToken(48);
     const ttlMs=purpose===CredentialTokenPurpose.ACTIVATE
       ? Math.max(15*60_000,Number(process.env.ACTIVATION_TOKEN_TTL_MS||86_400_000))
@@ -104,12 +104,12 @@ export class AuthService {
   }
 
   async consumeCredentialToken(token:string,newPassword:string,purpose:CredentialTokenPurpose){
-    if(newPassword.length<12) throw new ForbiddenException('A nova senha deve ter no mínimo 12 caracteres');
+    if(newPassword.length<12) throw new ForbiddenException('A nova senha deve ter no mÃ­nimo 12 caracteres');
     const tokenHash=sha256(String(token||''));
     const row=await this.prisma.userCredentialToken.findUnique({where:{tokenHash},include:{user:true}});
     const now=new Date();
     if(!row||row.purpose!==purpose||row.usedAt||row.invalidatedAt||row.expiresAt<=now||!row.user.active){
-      throw new UnauthorizedException('Token inválido ou expirado');
+      throw new UnauthorizedException('Token invÃ¡lido ou expirado');
     }
     const passwordHash=await argon2.hash(newPassword,{type:argon2.argon2id});
     await this.prisma.$transaction(async tx=>{
@@ -125,3 +125,4 @@ export class AuthService {
     await this.prisma.session.updateMany({ where: { id: sessionId, status: 'ACTIVE' }, data: { status: 'REVOKED', revokedAt: new Date() } });
   }
 }
+
