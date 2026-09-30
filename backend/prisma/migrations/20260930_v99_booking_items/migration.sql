@@ -1,3 +1,8 @@
+ALTER TABLE "Booking" ADD COLUMN "blockAllDay" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Booking" ADD COLUMN "blockSeriesId" TEXT;
+ALTER TABLE "Booking" ADD COLUMN "blockRecurrence" JSONB;
+ALTER TABLE "Booking" ADD COLUMN "blockException" BOOLEAN NOT NULL DEFAULT false;
+
 CREATE TABLE "BookingItem" (
  "id" TEXT NOT NULL,
  "bookingId" TEXT NOT NULL,
