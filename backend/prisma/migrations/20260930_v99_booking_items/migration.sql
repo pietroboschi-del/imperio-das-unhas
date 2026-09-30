@@ -2,7 +2,7 @@ CREATE TABLE "BookingItem" (
  "id" TEXT NOT NULL,
  "bookingId" TEXT NOT NULL,
  "unitId" TEXT NOT NULL,
- "serviceId" TEXT NOT NULL,
+ "serviceId" TEXT,
  "professionalId" TEXT NOT NULL,
  "startAt" TIMESTAMP(3) NOT NULL,
  "durationMin" INTEGER NOT NULL,
