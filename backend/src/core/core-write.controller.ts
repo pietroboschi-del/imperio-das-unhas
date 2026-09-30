@@ -77,7 +77,7 @@ export class CoreWriteController {
     }
   }
   private bookingView(unitId:string,id:string){
-    return this.prisma.booking.findFirst({where:{id,unitId},select:{id:true,unitId:true,clientId:true,serviceDate:true,startAt:true,serviceId:true,professionalId:true,notes:true,status:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}},items:{orderBy:{sortOrder:'asc'},select:{id:true,serviceId:true,professionalId:true,startAt:true,durationMin:true,unitPrice:true,preference:true,forceFit:true,sortOrder:true,service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}}}}}});
+    return this.prisma.booking.findFirst({where:{id,unitId},select:{id:true,unitId:true,clientId:true,serviceDate:true,startAt:true,serviceId:true,professionalId:true,notes:true,status:true,blockAllDay:true,blockSeriesId:true,blockRecurrence:true,blockException:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}},items:{orderBy:{sortOrder:'asc'},select:{id:true,serviceId:true,professionalId:true,startAt:true,durationMin:true,unitPrice:true,preference:true,forceFit:true,sortOrder:true,service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}}}}}});
   }
 
   @Post('clients')
