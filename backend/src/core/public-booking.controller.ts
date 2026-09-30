@@ -1,18 +1,18 @@
-import { Body, ConflictException, Controller, Headers, NotFoundException, Post, ServiceUnavailableException } from '@nestjs/common';
+import { Body, ConflictException, Controller, Headers, NotFoundException, Post } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { Public } from '../common/public.decorator';
+import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { PublicBookingDto } from './public-booking.dto';
 
 @Controller('api/v1/public')
 export class PublicBookingController {
  constructor(private readonly prisma:PrismaService){}
- private enabled(){if(String(process.env.OPERATIONAL_WRITES_ENABLED||'false')!=='true')throw new ServiceUnavailableException('Agendamento online central ainda não habilitado neste ambiente')}
  private id(scope:string,key?:string){const k=String(key||'').trim();return k?'pub_'+createHash('sha256').update(scope+'|'+k).digest('hex').slice(0,40):randomUUID()}
  private startAt(value:string){const iso=value.length===16?value+':00-03:00':value+'-03:00';const date=new Date(iso);if(Number.isNaN(date.getTime()))throw new ConflictException('Horário inválido');return date}
  @Public() @Post('bookings')
  async book(@Body() b:PublicBookingDto,@Headers('idempotency-key') key?:string){
-  this.enabled();const startAt=this.startAt(b.startAt);const serviceDate=new Date(b.startAt.slice(0,10)+'T00:00:00.000Z');const bookingId=this.id(b.unitId+'|site-booking',key);
+  assertOperationalWriteEnabled(b.unitId,'Agendamento online central ainda não habilitado neste ambiente');const startAt=this.startAt(b.startAt);const serviceDate=new Date(b.startAt.slice(0,10)+'T00:00:00.000Z');const bookingId=this.id(b.unitId+'|site-booking',key);
   return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${b.unitId}), hashtext(${b.professionalId+'|'+b.startAt.slice(0,10)}))`;const prior=await tx.booking.findUnique({where:{id:bookingId}});if(prior)return prior;
    const unit=await tx.unit.findFirst({where:{id:b.unitId,active:true}});if(!unit)throw new NotFoundException('Unidade indisponível');
    const service=await tx.service.findFirst({where:{id:b.serviceId,active:true}});if(!service)throw new NotFoundException('Serviço indisponível');
