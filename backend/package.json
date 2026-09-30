@@ -32,7 +32,8 @@
     "test:security-integration": "node test/v98b-security.integration.mjs",
     "test:characterization": "node ../tests_characterization/run-characterization-gate.mjs",
     "test:professional-obligations": "python3 test/v98a-professional-obligation-parity.test.py",
-    "test:operational-writes": "node test/v99-operational-writes.integration.mjs"
+    "test:operational-writes": "node test/v99-operational-writes.integration.mjs",
+    "test:finance-flow": "node test/v99-finance-flow.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
