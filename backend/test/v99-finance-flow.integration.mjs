@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
+import {once} from 'node:events';
 import {PrismaClient} from '@prisma/client';
-const prisma=new PrismaClient();let n=0;const ok=(v,m)=>{n++;assert.ok(v,m)},base='http://127.0.0.1:'+(process.env.PORT||3100),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const prisma=new PrismaClient();let n=0;const ok=(v,m)=>{n++;assert.ok(v,m)},port=Number(process.env.FINANCE_FLOW_TEST_PORT||3103),base='http://127.0.0.1:'+port,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function wait(){for(let i=0;i<80;i++){try{if((await fetch(base+'/api/v1/health')).ok)return}catch{}await sleep(400)}throw Error('backend não iniciou')}
 const cookie=r=>(r.headers.get('set-cookie')||'').split(';')[0];
 async function main(){
  await prisma.commandPayment.deleteMany();await prisma.cashSession.deleteMany();await prisma.openCommand.deleteMany();await prisma.auditEvent.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.unit.deleteMany();
  for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
- const p=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ const p=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
  try{await wait();let r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');const oc=cookie(r),oa=await r.json(),oh={'content-type':'application/json','cookie':oc,'x-csrf-token':oa.csrfToken};
  r=await fetch(base+'/api/v1/admin/users',{method:'POST',headers:oh,body:JSON.stringify({username:'finance_centro_ci',displayName:'Finance Centro CI',systemRole:'OPERATOR',permissions:[],units:[{unitId:'centro',role:'reception',permissions:['cash.read','cash.open','cash.close','finance.read','finance.manage']}]})});ok(r.ok,'cria operador');const u=await r.json();
  r=await fetch(base+`/api/v1/auth/users/${u.id}/activation-token`,{method:'POST',headers:oh,body:'{}'});const inv=await r.json();await fetch(base+'/api/v1/auth/activate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:inv.token,newPassword:'finance-password-123'})});
@@ -26,5 +27,5 @@ async function main(){
  const cashRace=await Promise.all([fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...h,'idempotency-key':'cash-race-a'},body:JSON.stringify({businessDate:'2026-10-07',openingAmount:0})}),fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...h,'idempotency-key':'cash-race-b'},body:JSON.stringify({businessDate:'2026-10-07',openingAmount:0})})]);
  const cashStatuses=cashRace.map(x=>x.status).sort((a,b)=>a-b);ok(cashStatuses[0]>=200&&cashStatuses[0]<300,'um caixa concorrente aberto');ok(cashStatuses[1]===409,'segundo caixa concorrente bloqueado');ok(await prisma.cashSession.count({where:{unitId:'centro',businessDate:new Date('2026-10-07T00:00:00.000Z'),status:'OPEN'}})===1,'somente um caixa aberto na data');
   ok(await prisma.cashSession.count({where:{unitId:{not:'centro'}}})===0,'outras unidades sem caixa');ok(await prisma.auditEvent.count({where:{unitId:'centro'}})>=5,'auditoria financeira registrada');console.log(JSON.stringify({ok:true,tests:n,feature:'cash_command_payment_e2e'}));
- }finally{p.kill('SIGTERM');await prisma.$disconnect()}}
+ }finally{if(p.exitCode===null&&p.signalCode===null){p.kill('SIGTERM');await Promise.race([once(p,'exit'),sleep(3000)]).catch(()=>{})}await prisma.$disconnect()}}
 main().catch(async e=>{console.error(e.stack||e);await prisma.$disconnect().catch(()=>{});process.exit(1)});
