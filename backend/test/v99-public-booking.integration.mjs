@@ -18,7 +18,7 @@ async function main(){
   r=await book('centro','2026-10-06T10:00','3199999011','same-slot','short');ok(r.status===409,'same slot blocked');
   r=await book('centro','2026-10-06T14:00','3199999030','network-centro','short');ok(r.ok,'network client Centro');
   r=await book('big','2026-10-06T14:00','3199999030','network-big','short');ok(r.ok,'network client Big');
-  ok(await prisma.client.count({where:{phone:'3199999030'}})===1,'one network client');ok(await prisma.clientUnitLink.count({where:{client:{phone:'3199999030'}}})===2,'two unit links');
+  const networkPhone='+553199999030';ok(await prisma.client.count({where:{phone:networkPhone}})===1,'one network client');ok(await prisma.clientUnitLink.count({where:{client:{phone:networkPhone}}})===2,'two unit links');
   r=await book('shopping-contagem','2026-10-06T15:00','3199999040','idem','short');ok(r.ok,'idempotency first');const a=await r.json();
   r=await book('shopping-contagem','2026-10-06T15:00','3199999040','idem','short');ok(r.ok,'idempotency repeat');const b=await r.json();ok(a.id===b.id,'same booking id');
   const concurrent=await Promise.all([book('centro','2026-10-06T16:00','3199999051','race-a','short'),book('centro','2026-10-06T16:00','3199999052','race-b','short')]);
