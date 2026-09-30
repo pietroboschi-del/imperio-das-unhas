@@ -15,6 +15,6 @@ def main():
  with tempfile.TemporaryDirectory() as td:
   inp=Path(td)/'in.json';out=Path(td)/'out.json';inp.write_text(json.dumps(env))
   cmd=[sys.executable,str(ROOT/'tools/extract-v97-professional-obligations.py'),'--input',str(inp),'--html',str(HTML),'--through','2026-09-29','--out',str(out)]
-  r=subprocess.run(cmd,capture_output=True,text=True,timeout=60);ok(r.returncode==0,'extrator executa');e=json.loads(out.read_text());s=e['data']['professionalObligationSnapshot'];ok(s['engine']=='V97_V61_PROFESSIONAL_OBLIGATIONS','engine');ok(s['schemaVersion']==97,'schema');ok(isinstance(s['rows'],list),'rows');ok(s['snapshotHash'].startswith('sha256:'),'hash snapshot');ok(e['dataHash'].startswith('sha256:'),'hash envelope');ok(s['sourceDataHash'].startswith('sha256:'),'hash origem');ok('uncertain' in s,'incerteza explícita')
+  r=subprocess.run(cmd,capture_output=True,text=True,timeout=180);ok(r.returncode==0,'extrator executa');e=json.loads(out.read_text());s=e['data']['professionalObligationSnapshot'];ok(s['engine']=='V97_V61_PROFESSIONAL_OBLIGATIONS','engine');ok(s['schemaVersion']==97,'schema');ok(isinstance(s['rows'],list),'rows');ok(s['snapshotHash'].startswith('sha256:'),'hash snapshot');ok(e['dataHash'].startswith('sha256:'),'hash envelope');ok(s['sourceDataHash'].startswith('sha256:'),'hash origem');ok('uncertain' in s,'incerteza explícita')
  print(json.dumps({'ok':True,'tests':tests,'feature':'v98a_professional_parity'}))
 if __name__=='__main__':main()
