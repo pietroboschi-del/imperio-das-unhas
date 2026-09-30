@@ -152,6 +152,7 @@ model Service {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   category      ServiceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  bookings      Booking[]
 
   @@index([categoryId, active])
 }
@@ -166,6 +167,7 @@ model Professional {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   units         ProfessionalUnit[]
+  bookings      Booking[]
 }
 
 model ProfessionalUnit {
@@ -221,6 +223,10 @@ model Booking {
   unitId        String
   clientId      String?
   serviceDate   DateTime @db.Date
+  startAt       DateTime?
+  serviceId     String?
+  professionalId String?
+  notes         String?
   status        String
   legacyPayload Json
   version       Int      @default(1)
@@ -228,8 +234,13 @@ model Booking {
   updatedAt     DateTime @updatedAt
   unit          Unit     @relation(fields: [unitId], references: [id], onDelete: Restrict)
   client        Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  service       Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  professional  Professional? @relation(fields: [professionalId], references: [id], onDelete: SetNull)
 
   @@index([unitId, serviceDate])
+  @@index([unitId, startAt])
+  @@index([serviceId])
+  @@index([professionalId])
   @@index([clientId, serviceDate])
   @@index([status])
 }
