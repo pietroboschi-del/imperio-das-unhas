@@ -9,6 +9,21 @@ const TERMINAL_BOOKING=new Set(['cancelado','cancelada','canceled','cancelled'])
 const TERMINAL_FISCAL=new Set(['concluido','concluída','concluida','autorizado','autorizada','emitido','emitida','cancelado','cancelada']);
 const TERMINAL_PACKAGE=new Set(['cancelado','cancelada','encerrado','encerrada','expired','expirado','expirada']);
 const low=v=>String(v||'').trim().toLowerCase();
+const UNIT_CANONICAL=Object.freeze({u1:'big',u2:'shopping-contagem',u3:'centro'});
+const canonicalUnitId=v=>UNIT_CANONICAL[String(v||'').trim()]||String(v||'').trim();
+function normalizeCutoverUnitIds(d){
+  if(Array.isArray(d.units))d.units=d.units.map(u=>({...u,id:canonicalUnitId(u.id)}));
+  if(Array.isArray(d.pros))d.pros=d.pros.map(p=>({...p,units:Array.isArray(p.units)?p.units.map(canonicalUnitId):p.units}));
+  if(Array.isArray(d.clients))d.clients=d.clients.map(x=>({...x,registrationUnit:x.registrationUnit?canonicalUnitId(x.registrationUnit):x.registrationUnit,registrationUnitId:x.registrationUnitId?canonicalUnitId(x.registrationUnitId):x.registrationUnitId}));
+  if(Array.isArray(d.bookings))d.bookings=d.bookings.map(x=>({...x,unit:x.unit?canonicalUnitId(x.unit):x.unit,unitId:x.unitId?canonicalUnitId(x.unitId):x.unitId}));
+  for(const key of ['waitlistRequests','waitlistOpportunities','clientCommands','clientReceivables','tipMovements','fiscalDocuments']){
+    if(Array.isArray(d[key]))d[key]=d[key].map(x=>({...x,unit:x.unit?canonicalUnitId(x.unit):x.unit,unitId:x.unitId?canonicalUnitId(x.unitId):x.unitId}));
+  }
+  if(Array.isArray(d.stockBalances))d.stockBalances=d.stockBalances.map(x=>({...x,locationId:x.locationId?canonicalUnitId(x.locationId):x.locationId,unitId:x.unitId?canonicalUnitId(x.unitId):x.unitId}));
+  if(Array.isArray(d.userAccounts))d.userAccounts=d.userAccounts.map(x=>({...x,unit:x.unit?canonicalUnitId(x.unit):x.unit,unitId:x.unitId?canonicalUnitId(x.unitId):x.unitId,unitIds:Array.isArray(x.unitIds)?x.unitIds.map(canonicalUnitId):x.unitIds}));
+  if(d.professionalObligationSnapshot&&Array.isArray(d.professionalObligationSnapshot.rows))d.professionalObligationSnapshot={...d.professionalObligationSnapshot,rows:d.professionalObligationSnapshot.rows.map(x=>({...x,unitId:x.unitId?canonicalUnitId(x.unitId):x.unitId}))};
+  return d;
+}
 const isoDate=v=>/^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?String(v):'';
 const id=(prefix,...xs)=>`${prefix}:${xs.map(x=>String(x??'')).join(':')}`;
 const dval=(o,...keys)=>{for(const k of keys)if(o&&o[k]!=null&&o[k]!=='')return o[k];return 0};
@@ -39,7 +54,7 @@ function commissionNeedsParity(d){return ['commissionEvents','commissionSettleme
 function unitMetrics(rows){const out={};for(const unitId of new Set(rows.flatMap(r=>r.unitId?[String(r.unitId)]:[]))){const f=rows.filter(r=>String(r.unitId||'')===unitId);out[unitId]=f;}return out}
 export function projectCutoverState(env,{cutoffDate,professionalThroughDate=''}={}){
   const validation=validateExport(env);if(!validation.ok)throw new Error(`Export inválido: ${validation.errors.join('; ')}`);if(env.sourceKind!=='CANONICAL_RECONCILED')throw new Error('Cutover exige snapshot CANONICAL_RECONCILED');if(!/^\d{4}-\d{2}-\d{2}$/.test(String(cutoffDate||'')))throw new Error('cutoffDate obrigatório em YYYY-MM-DD');
-  const d=structuredClone(env.data||{}),blockers=[];
+  const d=normalizeCutoverUnitIds(structuredClone(env.data||{})),blockers=[];
   d.bookings=(d.bookings||[]).filter(b=>String(b.date||'')>=cutoffDate&&!TERMINAL_BOOKING.has(low(b.status)));
   d.waitlistRequests=(d.waitlistRequests||[]).filter(w=>ACTIVE_WAITLIST.has(low(w.status))||w.active===true);
   const requestIds=new Set(d.waitlistRequests.map(w=>String(w.id)));d.waitlistOpportunities=(d.waitlistOpportunities||[]).filter(o=>requestIds.has(String(o.requestId||''))&&!['closed','cancelado','used','converted'].includes(low(o.status)));
