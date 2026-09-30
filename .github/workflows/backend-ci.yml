@@ -64,6 +64,10 @@ jobs:
         run: npm run build
       - name: Static and projector tests
         run: npm test
+      - name: Install Python parity dependency
+        run: |
+          python3 -m pip install --user playwright
+          python3 -m playwright install chromium
       - name: Critical behavior characterization gate
         run: npm run test:characterization
       - name: Create CI administrator
