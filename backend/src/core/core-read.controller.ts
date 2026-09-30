@@ -37,6 +37,7 @@ export class CoreReadController {
     return this.prisma.professional.findMany({where:{active:true,units:{some:{unitId:req.unitId!,active:true}}},select:{id:true,name:true,publicName:true,active:true,version:true,units:{where:{unitId:req.unitId!,active:true},select:{unitId:true,active:true}}},orderBy:{name:'asc'}});
   }
 
+  // DEC-004: cliente é cadastro de rede; X-Unit-Id autoriza a operação, não restringe a busca.
   @Get('clients')
   @UnitScoped()
   @RequirePermissions('clients.read')
