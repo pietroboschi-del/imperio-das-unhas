@@ -21,7 +21,10 @@ async function main(){
   ok(await prisma.client.count({where:{phone:'3199999030'}})===1,'one network client');ok(await prisma.clientUnitLink.count({where:{client:{phone:'3199999030'}}})===2,'two unit links');
   r=await book('shopping-contagem','2026-10-06T15:00','3199999040','idem','short');ok(r.ok,'idempotency first');const a=await r.json();
   r=await book('shopping-contagem','2026-10-06T15:00','3199999040','idem','short');ok(r.ok,'idempotency repeat');const b=await r.json();ok(a.id===b.id,'same booking id');
-  ok(await prisma.auditEvent.count({where:{action:'booking.created_online'}})===6,'online bookings audited');
+  const concurrent=await Promise.all([book('centro','2026-10-06T16:00','3199999051','race-a','short'),book('centro','2026-10-06T16:00','3199999052','race-b','short')]);
+  const statuses=concurrent.map(x=>x.status).sort((a,b)=>a-b);ok(statuses[0]>=200&&statuses[0]<300,'one concurrent booking accepted');ok(statuses[1]===409,'other concurrent booking rejected');
+  ok(await prisma.booking.count({where:{unitId:'centro',professionalId:'p-all',startAt:new Date('2026-10-06T19:00:00.000Z')}})===1,'only one concurrent slot persisted');
+  ok(await prisma.auditEvent.count({where:{action:'booking.created_online'}})===7,'online bookings audited');
   console.log(JSON.stringify({ok:true,tests:n,feature:'public_booking_three_units'}));
  }finally{server.kill('SIGTERM');await prisma.$disconnect()}
 }
