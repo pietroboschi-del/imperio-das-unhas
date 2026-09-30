@@ -66,6 +66,10 @@ jobs:
         run: npm test
       - name: Frontend central bridge contract
         run: npm run test:frontend-central-bridge
+      - name: Deployment cutover contract
+        run: npm run test:deployment-cutover
+      - name: Build production container
+        run: docker build -t imperio-backend-ci .
       - name: Install Python parity dependency
         run: |
           python3 -m pip install --user playwright
