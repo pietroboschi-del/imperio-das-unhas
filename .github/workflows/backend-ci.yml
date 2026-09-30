@@ -80,3 +80,5 @@ jobs:
         run: npm run test:operational-writes
       - name: Multi-unit cash command payment flow
         run: npm run test:finance-flow
+      - name: Three-unit public booking flow
+        run: npm run test:public-booking
