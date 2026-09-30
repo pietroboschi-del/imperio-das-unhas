@@ -13,7 +13,7 @@ async function main(){
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
  await prisma.service.createMany({data:[{id:'s1',name:'Manicure',price:'50.00',durationMin:60},{id:'s2',name:'Pedicure',price:'60.00',durationMin:45}]});
  await prisma.professional.create({data:{id:'p1',name:'Profissional 1',legacyPayload:{services:['s1','s2']},units:{create:[{unitId:'centro'}]}}});
- const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ const server=spawn(process.execPath,['dist/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
  try{
   await health();
   let r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');
