@@ -31,10 +31,13 @@ export class CoreWriteController {
     if(!phone&&!email)throw new ConflictException('Informe telefone ou e-mail para identificar o cliente na rede');
     const duplicate=await this.prisma.client.findFirst({where:{active:true,OR:[...(phone?[{phone}]:[]),...(email?[{email}]:[])]}});
     if(duplicate){
-      await this.prisma.$transaction(async tx=>{
-        await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:duplicate.id,unitId:req.unitId!}},create:{clientId:duplicate.id,unitId:req.unitId!,source:'operational'},update:{active:true}});
-        await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'client.linked_to_unit',entityType:'Client',entityId:duplicate.id,legacyPayload:{source:'central_api',deduplicated:true},occurredAt:new Date()}});
-      });
+      const link=await this.prisma.clientUnitLink.findUnique({where:{clientId_unitId:{clientId:duplicate.id,unitId:req.unitId!}}});
+      if(!link||!link.active){
+        await this.prisma.$transaction(async tx=>{
+          await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:duplicate.id,unitId:req.unitId!}},create:{clientId:duplicate.id,unitId:req.unitId!,source:'operational'},update:{active:true}});
+          await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'client.linked_to_unit',entityType:'Client',entityId:duplicate.id,legacyPayload:{source:'central_api',deduplicated:true},occurredAt:new Date()}});
+        });
+      }
       return duplicate;
     }
     const id=this.operationId('client',key);
