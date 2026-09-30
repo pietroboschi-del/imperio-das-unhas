@@ -10,7 +10,7 @@ async function main(){
   await prisma.clientUnitLink.deleteMany();await prisma.booking.deleteMany();await prisma.client.deleteMany();await prisma.unit.deleteMany();
   for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
   await prisma.client.create({data:{id:'c-sec',name:'Cliente Segurança',phone:'+5531999999999',legacyPayload:{secret:'nao-vazar'}}});
-  const server=spawn(process.execPath,['dist/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPENAPI_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+  const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPENAPI_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
   try{
     await waitHealth();ok(true,'health');
     let r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');
