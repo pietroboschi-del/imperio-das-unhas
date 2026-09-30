@@ -78,3 +78,5 @@ jobs:
         run: npm run test:security-integration
       - name: Multi-unit operational write tests
         run: npm run test:operational-writes
+      - name: Multi-unit cash command payment flow
+        run: npm run test:finance-flow
