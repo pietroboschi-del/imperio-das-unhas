@@ -6990,4 +6990,42 @@ button,.btn,input,select,textarea{touch-action:manipulation}
 })();
 </script>
 
+<script>
+/* ===== V99 · CENTRO PILOT CENTRAL API ADAPTER ===== */
+(function(){
+ const RELEASE='V99-CENTRO-PILOT', MODE_KEY='imperio-v99-central-pilot', URL_KEY='imperio-v96-shadow-url';
+ const UNIT_MAP=Object.freeze({u1:'big',u2:'shopping-contagem',u3:'centro'});
+ function endpoint(){try{return String(sessionStorage.getItem(URL_KEY)||'http://127.0.0.1:3000').replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
+ function unitId(){let local=String(window.unitPicker?.value||'');return UNIT_MAP[local]||local}
+ function enabled(){try{return sessionStorage.getItem(MODE_KEY)==='1'&&unitId()==='centro'}catch(e){return false}}
+ function setEnabled(v){try{if(v)sessionStorage.setItem(MODE_KEY,'1');else sessionStorage.removeItem(MODE_KEY)}catch(e){}return enabled()}
+ function csrf(){let m=document.cookie.match(/(?:^|;\s*)imperio_csrf=([^;]+)/);return m?decodeURIComponent(m[1]):''}
+ async function request(path,opt={}){
+  let headers={Accept:'application/json','X-Unit-Id':unitId(),...(opt.body?{'Content-Type':'application/json'}:{}),...(opt.key?{'Idempotency-Key':opt.key}:{}),...(opt.headers||{})};
+  let token=csrf();if(token)headers['X-CSRF-Token']=token;
+  let res=await fetch(endpoint()+path,{credentials:'include',method:opt.method||'GET',headers,body:opt.body?JSON.stringify(opt.body):undefined});
+  let txt=await res.text(),data=null;try{data=txt?JSON.parse(txt):null}catch(e){data={message:txt}}
+  if(!res.ok){let err=new Error(Array.isArray(data?.message)?data.message.join(' · '):(data?.message||('HTTP '+res.status)));err.status=res.status;err.data=data;throw err}return data
+ }
+ function key(scope){try{return scope+'_'+crypto.randomUUID()}catch(e){return scope+'_'+Date.now()+'_'+Math.random().toString(36).slice(2)}}
+ const api={
+  status(){return {release:RELEASE,enabled:enabled(),unitId:unitId(),endpoint:endpoint(),sourceOfTruth:enabled()?'postgresql_central':'legacy_local'}},
+  enableCentro(){if(unitId()!=='centro')throw new Error('Piloto central permitido somente no Centro nesta etapa');return setEnabled(true)},
+  disable(){return setEnabled(false)},
+  units(){return request('/api/v1/units')},
+  services(){return request('/api/v1/services')},
+  professionals(){return request('/api/v1/professionals')},
+  clients(q=''){return request('/api/v1/clients'+(q?'?q='+encodeURIComponent(q):''))},
+  bookings(date=''){return request('/api/v1/bookings'+(date?'?date='+encodeURIComponent(date):''))},
+  createClient(body,idempotencyKey=key('client')){return request('/api/v1/clients',{method:'POST',body,key:idempotencyKey})},
+  createBooking(body,idempotencyKey=key('booking')){return request('/api/v1/bookings',{method:'POST',body,key:idempotencyKey})},
+  openCash(body,idempotencyKey=key('cash')){return request('/api/v1/cash-sessions',{method:'POST',body,key:idempotencyKey})},
+  closeCash(id,body){return request('/api/v1/cash-sessions/'+encodeURIComponent(id)+'/close',{method:'POST',body})},
+  createCommand(body,idempotencyKey=key('command')){return request('/api/v1/commands',{method:'POST',body,key:idempotencyKey})},
+  addCommandService(id,body,idempotencyKey=key('command_item')){return request('/api/v1/commands/'+encodeURIComponent(id)+'/items',{method:'POST',body,key:idempotencyKey})},
+  receivePayment(id,body,idempotencyKey=key('payment')){return request('/api/v1/commands/'+encodeURIComponent(id)+'/payments',{method:'POST',body,key:idempotencyKey})}
+ };
+ window.__imperioCentralPilot=Object.freeze(api);
+})();
+</script>
 </body></html>
