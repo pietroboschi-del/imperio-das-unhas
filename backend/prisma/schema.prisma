@@ -499,3 +499,37 @@ model CommandServiceItem {
   @@index([unitId, professionalId])
   @@index([serviceId])
 }
+
+
+model ProfessionalObligation {
+  id             String   @id
+  professionalId String
+  unitId         String
+  commandId      String?
+  commandItemId  String?
+  kind           String
+  competenceDate DateTime @db.Date
+  amount         Decimal  @db.Decimal(14,2)
+  paidAmount     Decimal  @default(0) @db.Decimal(14,2)
+  status         String   @default("OPEN")
+  legacyPayload  Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([commandItemId, kind])
+  @@index([professionalId, unitId, competenceDate])
+  @@index([unitId, status])
+}
+
+model ProfessionalSettlement {
+  id             String   @id
+  professionalId String
+  unitId         String
+  amount         Decimal  @db.Decimal(14,2)
+  paidAt         DateTime
+  paidByUserId   String
+  legacyPayload  Json?
+  createdAt      DateTime @default(now())
+
+  @@index([professionalId, unitId, paidAt])
+}
