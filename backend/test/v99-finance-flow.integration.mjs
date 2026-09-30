@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {PrismaClient} from '@prisma/client';
+const prisma=new PrismaClient();let n=0;const ok=(v,m)=>{n++;assert.ok(v,m)},base='http://127.0.0.1:'+(process.env.PORT||3100),sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function wait(){for(let i=0;i<80;i++){try{if((await fetch(base+'/api/v1/health')).ok)return}catch{}await sleep(400)}throw Error('backend não iniciou')}
+const cookie=r=>(r.headers.get('set-cookie')||'').split(';')[0];
+async function main(){
+ await prisma.commandPayment.deleteMany();await prisma.cashSession.deleteMany();await prisma.openCommand.deleteMany();await prisma.auditEvent.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.unit.deleteMany();
+ for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
+ const p=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ try{await wait();let r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');const oc=cookie(r),oa=await r.json(),oh={'content-type':'application/json','cookie':oc,'x-csrf-token':oa.csrfToken};
+ r=await fetch(base+'/api/v1/admin/users',{method:'POST',headers:oh,body:JSON.stringify({username:'finance_centro_ci',displayName:'Finance Centro CI',systemRole:'OPERATOR',permissions:[],units:[{unitId:'centro',role:'reception',permissions:['cash.read','cash.open','cash.close','finance.read','finance.manage']}]})});ok(r.ok,'cria operador');const u=await r.json();
+ r=await fetch(base+`/api/v1/auth/users/${u.id}/activation-token`,{method:'POST',headers:oh,body:'{}'});const inv=await r.json();await fetch(base+'/api/v1/auth/activate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:inv.token,newPassword:'finance-password-123'})});
+ r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'finance_centro_ci',password:'finance-password-123'})});ok(r.ok,'login operador');const uc=cookie(r),ua=await r.json();const h={'content-type':'application/json','cookie':uc,'x-csrf-token':ua.csrfToken,'x-unit-id':'centro'};
+ r=await fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...h,'idempotency-key':'cash1'},body:JSON.stringify({businessDate:'2026-10-06',openingAmount:100})});ok(r.ok,'abre caixa Centro');const cash=await r.json();
+ r=await fetch(base+'/api/v1/commands',{method:'POST',headers:{...h,'idempotency-key':'cmd1'},body:JSON.stringify({serviceDate:'2026-10-06',grossAmount:100,discountAmount:10})});ok(r.ok,'abre comanda');const cmd=await r.json();ok(String(cmd.remainingAmount)==='90','saldo inicial 90');
+ r=await fetch(base+`/api/v1/commands/${cmd.id}/payments`,{method:'POST',headers:{...h,'idempotency-key':'pay1'},body:JSON.stringify({cashSessionId:cash.id,method:'PIX',amount:40})});ok(r.ok,'pagamento parcial');
+ let db=await prisma.openCommand.findUnique({where:{id:cmd.id}});ok(String(db.remainingAmount)==='50'&&db.status==='OPEN','parcial mantém aberta');
+ r=await fetch(base+`/api/v1/commands/${cmd.id}/payments`,{method:'POST',headers:{...h,'idempotency-key':'pay1'},body:JSON.stringify({cashSessionId:cash.id,method:'PIX',amount:40})});ok(r.ok,'retry idempotente');ok(await prisma.commandPayment.count({where:{commandId:cmd.id}})===1,'retry não duplica pagamento');
+ r=await fetch(base+`/api/v1/commands/${cmd.id}/payments`,{method:'POST',headers:{...h,'idempotency-key':'pay2'},body:JSON.stringify({cashSessionId:cash.id,method:'DEBIT_CARD',amount:50})});ok(r.ok,'quitação');db=await prisma.openCommand.findUnique({where:{id:cmd.id}});ok(String(db.remainingAmount)==='0'&&db.status==='CLOSED','quitação fecha comanda');
+ r=await fetch(base+`/api/v1/cash-sessions/${cash.id}/close`,{method:'POST',headers:h,body:JSON.stringify({closingAmount:190})});ok(r.ok,'fecha caixa');
+ for(const unit of ['big','shopping-contagem']){r=await fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...h,'x-unit-id':unit,'idempotency-key':'cross-'+unit},body:JSON.stringify({businessDate:'2026-10-06',openingAmount:0})});ok(r.status===403,'Centro bloqueado em '+unit)}
+ ok(await prisma.cashSession.count({where:{unitId:{not:'centro'}}})===0,'outras unidades sem caixa');ok(await prisma.auditEvent.count({where:{unitId:'centro'}})>=5,'auditoria financeira registrada');console.log(JSON.stringify({ok:true,tests:n,feature:'cash_command_payment_e2e'}));
+ }finally{p.kill('SIGTERM');await prisma.$disconnect()}}
+main().catch(async e=>{console.error(e.stack||e);await prisma.$disconnect().catch(()=>{});process.exit(1)});
