@@ -1,0 +1,51 @@
+import { Body, ConflictException, Controller, Headers, NotFoundException, Param, Post, Req, ServiceUnavailableException } from '@nestjs/common';
+import { createHash, randomUUID } from 'node:crypto';
+import { Prisma } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { RequirePermissions } from '../common/permissions.decorator';
+import { UnitScoped } from '../common/unit-scope.decorator';
+import type { ImperioRequest } from '../common/request-context';
+import { CloseCashDto, CreateCommandDto, OpenCashDto, ReceivePaymentDto } from './finance-write.dto';
+
+@Controller('api/v1')
+export class FinanceWriteController {
+ constructor(private readonly prisma:PrismaService){}
+ private enabled(){if(String(process.env.OPERATIONAL_WRITES_ENABLED||'false')!=='true')throw new ServiceUnavailableException('Escrita operacional central ainda não habilitada neste ambiente')}
+ private id(scope:string,key?:string){if(!key)return randomUUID();const k=String(key).trim();if(!k||k.length>200)throw new ConflictException('Idempotency-Key inválida');return 'op_'+createHash('sha256').update(scope+'|'+k).digest('hex').slice(0,40)}
+ private money(n:number){return new Prisma.Decimal(n.toFixed(2))}
+
+ @Post('cash-sessions')
+ @UnitScoped() @RequirePermissions('cash.open')
+ async openCash(@Req() req:ImperioRequest,@Body() b:OpenCashDto,@Headers('idempotency-key') key?:string){
+  this.enabled();const id=this.id(req.unitId!+'|cash',key);
+  return this.prisma.$transaction(async tx=>{const prior=await tx.cashSession.findUnique({where:{id}});if(prior)return prior;
+   const open=await tx.cashSession.findFirst({where:{unitId:req.unitId!,businessDate:new Date(b.businessDate+'T00:00:00.000Z'),status:'OPEN'}});
+   if(open)throw new ConflictException('Já existe caixa aberto para esta unidade e data');
+   const row=await tx.cashSession.create({data:{id,unitId:req.unitId!,businessDate:new Date(b.businessDate+'T00:00:00.000Z'),status:'OPEN',openingAmount:this.money(b.openingAmount),openedByUserId:req.principal!.userId}});
+   await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'cash.opened',entityType:'CashSession',entityId:id,legacyPayload:{openingAmount:b.openingAmount},occurredAt:new Date()}});return row;});
+ }
+
+ @Post('cash-sessions/:id/close')
+ @UnitScoped() @RequirePermissions('cash.close')
+ async closeCash(@Req() req:ImperioRequest,@Param('id') id:string,@Body() b:CloseCashDto){
+  this.enabled();return this.prisma.$transaction(async tx=>{const row=await tx.cashSession.findFirst({where:{id,unitId:req.unitId!}});if(!row)throw new NotFoundException('Caixa não encontrado nesta unidade');if(row.status!=='OPEN')throw new ConflictException('Caixa já fechado');
+   const updated=await tx.cashSession.update({where:{id},data:{status:'CLOSED',closingAmount:this.money(b.closingAmount),closedAt:new Date(),closedByUserId:req.principal!.userId,version:{increment:1}}});
+   await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'cash.closed',entityType:'CashSession',entityId:id,legacyPayload:{closingAmount:b.closingAmount},occurredAt:new Date()}});return updated;});
+ }
+
+ @Post('commands')
+ @UnitScoped() @RequirePermissions('finance.manage')
+ async command(@Req() req:ImperioRequest,@Body() b:CreateCommandDto,@Headers('idempotency-key') key?:string){
+  this.enabled();if(b.clientId&&!await this.prisma.client.findFirst({where:{id:b.clientId,active:true}}))throw new NotFoundException('Cliente não encontrado');
+  const id=this.id(req.unitId!+'|command',key),gross=this.money(b.grossAmount),discount=this.money(b.discountAmount||0);if(discount.gt(gross))throw new ConflictException('Desconto não pode superar valor bruto');const remaining=gross.minus(discount);
+  return this.prisma.$transaction(async tx=>{const prior=await tx.openCommand.findUnique({where:{id}});if(prior)return prior;const row=await tx.openCommand.create({data:{id,unitId:req.unitId!,clientId:b.clientId||null,serviceDate:new Date(b.serviceDate+'T00:00:00.000Z'),status:'OPEN',grossAmount:gross,discountAmount:discount,appliedSignalAmount:0,appliedCreditAmount:0,customerFeeAmount:0,remainingAmount:remaining,legacyPayload:{source:'central_api'}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'command.opened',entityType:'OpenCommand',entityId:id,legacyPayload:{grossAmount:String(gross)},occurredAt:new Date()}});return row;});
+ }
+
+ @Post('commands/:id/payments')
+ @UnitScoped() @RequirePermissions('finance.manage')
+ async payment(@Req() req:ImperioRequest,@Param('id') commandId:string,@Body() b:ReceivePaymentDto,@Headers('idempotency-key') key?:string){
+  this.enabled();const id=this.id(req.unitId!+'|payment',key),amount=this.money(b.amount);
+  return this.prisma.$transaction(async tx=>{const prior=await tx.commandPayment.findUnique({where:{id}});if(prior)return prior;const cmd=await tx.openCommand.findFirst({where:{id:commandId,unitId:req.unitId!}});if(!cmd)throw new NotFoundException('Comanda não encontrada nesta unidade');if(cmd.status!=='OPEN')throw new ConflictException('Comanda não está aberta');const cash=await tx.cashSession.findFirst({where:{id:b.cashSessionId,unitId:req.unitId!,status:'OPEN'}});if(!cash)throw new ConflictException('Caixa aberto da unidade é obrigatório');if(amount.gt(cmd.remainingAmount))throw new ConflictException('Pagamento supera saldo da comanda');
+   const remaining=new Prisma.Decimal(cmd.remainingAmount).minus(amount);const payment=await tx.commandPayment.create({data:{id,commandId,unitId:req.unitId!,cashSessionId:b.cashSessionId,method:b.method,amount,status:'CONFIRMED',receivedByUserId:req.principal!.userId,legacyPayload:{source:'central_api'}}});await tx.openCommand.update({where:{id:commandId},data:{remainingAmount:remaining,status:remaining.eq(0)?'CLOSED':'OPEN',version:{increment:1}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'command.payment_received',entityType:'OpenCommand',entityId:commandId,legacyPayload:{paymentId:id,method:b.method,amount:String(amount)},occurredAt:new Date()}});return payment;});
+ }
+}
