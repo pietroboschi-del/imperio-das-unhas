@@ -17,13 +17,15 @@ const publicBooking=read('src/core/public-booking.controller.ts');
 const release=JSON.parse(read('OFFICIAL_RELEASE.json'));
 const rollback=read('PRODUCTION_BACKUP_ROLLBACK.md');
 const recovery=read('PRODUCTION_RECOVERY.md');
+const deployment=read('DEPLOYMENT.md');
 
 ok(pkg.scripts.start==='node dist/main.js','entrypoint aponta para artefato real do Nest');
 ok(pkg.scripts['start:prod']==='node dist/main.js','start:prod consistente');
-ok(docker.includes('npm run prisma:migrate && npm start'),'container aplica migrations antes de iniciar');
+ok(docker.includes('SCHEMA_MIGRATION_ENABLED=false')&&docker.includes('SCHEMA_MIGRATION_ENABLED:-false')&&docker.includes('npm run prisma:migrate')&&docker.includes('npm start'),'container só aplica schema migration com gate explícito');
 ok(docker.indexOf('apt-get install -y --no-install-recommends ca-certificates openssl')<docker.indexOf('RUN npm run prisma:generate'),'build instala OpenSSL antes de gerar Prisma Client');
 ok(docker.includes('HEALTHCHECK')&&docker.includes('/api/v1/health'),'container possui healthcheck');
 ok(env.includes('COOKIE_SECURE=true'),'cookie seguro em produção');
+ok(env.includes('SCHEMA_MIGRATION_ENABLED=false'),'template mantém migration de schema desligada por padrão');
 ok(env.includes('OPERATIONAL_WRITES_ENABLED=true')&&env.includes('OPERATIONAL_WRITES_UNITS=centro'),'template inicial limita escrita ao Centro');
 ok(env.includes('MIGRATION_IMPORT_ENABLED=false')&&env.includes('OPENAPI_ENABLED=false'),'recursos sensíveis desligados no template');
 ok(gate.includes('OPERATIONAL_WRITES_UNITS')&&gate.includes('allow.length&&unitId&&!allow.includes(unitId)'),'gate implementa allowlist opcional');
@@ -40,6 +42,8 @@ ok(JSON.stringify(release.rollout?.firstFortnight?.operationalWriteUnits)===JSON
 ok(new Set(release.rollout?.firstFortnight?.blockedWriteUnits||[]).size===2&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('big')&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('shopping-contagem'),'Big e Shopping Contagem permanecem bloqueados para escrita');
 ok(release.infrastructure?.backupRollback?.dailyVolumeBackupConfigured===true,'release registra backup diário de volume');
 ok(release.infrastructure?.backupRollback?.migrationGate==='BLOCKED_UNTIL_MANUAL_BACKUP_OR_PITR_CONFIRMED','migração real fica bloqueada sem snapshot/PITR confirmado');
+ok(release.infrastructure?.backupRollback?.schemaMigrationGate?.defaultEnabled===false&&release.infrastructure?.backupRollback?.schemaMigrationGate?.activationRequires==='MANUAL_BACKUP_OR_PITR_CONFIRMED','schema migration permanece bloqueada até proteção de restore confirmada');
+ok(deployment.includes('SCHEMA_MIGRATION_ENABLED=false')&&deployment.includes('SCHEMA_MIGRATION_ENABLED=true'),'runbook define ativação controlada e retorno do gate de schema');
 ok(rollback.includes('Nunca execute restauração in-place')&&rollback.includes('PITR restaura em um novo serviço irmão'),'runbook privilegia rollback não destrutivo');
 ok(rollback.includes('pre-migration-official-2026-10-01'),'runbook define snapshot manual pré-migração');
 ok(release.recovery?.postgresService==='Postgres'&&release.recovery?.volume==='postgres-volume','release fixa PostgreSQL e volume de produção');

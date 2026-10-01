@@ -31,6 +31,7 @@ Parta de `.env.production.example`. Nunca versione credenciais reais.
 
 Obrigatórias para o ambiente:
 - `DATABASE_URL`: PostgreSQL gerenciado.
+- `SCHEMA_MIGRATION_ENABLED=false` até backup manual/PITR estar confirmado.
 - `CORS_ORIGINS`: origem HTTPS exata do frontend.
 - `COOKIE_SECURE=true`.
 - `OPERATIONAL_WRITES_ENABLED=true`.
@@ -40,9 +41,9 @@ Mantenha `MIGRATION_IMPORT_ENABLED=false` e `OPENAPI_ENABLED=false` em operaçã
 
 ## Ativação
 
-1. Suba PostgreSQL e backend com writes inicialmente desligados, se ainda houver importação/reconciliação real a executar.
+1. Suba PostgreSQL e backend com writes desligados e `SCHEMA_MIGRATION_ENABLED=false` enquanto o gate de backup/PITR estiver bloqueado.
 2. Confirme `GET /api/v1/health`.
-3. Execute as migrations.
+3. Depois de confirmar o backup manual/PITR, faça um deployment controlado com `SCHEMA_MIGRATION_ENABLED=true` para aplicar `prisma migrate deploy`; valide o resultado e retorne a variável para `false`.
 4. Crie o administrador por comando one-off usando `ADMIN_USERNAME`, `ADMIN_PASSWORD` e `ADMIN_NAME`; remova esses segredos do ambiente após a criação.
 5. Reconcile/import os dados reais e confira o estado vigente do Centro.
 6. Ative `OPERATIONAL_WRITES_ENABLED=true` com `OPERATIONAL_WRITES_UNITS=centro`.
