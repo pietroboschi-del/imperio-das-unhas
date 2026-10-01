@@ -33,6 +33,8 @@ export type ClientExcelInspection = {
   rowCount: number;
 };
 
+export const CLIENT_XLSX_PARSER_VERSION='xlsx-v2-quoted-attrs';
+
 const MAX_ENTRIES=512;
 const MAX_UNCOMPRESSED_TOTAL=64*1024*1024;
 const MAX_ENTRY_SIZE=24*1024*1024;
@@ -44,8 +46,8 @@ const xmlDecode=(s:string)=>s
 
 const attr=(attrs:string,name:string)=>{
   const escaped=name.replace(/[.*+?^$()|[\]\\{}]/g,'\\$&');
-  const m=attrs.match(new RegExp('(?:^|\\s)'+escaped+'="([^"]*)"','i'));
-  return m?xmlDecode(m[1]):null;
+  const m=attrs.match(new RegExp("(?:^|\\s)"+escaped+"\\s*=\\s*(?:\\\"([^\\\"]*)\\\"|'([^']*)')",'i'));
+  return m?xmlDecode(m[1]??m[2]??''):null;
 };
 
 function findEocd(buf:Buffer){
@@ -287,6 +289,7 @@ export function buildClientBatchFromExcel(files:UploadedClientWorkbook[],body:un
       fileName:String(upload.originalname||('clientes-'+(i+1)+'.xlsx')),
       fileHash,
       sourceUpdatedAtReliable:meta.sourceUpdatedAtReliable===true,
+      parserVersion:CLIENT_XLSX_PARSER_VERSION,
       rows:parsed.rows,
     });
     inspections.push({

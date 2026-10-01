@@ -115,6 +115,85 @@ async function main(){
     eq(await prisma.client.count(),1,'nenhum cliente real criado');
     eq(await prisma.clientUnitLink.count(),0,'nenhum vínculo real criado');
 
+    // Regressão real do Avec: XML com atributos em aspas simples e sem referências de célula.
+    const legacyBuffer=fs.readFileSync(fixture('avec_single_quote_synthetic.xlsx'));
+    const legacyHash=hash(legacyBuffer);
+    const stale=await prisma.migrationEnvelope.create({
+      data:{
+        instanceId:'clients:centro',
+        revision:99,
+        schemaVersion:1,
+        contractVersion:1,
+        dataHash:legacyHash,
+        canonicalDataHash:'sha256:'+'0'.repeat(64),
+        sourceKind:'CLIENTS_ONLY_BATCH',
+        reconciliationId:'BATCH_LEGACY_REPARSE',
+        sourceGeneratedAt:new Date('2026-10-01T14:40:00-03:00'),
+        status:'VALIDATED',
+        summary:{
+          mode:'CLIENTS_ONLY',
+          batchId:'BATCH_LEGACY_REPARSE',
+          phase:'REHEARSAL',
+          unitId:'centro',
+          exportedAt:'2026-10-01T14:40:00-03:00',
+          fileName:'avec_single_quote_synthetic.xlsx',
+          fileHash:legacyHash,
+          rowCount:1
+        }
+      }
+    });
+    await prisma.migrationEntity.create({
+      data:{
+        envelopeId:stale.id,
+        sourceCollection:'clients',
+        sourceId:'row:2',
+        unitId:'centro',
+        payloadHash:'sha256:'+'1'.repeat(64),
+        payload:{
+          source:{batchId:'BATCH_LEGACY_REPARSE',phase:'REHEARSAL',unitId:'centro',exportedAt:'2026-10-01T14:40:00.000Z',fileName:'avec_single_quote_synthetic.xlsx',fileHash:legacyHash,sourceRow:2,sourceId:null,sourceUpdatedAtReliable:false},
+          name:null,nameKey:null,phone:null,email:null,cpf:null,registrationUnitId:null,registrationUnitProven:false,sourceUpdatedAt:null,
+          legacyProfile:{birthDate:null,phoneFixed:null,gender:null,referralSource:null,postalCode:null,addressLine:null,addressNumber:null,state:null,city:null,addressComplement:null,neighborhood:null,profession:null,sourceCreatedAt:null,notes:null,rg:null},
+          fingerprint:'sha256:'+'2'.repeat(64),
+          raw:{sourceRow:2,'33297858':33297858,'31984444949':31984444949,'0':0}
+        }
+      }
+    });
+
+    const legacyManifest={batchId:'BATCH_LEGACY_REPARSE',phase:'REHEARSAL',files:[{unitId:'centro',exportedAt:'2026-10-01T14:40:00-03:00',sourceUpdatedAtReliable:false}]};
+    const legacyForm=new FormData();
+    legacyForm.set('manifest',JSON.stringify(legacyManifest));
+    legacyForm.append('files',new Blob([legacyBuffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'avec_single_quote_synthetic.xlsx');
+    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/excel/dry-run',{
+      method:'POST',headers:{'x-csrf-token':auth.csrfToken,'cookie':cookie},body:legacyForm
+    });
+    if(!r.ok)throw new Error('Legacy reparse falhou HTTP '+r.status+': '+await r.text());
+    const legacyBody=await r.json();
+    eq(legacyBody.excel[0].rowCount,1,'layout legado lê exatamente a linha de dados');
+    eq(legacyBody.excel[0].headers[0],'Cliente','header inlineStr em aspas simples reconhecido');
+    eq(legacyBody.excel[0].unmappedHeaders,[],'valores da primeira cliente não viram cabeçalhos');
+    eq(legacyBody.report.summary.creates,1,'cliente válido deixa de cair em missing name');
+    eq(legacyBody.report.summary.reviewRequired,0,'reparse não exige review por nome ausente');
+    const staleAfter=await prisma.migrationEnvelope.findUnique({where:{id:stale.id}});
+    eq(staleAfter.status,'REJECTED','snapshot produzido por parser antigo é preservado e rejeitado');
+    ok(staleAfter.errorSummary?.reason==='PARSER_VERSION_SUPERSEDED','motivo da rejeição auditável');
+    const reparsed=await prisma.migrationEnvelope.findFirst({where:{instanceId:'clients:centro',reconciliationId:'BATCH_LEGACY_REPARSE',status:'VALIDATED'},orderBy:{revision:'desc'}});
+    ok(reparsed&&reparsed.id!==stale.id,'nova revisão válida criada');
+    ok(typeof reparsed.summary?.parserVersion==='string','nova revisão registra versão do parser');
+    const reparsedRows=await prisma.migrationEntity.findMany({where:{envelopeId:reparsed.id}});
+    eq(reparsedRows.length,1,'staging novo contém uma linha');
+    eq(reparsedRows[0].sourceId,'33297858','Código real volta a ser sourceId');
+    eq(reparsedRows[0].payload.name,'CLIENTE TESTE','nome real volta a ser reconhecido');
+
+    const legacyFormAgain=new FormData();
+    legacyFormAgain.set('manifest',JSON.stringify(legacyManifest));
+    legacyFormAgain.append('files',new Blob([legacyBuffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'avec_single_quote_synthetic.xlsx');
+    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/excel/dry-run',{
+      method:'POST',headers:{'x-csrf-token':auth.csrfToken,'cookie':cookie},body:legacyFormAgain
+    });
+    const legacyAgain=await r.json();
+    ok(r.ok&&legacyAgain.staged[0].reused===true,'reprocessamento com parser atual é idempotente');
+    eq(await prisma.migrationEnvelope.count({where:{instanceId:'clients:centro',reconciliationId:'BATCH_LEGACY_REPARSE',status:'VALIDATED'}}),1,'sem terceira revisão duplicada');
+
     const bad=new FormData();
     bad.set('manifest',JSON.stringify({batchId:'BATCH_BAD_XLS',phase:'REHEARSAL',files:[{unitId:'centro',exportedAt:'2026-10-01T12:00:00-03:00'}]}));
     bad.append('files',new Blob([Buffer.from('arquivo-antigo')]),'clientes.xls');

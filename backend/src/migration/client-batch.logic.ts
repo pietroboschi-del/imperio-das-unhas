@@ -7,6 +7,7 @@ export type ClientBatchFileInput = {
   fileName: string;
   fileHash: string;
   sourceUpdatedAtReliable?: boolean;
+  parserVersion?: string;
   rows: Array<Record<string, unknown>>;
 };
 export type ClientBatchSetInput = {

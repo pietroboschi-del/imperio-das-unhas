@@ -40,6 +40,7 @@ type StoredSummary = {
   fileName?: string;
   fileHash?: string;
   sourceUpdatedAtReliable?: boolean;
+  parserVersion?: string;
   canonicalRowsHash?: string;
   rowCount?: number;
   committedReportHash?: string;
@@ -116,21 +117,40 @@ export class ClientBatchService {
 
   private async stageFile(set:ClientBatchSetInput,file:ClientBatchSetInput['files'][number],db:Db){
     const instanceId=`clients:${file.unitId}`;
-    const sameBatch=await db.migrationEnvelope.findFirst({where:{instanceId,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId},orderBy:{createdAt:'desc'}});
-    if(sameBatch&&sameBatch.dataHash!==file.fileHash.toLowerCase())throw new ConflictException(`Batch ${set.batchId} já possui outro arquivo para ${file.unitId}; use novo batchId para uma nova exportação`);
-    const duplicate=await db.migrationEnvelope.findFirst({where:{instanceId,sourceKind:'CLIENTS_ONLY_BATCH',dataHash:file.fileHash.toLowerCase()},orderBy:{createdAt:'desc'}});
-    if(duplicate){if(duplicate.reconciliationId!==set.batchId)throw new ConflictException(`Arquivo já registrado no batch ${duplicate.reconciliationId||'sem-id'} para ${file.unitId}; reprocessamento deve reutilizar o mesmo batchId`);return {unitId:file.unitId,envelopeId:duplicate.id,revision:duplicate.revision,reused:true,fileHash:file.fileHash.toLowerCase()};}
+    const fileHash=file.fileHash.toLowerCase();
+    const parserVersion=asText(file.parserVersion);
+    const sameBatch=await db.migrationEnvelope.findFirst({where:{instanceId,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId,status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},orderBy:{createdAt:'desc'}});
+    if(sameBatch&&sameBatch.dataHash!==fileHash)throw new ConflictException(`Batch ${set.batchId} já possui outro arquivo para ${file.unitId}; use novo batchId para uma nova exportação`);
+    if(sameBatch&&sameBatch.dataHash===fileHash&&parserVersion){
+      const previousParserVersion=asText((obj(sameBatch.summary) as StoredSummary).parserVersion);
+      if(previousParserVersion!==parserVersion){
+        await db.migrationEnvelope.update({
+          where:{id:sameBatch.id},
+          data:{
+            status:ImportStatus.REJECTED,
+            errorSummary:json({
+              reason:'PARSER_VERSION_SUPERSEDED',
+              previousParserVersion:previousParserVersion||null,
+              supersededByParserVersion:parserVersion,
+              rejectedAt:new Date().toISOString(),
+            }),
+          },
+        });
+      }
+    }
+    const duplicate=await db.migrationEnvelope.findFirst({where:{instanceId,sourceKind:'CLIENTS_ONLY_BATCH',dataHash:fileHash,status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},orderBy:{createdAt:'desc'}});
+    if(duplicate){if(duplicate.reconciliationId!==set.batchId)throw new ConflictException(`Arquivo já registrado no batch ${duplicate.reconciliationId||'sem-id'} para ${file.unitId}; reprocessamento deve reutilizar o mesmo batchId`);return {unitId:file.unitId,envelopeId:duplicate.id,revision:duplicate.revision,reused:true,fileHash};}
     const rows=normalizeBatchSet({...set,files:[file]});
     const latest=await db.migrationEnvelope.findFirst({where:{instanceId},orderBy:{revision:'desc'},select:{revision:true}});
     const revision=(latest?.revision||0)+1;
-    const summary:StoredSummary={mode:'CLIENTS_ONLY',batchId:set.batchId,phase:set.phase,unitId:file.unitId,exportedAt:new Date(file.exportedAt).toISOString(),fileName:file.fileName,fileHash:file.fileHash.toLowerCase(),sourceUpdatedAtReliable:file.sourceUpdatedAtReliable===true,canonicalRowsHash:sha256Json(rows.map(r=>({sourceId:r.source.sourceId,sourceRow:r.source.sourceRow,name:r.name,phone:r.phone,email:r.email,cpf:r.cpf,registrationUnitId:r.registrationUnitProven?r.registrationUnitId:null,sourceUpdatedAt:r.sourceUpdatedAt,legacyProfile:r.legacyProfile}))),rowCount:rows.length};
-    const envelope=await db.migrationEnvelope.create({data:{instanceId,revision,schemaVersion:1,contractVersion:1,dataHash:file.fileHash.toLowerCase(),canonicalDataHash:summary.canonicalRowsHash,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId,sourceGeneratedAt:new Date(file.exportedAt),status:ImportStatus.VALIDATED,summary:json(summary)}});
+    const summary:StoredSummary={mode:'CLIENTS_ONLY',batchId:set.batchId,phase:set.phase,unitId:file.unitId,exportedAt:new Date(file.exportedAt).toISOString(),fileName:file.fileName,fileHash,sourceUpdatedAtReliable:file.sourceUpdatedAtReliable===true,...(parserVersion?{parserVersion}:{}),canonicalRowsHash:sha256Json(rows.map(r=>({sourceId:r.source.sourceId,sourceRow:r.source.sourceRow,name:r.name,phone:r.phone,email:r.email,cpf:r.cpf,registrationUnitId:r.registrationUnitProven?r.registrationUnitId:null,sourceUpdatedAt:r.sourceUpdatedAt,legacyProfile:r.legacyProfile}))),rowCount:rows.length};
+    const envelope=await db.migrationEnvelope.create({data:{instanceId,revision,schemaVersion:1,contractVersion:1,dataHash:fileHash,canonicalDataHash:summary.canonicalRowsHash,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId,sourceGeneratedAt:new Date(file.exportedAt),status:ImportStatus.VALIDATED,summary:json(summary)}});
     if(rows.length)await db.migrationEntity.createMany({data:rows.map(row=>({envelopeId:envelope.id,sourceCollection:'clients',sourceId:row.source.sourceId||`row:${row.source.sourceRow}`,unitId:file.unitId,payloadHash:row.fingerprint,payload:json(row)})),skipDuplicates:true});
-    return {unitId:file.unitId,envelopeId:envelope.id,revision,reused:false,fileHash:file.fileHash.toLowerCase()};
+    return {unitId:file.unitId,envelopeId:envelope.id,revision,reused:false,fileHash};
   }
 
   private async batchEnvelopes(batchId:string,db:Db){
-    return db.migrationEnvelope.findMany({where:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:batchId},orderBy:[{sourceGeneratedAt:'asc'},{createdAt:'asc'}]});
+    return db.migrationEnvelope.findMany({where:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:batchId,status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},orderBy:[{sourceGeneratedAt:'asc'},{createdAt:'asc'}]});
   }
 
   private async loadBatchSet(batchId:string,db:Db,pendingOnly=true):Promise<ClientBatchSetInput>{
@@ -142,14 +162,14 @@ export class ClientBatchService {
       const p=asText(s.phase);if(!phase)phase=p;else if(phase!==p)throw new ConflictException('Batch possui fases inconsistentes');
       const entities=await db.migrationEntity.findMany({where:{envelopeId:env.id,sourceCollection:'clients'},orderBy:{createdAt:'asc'}});
       const rows=entities.map(e=>{const payload=obj(e.payload);return obj(payload.raw);});
-      files.push({unitId,exportedAt:asText(s.exportedAt||env.sourceGeneratedAt?.toISOString()),fileName:asText(s.fileName),fileHash:asText(s.fileHash||env.dataHash),sourceUpdatedAtReliable:s.sourceUpdatedAtReliable===true,rows});
+      files.push({unitId,exportedAt:asText(s.exportedAt||env.sourceGeneratedAt?.toISOString()),fileName:asText(s.fileName),fileHash:asText(s.fileHash||env.dataHash),sourceUpdatedAtReliable:s.sourceUpdatedAtReliable===true,parserVersion:asText(s.parserVersion)||undefined,rows});
     }
     const set={mode:'CLIENTS_ONLY' as const,batchId,phase:phase as ClientBatchSetInput['phase'],files};
     try{assertClientBatchSet(set);}catch(error:any){throw new ConflictException(`Batch persistido inválido: ${String(error?.message||error)}`);}return set;
   }
 
   private async loadPreviousSnapshot(unitId:string,batchId:string,db:Db){
-    const env=await db.migrationEnvelope.findFirst({where:{instanceId:`clients:${unitId}`,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:{not:batchId}},orderBy:[{sourceGeneratedAt:'desc'},{createdAt:'desc'}]});
+    const env=await db.migrationEnvelope.findFirst({where:{instanceId:`clients:${unitId}`,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:{not:batchId},status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},orderBy:[{sourceGeneratedAt:'desc'},{createdAt:'desc'}]});
     if(!env)return {batchId:null,rows:[]};
     const entities=await db.migrationEntity.findMany({where:{envelopeId:env.id,sourceCollection:'clients'},orderBy:{createdAt:'asc'}});
     const rows=entities.map(e=>e.payload as unknown as ReturnType<typeof normalizeBatchSet>[number]);
