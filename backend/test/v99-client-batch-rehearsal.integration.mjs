@@ -127,7 +127,7 @@ async function main(){
 
     const family=report.plans.filter(p=>p.source.phone==='+5531988880000');
     eq(family.length,2,'telefone familiar mantém pessoas separadas');
-    ok(family.every(p=>p.action==='REVIEW_REQUIRED'),'telefone compartilhado vai para review');
+    ok(family.every(p=>p.action==='CREATE'),'telefone familiar com nomes claramente diferentes permanece separado sem review');
 
     const clara=report.plans.find(p=>p.source.name==='Clara Souza');
     ok(clara,'Clara presente');
