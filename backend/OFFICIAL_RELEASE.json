@@ -72,5 +72,25 @@
       "destructiveRestoreDuringPreparation": false,
       "restoreRehearsalRequiredBeforeOperationalCutover": true
     }
+  },
+  "infrastructure": {
+    "railway": {
+      "projectId": "6151f6fc-f429-49ad-8791-7ea4c6eb17d5",
+      "environmentId": "2a540e97-f088-407e-9da4-52ae7dd74ca1",
+      "postgresServiceId": "e051bb64-079a-4718-a113-80fe38ddb016",
+      "postgresVolumeId": "fe0fe9f6-5883-444e-aa2e-e86b095682e7",
+      "postgresImage": "ghcr.io/railwayapp-templates/postgres-ssl:18",
+      "lastObservedDeploymentId": "853e47f7-120a-46c7-99e2-d53a13a3d301",
+      "lastObservedDeploymentStatus": "SUCCESS"
+    },
+    "backupRollback": {
+      "dailyVolumeBackupConfigured": true,
+      "dailyRetentionDays": 6,
+      "manualPreMigrationSnapshotRequired": true,
+      "pitrRequiredForSafePointInTimeRestore": false,
+      "pitrEnabled": false,
+      "connectorLimitation": "Current connected Railway agent does not expose on-demand backup creation or PITR enable/status.",
+      "migrationGate": "BLOCKED_UNTIL_MANUAL_BACKUP_OR_PITR_CONFIRMED"
+    }
   }
 }

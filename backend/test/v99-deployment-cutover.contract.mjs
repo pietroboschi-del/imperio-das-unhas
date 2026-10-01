@@ -15,6 +15,7 @@ const core=read('src/core/core-write.controller.ts');
 const finance=read('src/core/finance-write.controller.ts');
 const publicBooking=read('src/core/public-booking.controller.ts');
 const release=JSON.parse(read('OFFICIAL_RELEASE.json'));
+const rollback=read('PRODUCTION_BACKUP_ROLLBACK.md');
 const recovery=read('PRODUCTION_RECOVERY.md');
 
 ok(pkg.scripts.start==='node dist/main.js','entrypoint aponta para artefato real do Nest');
@@ -37,6 +38,10 @@ ok(release.validatedWorkflow?.runId===36866440047&&release.validatedWorkflow?.co
 ok(release.deploymentRefPolicy==='exact_commit_sha_only'&&release.mainMutationAllowed===false,'deploy exige SHA exato sem alterar main');
 ok(JSON.stringify(release.rollout?.firstFortnight?.operationalWriteUnits)===JSON.stringify(['centro']),'primeira quinzena libera escrita somente no Centro');
 ok(new Set(release.rollout?.firstFortnight?.blockedWriteUnits||[]).size===2&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('big')&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('shopping-contagem'),'Big e Shopping Contagem permanecem bloqueados para escrita');
+ok(release.infrastructure?.backupRollback?.dailyVolumeBackupConfigured===true,'release registra backup diário de volume');
+ok(release.infrastructure?.backupRollback?.migrationGate==='BLOCKED_UNTIL_MANUAL_BACKUP_OR_PITR_CONFIRMED','migração real fica bloqueada sem snapshot/PITR confirmado');
+ok(rollback.includes('Nunca execute restauração in-place')&&rollback.includes('PITR restaura em um novo serviço irmão'),'runbook privilegia rollback não destrutivo');
+ok(rollback.includes('pre-migration-official-2026-10-01'),'runbook define snapshot manual pré-migração');
 ok(release.recovery?.postgresService==='Postgres'&&release.recovery?.volume==='postgres-volume','release fixa PostgreSQL e volume de produção');
 ok(JSON.stringify(release.recovery?.automaticBackupSchedule)===JSON.stringify(['DAILY'])&&release.recovery?.dailyRetentionDays===6,'release registra política automática diária e retenção');
 ok(release.recovery?.preMigration?.manualBackupRequired===true&&release.recovery?.preMigration?.verifyBackupIdBeforeImport===true,'backup manual confirmado é gate da migração real');
