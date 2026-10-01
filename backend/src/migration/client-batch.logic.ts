@@ -134,7 +134,7 @@ export const sha256Json=(v:unknown)=>`sha256:${createHash('sha256').update(JSON.
 export const normalizeName=(v:unknown)=>{const s=asText(v).replace(/\s+/g,' ');return s||null;};
 export const normalizeNameKey=(v:unknown)=>{const s=normalizeName(v);return s?s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR'):null;};
 export const normalizePhone=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');if(!d)return null;if(d.startsWith('55')&&d.length>=12)return `+${d}`;if(d.length===10||d.length===11)return `+55${d}`;return `+${d}`;};
-export const normalizeEmail=(v:unknown)=>{const s=asText(v).toLowerCase();return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(s)?s:null;};
+export const normalizeEmail=(v:unknown)=>{const s=asText(v).toLowerCase();return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)?s:null;};
 export const normalizeCpf=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');return d.length===11?d:null;};
 
 const NAME_PARTICLES=new Set(['de','da','do','das','dos','e']);
