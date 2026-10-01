@@ -38,7 +38,8 @@
     "test:frontend-central-bridge": "node test/v99-frontend-central-bridge.contract.mjs",
     "start:prod": "node dist/main.js",
     "test:deployment-cutover": "node test/v99-deployment-cutover.contract.mjs",
-    "test:client-batches": "node --experimental-strip-types test/v99-client-batches.contract.mjs"
+    "test:client-batches": "node --experimental-strip-types test/v99-client-batches.contract.mjs",
+    "test:client-batch-rehearsal": "node test/v99-client-batch-rehearsal.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
