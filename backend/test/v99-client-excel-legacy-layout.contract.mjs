@@ -27,7 +27,7 @@ eq(row.Celular,31984444949,'celular bruto preservado');
 eq(row.name,'CLIENTE TESTE','nome canônico preenchido');
 eq(row.sourceId,33297858,'código canônico preenchido');
 eq(row.phone,31984444949,'celular vira telefone principal');
-eq(row.phoneFixed,'','fixo vazio preservado');
+eq(row.phoneFixed,undefined,'fixo vazio não é promovido');
 eq(row.sourceCreatedAt,'24/12/2024','cadastro de origem preservado');
 ok(typeof CLIENT_XLSX_PARSER_VERSION==='string'&&CLIENT_XLSX_PARSER_VERSION.length>3,'parser versionado');
 
