@@ -45,7 +45,7 @@
     "admin:recover": "node dist/admin-recovery.js",
     "test:admin-recovery": "node test/v99-admin-recovery.contract.mjs",
     "test:avec-client-export": "node --experimental-strip-types test/v99-avec-client-export.contract.mjs",
-    "test:cross-site-cookie": "node --experimental-strip-types test/v99-cross-site-cookie.contract.mjs"
+    "test:cross-site-cookie": "node test/v99-cross-site-cookie.contract.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

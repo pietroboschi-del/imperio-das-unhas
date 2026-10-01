@@ -1,45 +1,45 @@
 import assert from 'node:assert/strict';
-import { sessionCookieOptions } from '../src/auth/auth.controller.ts';
+import { sessionCookieOptions } from '../dist/src/auth/auth.controller.js';
 
 let tests=0;
 const eq=(a,b,m)=>{tests++;assert.equal(a,b,m)};
 const ok=(v,m)=>{tests++;assert.ok(v,m)};
 
-const prevSecure=process.env.COOKIE_SECURE;
-const prevSameSite=process.env.COOKIE_SAME_SITE;
+const originalSecure=process.env.COOKIE_SECURE;
+const originalSameSite=process.env.COOKIE_SAME_SITE;
 try{
   process.env.COOKIE_SECURE='true';
   delete process.env.COOKIE_SAME_SITE;
-  let o=sessionCookieOptions(new Date('2026-10-01T18:00:00.000Z'));
-  eq(o.secure,true,'produção usa Secure');
-  eq(o.sameSite,'none','produção cross-origin usa SameSite=None por padrão');
-  eq(o.httpOnly,true,'cookie continua HttpOnly');
-  eq(o.path,'/','cookie mantém path raiz');
-  ok(o.expires instanceof Date,'expiração preservada');
+  let options=sessionCookieOptions(new Date('2026-10-01T18:00:00.000Z'));
+  eq(options.secure,true,'secure production cookie');
+  eq(options.sameSite,'none','cross-site production cookie');
+  eq(options.httpOnly,true,'httpOnly retained');
+  eq(options.path,'/','root path retained');
+  ok(options.expires instanceof Date,'expiry retained');
 
   process.env.COOKIE_SECURE='false';
   delete process.env.COOKIE_SAME_SITE;
-  o=sessionCookieOptions();
-  eq(o.secure,false,'ambiente local pode desabilitar Secure');
-  eq(o.sameSite,'lax','ambiente local HTTP usa Lax');
+  options=sessionCookieOptions();
+  eq(options.secure,false,'local secure off');
+  eq(options.sameSite,'lax','local http fallback');
 
   process.env.COOKIE_SECURE='false';
   process.env.COOKIE_SAME_SITE='none';
-  o=sessionCookieOptions();
-  eq(o.sameSite,'lax','SameSite=None sem Secure é rebaixado para Lax');
+  options=sessionCookieOptions();
+  eq(options.sameSite,'lax','none without secure downgraded');
 
   process.env.COOKIE_SECURE='true';
   process.env.COOKIE_SAME_SITE='strict';
-  o=sessionCookieOptions();
-  eq(o.sameSite,'strict','override explícito válido é respeitado');
+  options=sessionCookieOptions();
+  eq(options.sameSite,'strict','valid explicit override');
 
   process.env.COOKIE_SECURE='true';
-  process.env.COOKIE_SAME_SITE='invalido';
-  o=sessionCookieOptions();
-  eq(o.sameSite,'none','valor inválido usa default seguro de produção');
+  process.env.COOKIE_SAME_SITE='invalid';
+  options=sessionCookieOptions();
+  eq(options.sameSite,'none','invalid override falls back safely');
 
   console.log(JSON.stringify({ok:true,tests,feature:'cross_site_session_cookie'}));
 }finally{
-  if(prevSecure===undefined)delete process.env.COOKIE_SECURE;else process.env.COOKIE_SECURE=prevSecure;
-  if(prevSameSite===undefined)delete process.env.COOKIE_SAME_SITE;else process.env.COOKIE_SAME_SITE=prevSameSite;
+  if(originalSecure===undefined) delete process.env.COOKIE_SECURE; else process.env.COOKIE_SECURE=originalSecure;
+  if(originalSameSite===undefined) delete process.env.COOKIE_SAME_SITE; else process.env.COOKIE_SAME_SITE=originalSameSite;
 }
