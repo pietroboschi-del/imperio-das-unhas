@@ -80,3 +80,30 @@ Para cliente já existente:
 O commit roda em transação `Serializable`. Se o PostgreSQL mudar depois da aprovação, o hash muda e a promoção é recusada, exigindo novo dry-run.
 
 Em produção normal, `CLIENT_BATCH_COMMIT_ENABLED=false`. Este bloco não importa clientes reais.
+
+
+## Entrada direta de Excel (.xlsx)
+
+`POST /api/v1/migrations/v94/clients/batches/excel/dry-run` aceita `multipart/form-data` com até 3 campos `files` e um campo `manifest` JSON.
+
+Exemplo de manifest:
+
+```json
+{
+  "batchId": "BATCH_1_REHEARSAL",
+  "phase": "REHEARSAL",
+  "files": [
+    {"unitId":"centro","exportedAt":"2026-10-01T11:30:00-03:00"},
+    {"unitId":"big","exportedAt":"2026-10-01T11:35:00-03:00"},
+    {"unitId":"shopping-contagem","exportedAt":"2026-10-01T11:40:00-03:00"}
+  ]
+}
+```
+
+A ordem das entradas do manifest corresponde à ordem dos arquivos enviados. O servidor calcula SHA-256 sobre os bytes originais do arquivo, preserva o nome original, a linha original do Excel e usa a primeira planilha por padrão. `sheetName` pode ser informado por arquivo quando necessário.
+
+O parser não executa macros nem fórmulas. Ele lê apenas valores armazenados no `.xlsx`, impõe limites de tamanho/expansão ZIP e rejeita `.xls` legado. Não há dependência externa de parser Excel.
+
+Cabeçalhos conhecidos em português/inglês são mapeados para nome, telefone, e-mail, CPF, identificador de origem e data de alteração. Cabeçalhos não reconhecidos continuam preservados na linha bruta e aparecem em `unmappedHeaders`.
+
+A coluna genérica `Unidade` NÃO é convertida em `registrationUnitId`. Somente cabeçalhos explicitamente equivalentes a “unidade de cadastro” podem preencher esse campo, preservando a regra de não inferir a unidade original a partir do arquivo.

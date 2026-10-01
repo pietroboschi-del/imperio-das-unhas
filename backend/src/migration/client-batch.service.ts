@@ -17,6 +17,7 @@ import {
   reconcileClientBatch,
   sha256Json,
 } from './client-batch.logic';
+import { buildClientBatchFromExcel, type UploadedClientWorkbook } from './client-excel';
 
 type Db = PrismaService | Prisma.TransactionClient;
 type Resolution = {
@@ -51,6 +52,14 @@ const asText=(value:unknown)=>value==null?'':String(value).trim();
 @Injectable()
 export class ClientBatchService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async dryRunExcel(files: UploadedClientWorkbook[], body: unknown) {
+    let built: ReturnType<typeof buildClientBatchFromExcel>;
+    try { built=buildClientBatchFromExcel(files,body); }
+    catch (error:any) { throw new BadRequestException(String(error?.message||error)); }
+    const result=await this.dryRun(built.set);
+    return {...result,excel:built.inspections};
+  }
 
   async dryRun(input: unknown) {
     try { assertClientBatchSet(input); } catch (error:any) { throw new BadRequestException(String(error?.message||error)); }

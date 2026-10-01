@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UploadedFiles, UseInterceptors } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { NetworkAdmin } from '../common/network-admin.decorator';
 import { ImportService } from './import.service';
 import { ClientBatchService } from './client-batch.service';
@@ -12,6 +13,9 @@ export class MigrationController {
   @Get('imports') imports(){ return this.importer.listImports(); }
   @Get('imports/:id/cutover-report') cutoverReport(@Param('id') id:string){ return this.importer.cutoverReport(id); }
   @Post('purge-staging') purgeStaging(){ return this.importer.purgeExpiredStaging(); }
+  @Post('clients/batches/excel/dry-run')
+  @UseInterceptors(FilesInterceptor('files',3,{limits:{fileSize:12*1024*1024,files:3}}))
+  clientBatchExcelDryRun(@UploadedFiles() files: any[], @Body() body: unknown){ return this.clientBatches.dryRunExcel(files||[],body); }
   @Post('clients/batches/dry-run') clientBatchDryRun(@Body() body: unknown){ return this.clientBatches.dryRun(body); }
   @Get('clients/batches/:batchId/report') clientBatchReport(@Param('batchId') batchId:string){ return this.clientBatches.report(batchId); }
   @Post('clients/batches/commit') clientBatchCommit(@Body() body: unknown){ return this.clientBatches.commit(body); }
