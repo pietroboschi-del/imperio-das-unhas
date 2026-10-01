@@ -134,8 +134,35 @@ export const sha256Json=(v:unknown)=>`sha256:${createHash('sha256').update(JSON.
 export const normalizeName=(v:unknown)=>{const s=asText(v).replace(/\s+/g,' ');return s||null;};
 export const normalizeNameKey=(v:unknown)=>{const s=normalizeName(v);return s?s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR'):null;};
 export const normalizePhone=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');if(!d)return null;if(d.startsWith('55')&&d.length>=12)return `+${d}`;if(d.length===10||d.length===11)return `+55${d}`;return `+${d}`;};
-export const normalizeEmail=(v:unknown)=>{const s=asText(v).toLowerCase();return s||null;};
+export const normalizeEmail=(v:unknown)=>{const s=asText(v).toLowerCase();return /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(s)?s:null;};
 export const normalizeCpf=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');return d.length===11?d:null;};
+
+const NAME_PARTICLES=new Set(['de','da','do','das','dos','e']);
+const nameTokens=(v:unknown)=>{
+  const key=normalizeNameKey(v);if(!key)return [];
+  return key.split(/\s+/).filter(x=>x&&!NAME_PARTICLES.has(x));
+};
+const levenshteinDistance=(a:string,b:string)=>{
+  if(a===b)return 0;if(!a.length)return b.length;if(!b.length)return a.length;
+  let prev=Array.from({length:b.length+1},(_,i)=>i);
+  for(let i=1;i<=a.length;i++){
+    const cur=new Array<number>(b.length+1);cur[0]=i;
+    for(let j=1;j<=b.length;j++)cur[j]=Math.min(cur[j-1]+1,prev[j]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1));
+    prev=cur;
+  }
+  return prev[b.length];
+};
+export const probableSameName=(a:unknown,b:unknown)=>{
+  const ka=normalizeNameKey(a),kb=normalizeNameKey(b);if(!ka||!kb)return false;if(ka===kb)return true;
+  const maxLen=Math.max(ka.length,kb.length);const similarity=maxLen?1-levenshteinDistance(ka,kb)/maxLen:0;
+  const ta=nameTokens(a),tb=nameTokens(b);if(!ta.length||!tb.length)return similarity>=0.84;
+  const sa=new Set(ta),sb=new Set(tb),intersection=[...sa].filter(x=>sb.has(x)).length;
+  const overlap=intersection/Math.min(sa.size,sb.size);
+  const firstSame=ta[0]===tb[0],lastSame=ta.at(-1)===tb.at(-1);
+  const contained=ka.length>=5&&kb.length>=5&&(ka.includes(kb)||kb.includes(ka));
+  return similarity>=0.84||contained||(firstSame&&lastSame)||(firstSame&&overlap>=0.67);
+};
+
 const normalizedText=(v:unknown)=>{const s=asText(v).replace(/\s+/g,' ');return s||null;};
 const nonZeroText=(v:unknown)=>{const s=asText(v);if(!s||/^0+(?:[.,]0+)?$/.test(s))return null;return s;};
 const normalizePostalCode=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');return d.length===8?`${d.slice(0,5)}-${d.slice(5)}`:null;};
@@ -280,8 +307,15 @@ export function reconcileClientBatch(input:ClientBatchSetInput,previous:Previous
     if(strongCandidates.size===1)targetClientId=[...strongCandidates][0];
     else if(strongCandidates.size>1)conflicts.push({clusterId,type:'MULTIPLE_STRONG_MATCHES',candidateClientIds:[...strongCandidates].sort(),resolution:'REVIEW_REQUIRED'});
     if(!targetClientId&&strongCandidates.size===0){
-      const weak=new Set<string>();for(const r of group){if(r.phone)for(const id of phoneMap.get(r.phone)||[])weak.add(id);if(r.email)for(const id of emailMap.get(r.email)||[])weak.add(id);}
-      if(weak.size)conflicts.push({clusterId,type:'AMBIGUOUS_WEAK_MATCH',candidateClientIds:[...weak].sort(),resolution:'REVIEW_REQUIRED'});
+      const weakEvidence=new Map<string,{field:'phone'|'email';value:string;ids:Set<string>}>();
+      const addWeak=(field:'phone'|'email',value:string,id:string)=>{
+        const key=`${field}:${value}`,entry=weakEvidence.get(key)||{field,value,ids:new Set<string>()};entry.ids.add(id);weakEvidence.set(key,entry);
+      };
+      for(const r of group){
+        if(r.phone)for(const id of phoneMap.get(r.phone)||[]){const c=byId.get(id);if(c&&probableSameName(r.name,c.name))addWeak('phone',r.phone,id);}
+        if(r.email)for(const id of emailMap.get(r.email)||[]){const c=byId.get(id);if(c&&probableSameName(r.name,c.name))addWeak('email',r.email,id);}
+      }
+      for(const e of weakEvidence.values())if(e.ids.size)conflicts.push({clusterId,type:'AMBIGUOUS_WEAK_MATCH',field:e.field,sourceValue:e.value,candidateClientIds:[...e.ids].sort(),resolution:'REVIEW_REQUIRED'});
     }
 
     const safeFills:Partial<Record<ClientField,string>>={};const units=[...new Set(group.map(r=>r.source.unitId))].sort();let unitLinksToAdd=[...units];
@@ -294,9 +328,23 @@ export function reconcileClientBatch(input:ClientBatchSetInput,previous:Previous
     const action:ClientClusterPlan['action']=conflicts.length?'REVIEW_REQUIRED':targetClientId?(Object.keys(safeFills).length||unitLinksToAdd.length?'UPDATE_SAFE':'UNCHANGED'):'CREATE';
     const plan={clusterId,sourceRows:group.map(r=>r.source),source,targetClientId,action,safeFills,unitLinksToAdd,conflicts};plans.push(plan);
   }
-  const weakSource=new Map<string,string[]>();
-  for(const p of plans){for(const key of [p.source.phone?`phone:${p.source.phone}`:null,p.source.email?`email:${p.source.email}`:null].filter((x):x is string=>!!x)){weakSource.set(key,[...(weakSource.get(key)||[]),p.clusterId]);}}
-  for(const ids of weakSource.values()){const uniq=[...new Set(ids)].sort();if(uniq.length<2)continue;for(const id of uniq){const p=plans.find(x=>x.clusterId===id)!;p.conflicts.push({clusterId:id,type:'AMBIGUOUS_WEAK_MATCH',candidateClusterIds:uniq.filter(x=>x!==id),resolution:'REVIEW_REQUIRED'});p.action='REVIEW_REQUIRED';}}
+  const weakSource=new Map<string,{field:'phone'|'email';value:string;ids:string[]}>();
+  for(const p of plans){
+    for(const [field,value] of [['phone',p.source.phone],['email',p.source.email]] as Array<['phone'|'email',string|null]>){
+      if(!value)continue;const key=`${field}:${value}`,entry=weakSource.get(key)||{field,value,ids:[]};entry.ids.push(p.clusterId);weakSource.set(key,entry);
+    }
+  }
+  const plansById=new Map(plans.map(p=>[p.clusterId,p]));
+  for(const entry of weakSource.values()){
+    const uniq=[...new Set(entry.ids)].sort();if(uniq.length<2)continue;
+    for(const id of uniq){
+      const p=plansById.get(id)!;
+      const candidates=uniq.filter(other=>other!==id&&probableSameName(p.source.name,plansById.get(other)?.source.name));
+      if(!candidates.length)continue;
+      p.conflicts.push({clusterId:id,type:'AMBIGUOUS_WEAK_MATCH',field:entry.field,sourceValue:entry.value,candidateClusterIds:candidates,resolution:'REVIEW_REQUIRED'});
+      p.action='REVIEW_REQUIRED';
+    }
+  }
   plans.sort((a,b)=>a.clusterId.localeCompare(b.clusterId));const allConflicts=plans.flatMap(p=>p.conflicts).sort((a,b)=>a.clusterId.localeCompare(b.clusterId)||String(a.field||'').localeCompare(String(b.field||''))||a.type.localeCompare(b.type));
   const fileReports=[...input.files].sort((a,b)=>a.unitId.localeCompare(b.unitId)).map(file=>{const current=rows.filter(r=>r.source.unitId===file.unitId),prev=previous[file.unitId];return {unitId:file.unitId,exportedAt:new Date(file.exportedAt).toISOString(),fileName:file.fileName,fileHash:file.fileHash.toLowerCase(),rows:current.length,comparedToBatchId:prev?.batchId||null,snapshotDiff:compareSnapshots(current,prev?.rows||[])};});
   const core={mode:'CLIENTS_ONLY' as const,batchId:input.batchId,phase:input.phase,files:fileReports,crossUnit:{clusters:plans.length,multiUnitClusters:plans.filter(p=>new Set(p.sourceRows.map(x=>x.unitId)).size>1).length,reviewRequiredClusters:plans.filter(p=>p.action==='REVIEW_REQUIRED').length},summary:{creates:plans.filter(p=>p.action==='CREATE').length,safeUpdates:plans.filter(p=>p.action==='UPDATE_SAFE').length,unchanged:plans.filter(p=>p.action==='UNCHANGED').length,reviewRequired:plans.filter(p=>p.action==='REVIEW_REQUIRED').length,conflicts:allConflicts.length,unitLinksToAdd:plans.reduce((n,p)=>n+p.unitLinksToAdd.length,0)},plans,conflicts:allConflicts,invariants:{previousBatchesAreAuditOnly:true as const,missingRowsNeverDeleteCentralClients:true as const,phoneAloneNeverAutoMerges:true as const,centralNonEmptyValuesPreservedByDefault:true as const,registrationUnitNeverInferredFromFileUnit:true as const}};

@@ -126,3 +126,20 @@ Regras específicas:
 - sexo, origem (`Como Conheceu`), CEP/endereço, profissão, observações e RG permanecem preservados no payload normalizado de staging;
 - nenhum desses campos altera a regra de deduplicação principal, que continua baseada em CPF ou combinações de identidade mais fortes;
 - dados do arquivo real usado para validar o formato não são armazenados no repositório.
+
+
+## Refinamento de contato compartilhado
+
+Telefone ou e-mail repetido, isoladamente, não é evidência suficiente para fundir clientes e também não deve bloquear automaticamente pessoas com nomes claramente distintos.
+
+A reconciliação fraca agora funciona assim:
+
+- CPF e combinações fortes continuam prevalecendo;
+- telefone/e-mail + nome igual continuam sendo chaves fortes já existentes;
+- telefone/e-mail compartilhado entre nomes claramente diferentes mantém clientes separados;
+- telefone/e-mail compartilhado com nomes suficientemente parecidos gera `AMBIGUOUS_WEAK_MATCH` e continua em `REVIEW_REQUIRED`;
+- o conflito fraco registra o campo (`phone` ou `email`) e o valor que originou a revisão;
+- textos que não têm formato mínimo de e-mail (por exemplo `on`) não participam da deduplicação;
+- nenhuma dessas regras permite merge automático apenas por telefone.
+
+O objetivo é reduzir falsos positivos causados por telefone familiar sem transformar diferenças de grafia ou cadastros possivelmente duplicados em merges silenciosos.
