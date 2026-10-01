@@ -1,0 +1,249 @@
+import { createHash } from 'node:crypto';
+
+export type ClientBatchPhase = 'REHEARSAL' | 'PRE_CUTOVER' | 'FINAL';
+export type ClientBatchFileInput = {
+  unitId: string;
+  exportedAt: string;
+  fileName: string;
+  fileHash: string;
+  sourceUpdatedAtReliable?: boolean;
+  rows: Array<Record<string, unknown>>;
+};
+export type ClientBatchSetInput = {
+  mode: 'CLIENTS_ONLY';
+  batchId: string;
+  phase: ClientBatchPhase;
+  files: ClientBatchFileInput[];
+};
+export type ClientSourceMeta = {
+  batchId: string;
+  phase: ClientBatchPhase;
+  unitId: string;
+  exportedAt: string;
+  fileName: string;
+  fileHash: string;
+  sourceRow: number;
+  sourceId: string | null;
+  sourceUpdatedAtReliable: boolean;
+};
+export type NormalizedClientRow = {
+  source: ClientSourceMeta;
+  name: string | null;
+  nameKey: string | null;
+  phone: string | null;
+  email: string | null;
+  cpf: string | null;
+  registrationUnitId: string | null;
+  registrationUnitProven: boolean;
+  sourceUpdatedAt: string | null;
+  fingerprint: string;
+  raw: Record<string, unknown>;
+};
+export type CentralClientSnapshot = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  registrationUnitId: string | null;
+  updatedAt: string;
+  legacyPayload: unknown;
+  unitIds: string[];
+};
+export type PreviousUnitSnapshot = { batchId: string | null; rows: NormalizedClientRow[] };
+export type PreviousSnapshots = Record<string, PreviousUnitSnapshot | undefined>;
+export type ClientField = 'name' | 'phone' | 'email' | 'cpf' | 'registrationUnitId';
+export type ClientConflict = {
+  clusterId: string;
+  type: 'SOURCE_FIELD_CONFLICT' | 'CENTRAL_FIELD_CONFLICT' | 'MULTIPLE_STRONG_MATCHES' | 'AMBIGUOUS_WEAK_MATCH' | 'MISSING_REQUIRED_NAME';
+  field?: ClientField;
+  centralValue?: string | null;
+  sourceValue?: string | null;
+  candidateClientIds?: string[];
+  candidateClusterIds?: string[];
+  sourceAppearsNewer?: boolean;
+  resolution: 'REVIEW_REQUIRED';
+};
+export type ClientClusterPlan = {
+  clusterId: string;
+  sourceRows: ClientSourceMeta[];
+  source: {
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+    cpf: string | null;
+    registrationUnitId: string | null;
+    registrationUnitProven: boolean;
+    latestReliableUpdatedAt: string | null;
+  };
+  targetClientId: string | null;
+  action: 'CREATE' | 'UPDATE_SAFE' | 'UNCHANGED' | 'REVIEW_REQUIRED';
+  safeFills: Partial<Record<ClientField, string>>;
+  unitLinksToAdd: string[];
+  conflicts: ClientConflict[];
+};
+export type ClientBatchReport = {
+  mode: 'CLIENTS_ONLY';
+  batchId: string;
+  phase: ClientBatchPhase;
+  files: Array<{
+    unitId: string;
+    exportedAt: string;
+    fileName: string;
+    fileHash: string;
+    rows: number;
+    comparedToBatchId: string | null;
+    snapshotDiff: { new: number; changed: number; unchanged: number; missingFromNewSnapshot: number };
+  }>;
+  crossUnit: { clusters: number; multiUnitClusters: number; reviewRequiredClusters: number };
+  summary: { creates: number; safeUpdates: number; unchanged: number; reviewRequired: number; conflicts: number; unitLinksToAdd: number };
+  plans: ClientClusterPlan[];
+  conflicts: ClientConflict[];
+  invariants: {
+    previousBatchesAreAuditOnly: true;
+    missingRowsNeverDeleteCentralClients: true;
+    phoneAloneNeverAutoMerges: true;
+    centralNonEmptyValuesPreservedByDefault: true;
+    registrationUnitNeverInferredFromFileUnit: true;
+  };
+  reportHash: string;
+};
+
+const asText=(v:unknown)=>typeof v==='string'?v.trim():v==null?'':String(v).trim();
+const first=(row:Record<string,unknown>,keys:string[])=>{for(const k of keys){const v=row[k];if(v!==undefined&&v!==null&&asText(v)!=='')return v;}return null;};
+const stable=(v:unknown):unknown=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.entries(v as Record<string,unknown>).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,stable(x)])):v;
+export const sha256Json=(v:unknown)=>`sha256:${createHash('sha256').update(JSON.stringify(stable(v))).digest('hex')}`;
+export const normalizeName=(v:unknown)=>{const s=asText(v).replace(/\s+/g,' ');return s||null;};
+export const normalizeNameKey=(v:unknown)=>{const s=normalizeName(v);return s?s.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('pt-BR'):null;};
+export const normalizePhone=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');if(!d)return null;if(d.startsWith('55')&&d.length>=12)return `+${d}`;if(d.length===10||d.length===11)return `+55${d}`;return `+${d}`;};
+export const normalizeEmail=(v:unknown)=>{const s=asText(v).toLowerCase();return s||null;};
+export const normalizeCpf=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');return d.length===11?d:null;};
+const isoOrNull=(v:unknown)=>{const s=asText(v);if(!s)return null;const d=new Date(s);return Number.isNaN(d.getTime())?null:d.toISOString();};
+
+export function assertClientBatchSet(input: unknown): asserts input is ClientBatchSetInput {
+  const x=input as ClientBatchSetInput;
+  if(!x||x.mode!=='CLIENTS_ONLY')throw new Error('mode deve ser CLIENTS_ONLY');
+  if(!/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(asText(x.batchId)))throw new Error('batchId inválido');
+  if(!['REHEARSAL','PRE_CUTOVER','FINAL'].includes(x.phase))throw new Error('phase inválida');
+  if(!Array.isArray(x.files)||x.files.length<1||x.files.length>3)throw new Error('files deve conter de 1 a 3 exportações');
+  const units=new Set<string>();
+  for(const file of x.files){
+    const unitId=asText(file?.unitId);if(!unitId)throw new Error('unitId obrigatório');if(units.has(unitId))throw new Error(`unidade duplicada no batch: ${unitId}`);units.add(unitId);
+    if(!asText(file.fileName))throw new Error(`fileName obrigatório em ${unitId}`);
+    if(!/^sha256:[0-9a-f]{64}$/i.test(asText(file.fileHash)))throw new Error(`fileHash SHA-256 inválido em ${unitId}`);
+    if(!isoOrNull(file.exportedAt))throw new Error(`exportedAt inválido em ${unitId}`);
+    if(!Array.isArray(file.rows))throw new Error(`rows inválido em ${unitId}`);
+  }
+}
+
+export function normalizeBatchSet(input: ClientBatchSetInput): NormalizedClientRow[] {
+  assertClientBatchSet(input);
+  const out:NormalizedClientRow[]=[];
+  for(const file of [...input.files].sort((a,b)=>a.unitId.localeCompare(b.unitId))){
+    file.rows.forEach((raw,index)=>{
+      const sourceRowRaw=first(raw,['sourceRow','rowNumber','row']);
+      const sourceRow=Number.isInteger(Number(sourceRowRaw))&&Number(sourceRowRaw)>0?Number(sourceRowRaw):index+2;
+      const sourceIdValue=first(raw,['sourceId','id','clientId','clienteId','codigo','código']);
+      const sourceId=sourceIdValue==null?null:asText(sourceIdValue)||null;
+      const name=normalizeName(first(raw,['name','nome','cliente','clientName']));
+      const phone=normalizePhone(first(raw,['phone','telefone','celular','whatsapp','mobile']));
+      const email=normalizeEmail(first(raw,['email','e-mail','mail']));
+      const cpf=normalizeCpf(first(raw,['cpf','document','documento']));
+      const reg=first(raw,['registrationUnitId','registrationUnit','unidadeCadastro']);
+      const registrationUnitId=reg==null?null:asText(reg)||null;
+      const provenRaw=first(raw,['registrationUnitProven','registrationUnitReliable','unidadeCadastroComprovada']);
+      const registrationUnitProven=provenRaw===true||asText(provenRaw).toLowerCase()==='true'||asText(provenRaw)==='1';
+      const sourceUpdatedAt=isoOrNull(first(raw,['updatedAt','modifiedAt','dataAlteracao','ultimaAlteracao']));
+      const normalizedCore={name,nameKey:normalizeNameKey(name),phone,email,cpf,registrationUnitId:registrationUnitProven?registrationUnitId:null,registrationUnitProven,sourceUpdatedAt};
+      out.push({
+        source:{batchId:input.batchId,phase:input.phase,unitId:file.unitId,exportedAt:new Date(file.exportedAt).toISOString(),fileName:file.fileName,fileHash:file.fileHash.toLowerCase(),sourceRow,sourceId,sourceUpdatedAtReliable:file.sourceUpdatedAtReliable===true},
+        ...normalizedCore,
+        fingerprint:sha256Json(normalizedCore),raw,
+      });
+    });
+  }
+  return out;
+}
+
+const strongKeys=(r:Pick<NormalizedClientRow,'cpf'|'email'|'phone'|'nameKey'>)=>{
+  const keys:string[]=[];
+  if(r.cpf)keys.push(`cpf:${r.cpf}`);
+  if(r.email&&r.nameKey)keys.push(`email-name:${r.email}|${r.nameKey}`);
+  if(r.phone&&r.nameKey)keys.push(`phone-name:${r.phone}|${r.nameKey}`);
+  return keys;
+};
+const sourceSnapshotKey=(r:NormalizedClientRow)=>r.source.sourceId?`source:${r.source.sourceId}`:strongKeys(r)[0]||`row:${r.source.sourceRow}`;
+
+export function compareSnapshots(current:NormalizedClientRow[],previous:NormalizedClientRow[]){
+  const prev=new Map(previous.map(r=>[sourceSnapshotKey(r),r]));
+  let fresh=0,changed=0,unchanged=0;
+  const seen=new Set<string>();
+  for(const row of current){const key=sourceSnapshotKey(row);seen.add(key);const old=prev.get(key);if(!old)fresh++;else if(old.fingerprint===row.fingerprint)unchanged++;else changed++;}
+  const missing=[...prev.keys()].filter(k=>!seen.has(k)).length;
+  return {new:fresh,changed,unchanged,missingFromNewSnapshot:missing};
+}
+
+function legacyObject(v:unknown):Record<string,unknown>{return v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>:{};}
+function centralCpf(c:CentralClientSnapshot){const root=legacyObject(c.legacyPayload);const co=legacyObject(root.clientsOnly);return normalizeCpf(co.cpf??root.cpf);}
+function provenanceMatches(c:CentralClientSnapshot,row:NormalizedClientRow){
+  if(!row.source.sourceId)return false;
+  const root=legacyObject(c.legacyPayload),co=legacyObject(root.clientsOnly),sources=Array.isArray(co.sources)?co.sources:[];
+  return sources.some(x=>{const s=legacyObject(x);return asText(s.unitId)===row.source.unitId&&asText(s.sourceId)===row.source.sourceId;});
+}
+
+class UnionFind{p:number[];constructor(n:number){this.p=Array.from({length:n},(_,i)=>i);}find(x:number):number{return this.p[x]===x?x:(this.p[x]=this.find(this.p[x]));}union(a:number,b:number){a=this.find(a);b=this.find(b);if(a!==b)this.p[b]=a;}}
+function clusterRows(rows:NormalizedClientRow[]){
+  const uf=new UnionFind(rows.length),byKey=new Map<string,number>();
+  rows.forEach((r,i)=>{for(const key of strongKeys(r)){const seen=byKey.get(key);if(seen!==undefined)uf.union(i,seen);else byKey.set(key,i);}});
+  const groups=new Map<number,NormalizedClientRow[]>();rows.forEach((r,i)=>{const k=uf.find(i);groups.set(k,[...(groups.get(k)||[]),r]);});
+  return [...groups.values()].sort((a,b)=>a[0].source.unitId.localeCompare(b[0].source.unitId)||a[0].source.sourceRow-b[0].source.sourceRow);
+}
+function uniqueNonEmpty(values:Array<string|null>){return [...new Set(values.filter((x):x is string=>!!x))];}
+function latestReliable(rows:NormalizedClientRow[]){const xs=rows.filter(r=>r.source.sourceUpdatedAtReliable&&r.sourceUpdatedAt).map(r=>r.sourceUpdatedAt as string).sort();return xs.at(-1)||null;}
+
+export function reconcileClientBatch(input:ClientBatchSetInput,previous:PreviousSnapshots,central:CentralClientSnapshot[]):ClientBatchReport{
+  const rows=normalizeBatchSet(input);
+  const centralNorm=central.map(c=>({...c,nameKey:normalizeNameKey(c.name),phoneN:normalizePhone(c.phone),emailN:normalizeEmail(c.email),cpfN:centralCpf(c)}));
+  const strongMap=new Map<string,Set<string>>(),phoneMap=new Map<string,Set<string>>(),emailMap=new Map<string,Set<string>>();
+  const add=(m:Map<string,Set<string>>,k:string|null,id:string)=>{if(!k)return;const s=m.get(k)||new Set<string>();s.add(id);m.set(k,s);};
+  for(const c of centralNorm){for(const k of strongKeys({cpf:c.cpfN,email:c.emailN,phone:c.phoneN,nameKey:c.nameKey}))add(strongMap,k,c.id);add(phoneMap,c.phoneN,c.id);add(emailMap,c.emailN,c.id);}
+  const byId=new Map(centralNorm.map(c=>[c.id,c]));
+  const plans:ClientClusterPlan[]=[];
+  for(const group of clusterRows(rows)){
+    const locators=group.map(r=>`${r.source.unitId}|${r.source.fileHash}|${r.source.sourceRow}|${r.source.sourceId||''}`).sort();
+    const clusterId=`cluster:${sha256Json(locators).slice(7,31)}`;
+    const names=uniqueNonEmpty(group.map(r=>r.name)),phones=uniqueNonEmpty(group.map(r=>r.phone)),emails=uniqueNonEmpty(group.map(r=>r.email)),cpfs=uniqueNonEmpty(group.map(r=>r.cpf));
+    const provenRegs=uniqueNonEmpty(group.filter(r=>r.registrationUnitProven).map(r=>r.registrationUnitId));
+    const source={name:names[0]||null,phone:phones[0]||null,email:emails[0]||null,cpf:cpfs[0]||null,registrationUnitId:provenRegs[0]||null,registrationUnitProven:provenRegs.length===1,latestReliableUpdatedAt:latestReliable(group)};
+    const conflicts:ClientConflict[]=[];
+    const sourceFields:[[ClientField,string[]]]|Array<[ClientField,string[]]>=[['name',names],['phone',phones],['email',emails],['cpf',cpfs],['registrationUnitId',provenRegs]];
+    for(const [field,vals] of sourceFields)if(vals.length>1)conflicts.push({clusterId,type:'SOURCE_FIELD_CONFLICT',field,sourceValue:vals.join(' | '),resolution:'REVIEW_REQUIRED'});
+    if(!source.name)conflicts.push({clusterId,type:'MISSING_REQUIRED_NAME',field:'name',sourceValue:null,resolution:'REVIEW_REQUIRED'});
+
+    const strongCandidates=new Set<string>();
+    for(const r of group){for(const c of centralNorm)if(provenanceMatches(c,r))strongCandidates.add(c.id);for(const key of strongKeys(r))for(const id of strongMap.get(key)||[])strongCandidates.add(id);}
+    let targetClientId:string|null=null;
+    if(strongCandidates.size===1)targetClientId=[...strongCandidates][0];
+    else if(strongCandidates.size>1)conflicts.push({clusterId,type:'MULTIPLE_STRONG_MATCHES',candidateClientIds:[...strongCandidates].sort(),resolution:'REVIEW_REQUIRED'});
+    if(!targetClientId&&strongCandidates.size===0){
+      const weak=new Set<string>();for(const r of group){if(r.phone)for(const id of phoneMap.get(r.phone)||[])weak.add(id);if(r.email)for(const id of emailMap.get(r.email)||[])weak.add(id);}
+      if(weak.size)conflicts.push({clusterId,type:'AMBIGUOUS_WEAK_MATCH',candidateClientIds:[...weak].sort(),resolution:'REVIEW_REQUIRED'});
+    }
+
+    const safeFills:Partial<Record<ClientField,string>>={};const units=[...new Set(group.map(r=>r.source.unitId))].sort();let unitLinksToAdd=[...units];
+    if(targetClientId){
+      const c=byId.get(targetClientId)!;unitLinksToAdd=units.filter(u=>!c.unitIds.includes(u));
+      const compare:Array<[ClientField,string|null,string|null]>=[['name',normalizeName(c.name),source.name],['phone',normalizePhone(c.phone),source.phone],['email',normalizeEmail(c.email),source.email],['cpf',c.cpfN,source.cpf]];
+      if(source.registrationUnitProven)compare.push(['registrationUnitId',c.registrationUnitId,source.registrationUnitId]);
+      for(const [field,cv,sv] of compare){if(!sv)continue;if(!cv){safeFills[field]=sv;continue;}if(cv!==sv){const newer=!!source.latestReliableUpdatedAt&&new Date(source.latestReliableUpdatedAt).getTime()>new Date(c.updatedAt).getTime();conflicts.push({clusterId,type:'CENTRAL_FIELD_CONFLICT',field,centralValue:cv,sourceValue:sv,sourceAppearsNewer:newer,resolution:'REVIEW_REQUIRED'});}}
+    }
+    const action:ClientClusterPlan['action']=conflicts.length?'REVIEW_REQUIRED':targetClientId?(Object.keys(safeFills).length||unitLinksToAdd.length?'UPDATE_SAFE':'UNCHANGED'):'CREATE';
+    const plan={clusterId,sourceRows:group.map(r=>r.source),source,targetClientId,action,safeFills,unitLinksToAdd,conflicts};plans.push(plan);
+  }
+  const weakSource=new Map<string,string[]>();
+  for(const p of plans){for(const key of [p.source.phone?`phone:${p.source.phone}`:null,p.source.email?`email:${p.source.email}`:null].filter((x):x is string=>!!x)){weakSource.set(key,[...(weakSource.get(key)||[]),p.clusterId]);}}
+  for(const ids of weakSource.values()){const uniq=[...new Set(ids)].sort();if(uniq.length<2)continue;for(const id of uniq){const p=plans.find(x=>x.clusterId===id)!;p.conflicts.push({clusterId:id,type:'AMBIGUOUS_WEAK_MATCH',candidateClusterIds:uniq.filter(x=>x!==id),resolution:'REVIEW_REQUIRED'});p.action='REVIEW_REQUIRED';}}
+  plans.sort((a,b)=>a.clusterId.localeCompare(b.clusterId));const allConflicts=plans.flatMap(p=>p.conflicts).sort((a,b)=>a.clusterId.localeCompare(b.clusterId)||String(a.field||'').localeCompare(String(b.field||''))||a.type.localeCompare(b.type));
+  const fileReports=[...input.files].sort((a,b)=>a.unitId.localeCompare(b.unitId)).map(file=>{const current=rows.filter(r=>r.source.unitId===file.unitId),prev=previous[file.unitId];return {unitId:file.unitId,exportedAt:new Date(file.exportedAt).toISOString(),fileName:file.fileName,fileHash:file.fileHash.toLowerCase(),rows:current.length,comparedToBatchId:prev?.batchId||null,snapshotDiff:compareSnapshots(current,prev?.rows||[])};});
+  const core={mode:'CLIENTS_ONLY' as const,batchId:input.batchId,phase:input.phase,files:fileReports,crossUnit:{clusters:plans.length,multiUnitClusters:plans.filter(p=>new Set(p.sourceRows.map(x=>x.unitId)).size>1).length,reviewRequiredClusters:plans.filter(p=>p.action==='REVIEW_REQUIRED').length},summary:{creates:plans.filter(p=>p.action==='CREATE').length,safeUpdates:plans.filter(p=>p.action==='UPDATE_SAFE').length,unchanged:plans.filter(p=>p.action==='UNCHANGED').length,reviewRequired:plans.filter(p=>p.action==='REVIEW_REQUIRED').length,conflicts:allConflicts.length,unitLinksToAdd:plans.reduce((n,p)=>n+p.unitLinksToAdd.length,0)},plans,conflicts:allConflicts,invariants:{previousBatchesAreAuditOnly:true as const,missingRowsNeverDeleteCentralClients:true as const,phoneAloneNeverAutoMerges:true as const,centralNonEmptyValuesPreservedByDefault:true as const,registrationUnitNeverInferredFromFileUnit:true as const}};
+  return {...core,reportHash:sha256Json(core)};
+}

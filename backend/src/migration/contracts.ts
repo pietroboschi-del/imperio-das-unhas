@@ -37,7 +37,7 @@ export const ENTITY_CONTRACTS: Record<string, EntityContract> = {
   agendaFillSnapshots: { scope: 'unit', idField: 'id', unitField: 'unitId', unitRequired: true },
   userAccounts: { scope: 'network', idField: 'id' },
 };
-export type MigrationSourceKind = 'INSTANCE_EXPORT' | 'CANONICAL_RECONCILED';
+export type MigrationSourceKind = 'INSTANCE_EXPORT' | 'CANONICAL_RECONCILED' | 'CLIENTS_ONLY_BATCH';
 export type MigrationEnvelope = {
   format: 'imperio-central-migration';
   contractVersion: number;
