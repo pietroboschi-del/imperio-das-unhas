@@ -42,5 +42,35 @@
       }
     ]
   },
-  "invariant": "The official release is the exact Git commit containing this manifest. Do not deploy by floating branch or main."
+  "invariant": "The official release is the exact Git commit containing this manifest. Do not deploy by floating branch or main.",
+  "recovery": {
+    "provider": "Railway",
+    "project": "imperio-das-unhas",
+    "environment": "production",
+    "postgresService": "Postgres",
+    "volume": "postgres-volume",
+    "volumeMountPath": "/var/lib/postgresql/data",
+    "automaticBackupSchedule": [
+      "DAILY"
+    ],
+    "dailyRetentionDays": 6,
+    "scheduleProvisioning": {
+      "appliedAt": "2026-10-01T13:25:31.830Z",
+      "postgresDeploymentId": "853e47f7-120a-46c7-99e2-d53a13a3d301",
+      "deploymentStatus": "SUCCESS",
+      "connectorReadback": "backup schedule metadata is not exposed by the current Railway connector"
+    },
+    "preMigration": {
+      "manualBackupRequired": true,
+      "verifyBackupIdBeforeImport": true,
+      "lockBackupRecommended": true,
+      "operationalWritesMustRemainDisabledUntilCutover": true
+    },
+    "rollback": {
+      "application": "redeploy the previous exact Git SHA",
+      "database": "restore the verified pre-migration Railway volume backup only if migration validation fails",
+      "destructiveRestoreDuringPreparation": false,
+      "restoreRehearsalRequiredBeforeOperationalCutover": true
+    }
+  }
 }

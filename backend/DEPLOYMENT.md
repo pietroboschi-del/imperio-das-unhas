@@ -50,3 +50,8 @@ Mantenha `MIGRATION_IMPORT_ENABLED=false` e `OPENAPI_ENABLED=false` em operaçã
 8. Só amplie a allowlist depois da validação operacional da unidade anterior.
 
 O frontend não deve usar fallback de escrita legado quando o modo central estiver ativo.
+
+
+## Proteção de dados
+
+O runbook de recuperação está em `PRODUCTION_RECOVERY.md`. A política automática atual é diária; antes da migração real é obrigatório criar e verificar um backup manual `pre-real-data-cutover`. Nenhuma restauração destrutiva deve ser feita no banco de produção apenas para teste.
