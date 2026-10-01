@@ -25,7 +25,7 @@
     "test:cutover": "node test/v98a-cutover-projection.test.mjs",
     "test:cutover-normalization": "node test/v98a-cutover-normalization.contract.mjs",
     "test:money": "node test/v98a-decimal-money.test.mjs",
-    "test": "npm run test:contracts && npm run test:reconciliation && npm run test:import-contract && npm run test:cutover && npm run test:cutover-normalization && npm run test:money && npm run test:client-batches && npm run test:avec-client-export && npm run test:admin-recovery && npm run test:v98b",
+    "test": "npm run test:contracts && npm run test:reconciliation && npm run test:import-contract && npm run test:cutover && npm run test:cutover-normalization && npm run test:money && npm run test:client-batches && npm run test:avec-client-export && npm run test:cross-site-cookie && npm run test:admin-recovery && npm run test:v98b",
     "ci": "npm run prisma:generate && npm run prisma:migrate && npm run build && npm test && npm run test:integration && npm run test:security-integration",
     "reconcile:exports": "node tools/reconcile-exports.mjs",
     "test:v98b": "node --experimental-strip-types test/v98b-security-contract.test.mjs && node --experimental-strip-types test/v98b-permission-policy.test.mjs && node --experimental-strip-types test/v98b-legacy-permissions.test.mjs && node --experimental-strip-types test/v98b-three-units.test.mjs",
@@ -44,7 +44,8 @@
     "test:frontend-client-migration-ui": "node test/v99-frontend-client-migration-ui.contract.mjs",
     "admin:recover": "node dist/admin-recovery.js",
     "test:admin-recovery": "node test/v99-admin-recovery.contract.mjs",
-    "test:avec-client-export": "node --experimental-strip-types test/v99-avec-client-export.contract.mjs"
+    "test:avec-client-export": "node --experimental-strip-types test/v99-avec-client-export.contract.mjs",
+    "test:cross-site-cookie": "node --experimental-strip-types test/v99-cross-site-cookie.contract.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

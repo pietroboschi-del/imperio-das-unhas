@@ -1,12 +1,28 @@
 import { Body, Controller, Get, Param, Post, Req, Res } from '@nestjs/common';
 import { CredentialTokenPurpose } from '@prisma/client';
 import { IsString, MinLength } from 'class-validator';
-import type { Response } from 'express';
+import type { CookieOptions, Response } from 'express';
 import { Authenticated } from '../common/authenticated.decorator';
 import { NetworkAdmin } from '../common/network-admin.decorator';
 import { Public } from '../common/public.decorator';
 import type { ImperioRequest } from '../common/request-context';
 import { AuthService } from './auth.service';
+
+export function sessionCookieOptions(expires?: Date): CookieOptions {
+  const secure=String(process.env.COOKIE_SECURE || 'true')==='true';
+  const configured=String(process.env.COOKIE_SAME_SITE || '').trim().toLowerCase();
+  const allowed=new Set(['lax','strict','none']);
+  let sameSite=(allowed.has(configured)?configured:(secure?'none':'lax')) as 'lax'|'strict'|'none';
+  // Browsers reject SameSite=None cookies without Secure.
+  if(sameSite==='none'&&!secure) sameSite='lax';
+  return {
+    httpOnly:true,
+    secure,
+    sameSite,
+    ...(expires?{expires}:{}),
+    path:'/',
+  };
+}
 
 class LoginDto {
   @IsString() username!: string;
@@ -24,13 +40,7 @@ export class AuthController {
   @Post('login')
   async login(@Body() dto: LoginDto, @Req() req: ImperioRequest, @Res({ passthrough: true }) res: Response) {
     const out = await this.auth.login(dto.username.trim(), dto.password, { ip: req.ip, userAgent: req.headers['user-agent'] });
-    res.cookie('imperio_session', out.sessionToken, {
-      httpOnly: true,
-      secure: String(process.env.COOKIE_SECURE || 'true') === 'true',
-      sameSite: 'lax',
-      expires: out.expiresAt,
-      path: '/',
-    });
+    res.cookie('imperio_session', out.sessionToken, sessionCookieOptions(out.expiresAt));
     return { user: out.principal, csrfToken: out.csrfToken, expiresAt: out.expiresAt.toISOString() };
   }
 
@@ -42,7 +52,7 @@ export class AuthController {
   @Post('logout')
   async logout(@Req() req: ImperioRequest, @Res({ passthrough: true }) res: Response) {
     if (req.principal?.sessionId) await this.auth.revoke(req.principal.sessionId);
-    res.clearCookie('imperio_session', { path: '/' });
+    res.clearCookie('imperio_session', sessionCookieOptions());
     return { ok: true };
   }
 

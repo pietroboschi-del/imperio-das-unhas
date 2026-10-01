@@ -56,3 +56,15 @@ O frontend não deve usar fallback de escrita legado quando o modo central estiv
 ## Proteção de dados
 
 O runbook de recuperação está em `PRODUCTION_RECOVERY.md`. A política automática atual é diária; antes da migração real é obrigatório criar e verificar um backup manual `pre-real-data-cutover`. Nenhuma restauração destrutiva deve ser feita no banco de produção apenas para teste.
+
+
+## Cookie de sessão entre frontend e backend
+
+Em produção, frontend e backend podem estar em hosts distintos. Para que o navegador envie `imperio_session` nas chamadas autenticadas feitas pelo frontend ao backend, use:
+
+```env
+COOKIE_SECURE=true
+COOKIE_SAME_SITE=none
+```
+
+O backend aplica `SameSite=None` por padrão quando `COOKIE_SECURE=true`. Em ambientes HTTP locais com `COOKIE_SECURE=false`, o fallback é `SameSite=Lax`, pois navegadores rejeitam `SameSite=None` sem `Secure`.
