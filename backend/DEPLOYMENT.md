@@ -2,6 +2,19 @@
 
 Este diretório contém o backend central NestJS/PostgreSQL. O primeiro ambiente operacional deve iniciar com escrita limitada à unidade `centro`.
 
+## Release oficial fixada
+
+A fonte de verdade da release está em `OFFICIAL_RELEASE.json`.
+
+Regras obrigatórias:
+- deploy somente pelo **SHA exato do commit de release**; não usar `main` nem uma branch flutuante como referência de produção;
+- baseline funcional validada: `ec56984e190a7b3cb4cdee4d79369853b2f25621`;
+- CI validada: workflow `V98 Backend CI`, run `36866440047`, conclusão `success`;
+- durante a primeira quinzena, somente `centro` pode receber escrita operacional;
+- `big` e `shopping-contagem` devem permanecer tecnicamente prontas, porém bloqueadas para escrita até autorização explícita.
+
+O commit que contém `OFFICIAL_RELEASE.json` passa a ser o SHA da release oficial deste bloco.
+
 ## Build
 
 Use `backend/` como contexto do container:

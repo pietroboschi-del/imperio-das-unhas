@@ -14,6 +14,7 @@ const gate=read('src/common/operational-write-gate.ts');
 const core=read('src/core/core-write.controller.ts');
 const finance=read('src/core/finance-write.controller.ts');
 const publicBooking=read('src/core/public-booking.controller.ts');
+const release=JSON.parse(read('OFFICIAL_RELEASE.json'));
 
 ok(pkg.scripts.start==='node dist/main.js','entrypoint aponta para artefato real do Nest');
 ok(pkg.scripts['start:prod']==='node dist/main.js','start:prod consistente');
@@ -27,5 +28,13 @@ ok(gate.includes('OPERATIONAL_WRITES_UNITS')&&gate.includes('allow.length&&unitI
 ok(core.includes('assertOperationalWriteEnabled(req.unitId!)'),'core write usa gate por unidade');
 ok(finance.includes('assertOperationalWriteEnabled(req.unitId!)'),'finance write usa gate por unidade');
 ok(publicBooking.includes("assertOperationalWriteEnabled(b.unitId,'Agendamento online central ainda não habilitado neste ambiente')"),'site usa gate por unidade');
+
+ok(release.releaseId==='official-three-units-2026-10-01','release oficial possui identificador único');
+ok(release.repository==='pietroboschi-del/imperio-das-unhas'&&release.branch==='official-three-units-integration','release aponta para repositório e branch oficiais');
+ok(release.validatedBaselineSha==='ec56984e190a7b3cb4cdee4d79369853b2f25621','baseline verde da release está fixada por SHA');
+ok(release.validatedWorkflow?.runId===36866440047&&release.validatedWorkflow?.conclusion==='success','release referencia a CI verde validada');
+ok(release.deploymentRefPolicy==='exact_commit_sha_only'&&release.mainMutationAllowed===false,'deploy exige SHA exato sem alterar main');
+ok(JSON.stringify(release.rollout?.firstFortnight?.operationalWriteUnits)===JSON.stringify(['centro']),'primeira quinzena libera escrita somente no Centro');
+ok(new Set(release.rollout?.firstFortnight?.blockedWriteUnits||[]).size===2&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('big')&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('shopping-contagem'),'Big e Shopping Contagem permanecem bloqueados para escrita');
 
 console.log(JSON.stringify({ok:true,tests,feature:'v99_deployment_cutover_contract'}));

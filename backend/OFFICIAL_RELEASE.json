@@ -1,0 +1,46 @@
+{
+  "releaseId": "official-three-units-2026-10-01",
+  "releaseChannel": "official",
+  "repository": "pietroboschi-del/imperio-das-unhas",
+  "branch": "official-three-units-integration",
+  "validatedBaselineSha": "ec56984e190a7b3cb4cdee4d79369853b2f25621",
+  "validatedWorkflow": {
+    "name": "V98 Backend CI",
+    "runId": 36866440047,
+    "conclusion": "success"
+  },
+  "deploymentRefPolicy": "exact_commit_sha_only",
+  "mainMutationAllowed": false,
+  "rollout": {
+    "firstFortnight": {
+      "operationalWriteUnits": [
+        "centro"
+      ],
+      "blockedWriteUnits": [
+        "big",
+        "shopping-contagem"
+      ]
+    },
+    "units": [
+      {
+        "id": "centro",
+        "name": "Centro de Contagem",
+        "technicalState": "ready",
+        "operationalState": "enabled_first"
+      },
+      {
+        "id": "big",
+        "name": "Big Shopping",
+        "technicalState": "ready",
+        "operationalState": "write_blocked"
+      },
+      {
+        "id": "shopping-contagem",
+        "name": "Shopping Contagem",
+        "technicalState": "ready",
+        "operationalState": "write_blocked"
+      }
+    ]
+  },
+  "invariant": "The official release is the exact Git commit containing this manifest. Do not deploy by floating branch or main."
+}
