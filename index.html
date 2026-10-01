@@ -6945,6 +6945,29 @@ button,.btn,input,select,textarea{touch-action:manipulation}
 .v97-card{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px;margin:12px 0;box-shadow:0 5px 18px #3d23410a}.v97-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:9px;margin:10px 0}.v97-kpi{border:1px solid var(--line);border-radius:11px;padding:10px;background:#fcfbfc}.v97-kpi span{display:block;font-size:10px;color:var(--muted);margin-bottom:4px}.v97-kpi b{font-size:12px}.v97-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}.v97-result{margin-top:10px;padding:10px;border:1px dashed #d8c9dc;border-radius:11px;background:#fcfafc;font-size:10px;line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto}.v97-source{display:inline-flex;align-items:center;gap:5px;border:1px solid #ded3e1;border-radius:999px;padding:5px 8px;font-size:9px;font-weight:800;background:#fff;color:#67576b}.v97-source.remote{background:#eaf7ef;border-color:#c7e6d3;color:#287a52}.v97-source.fallback{background:#fff6e4;border-color:#edd9aa;color:#8a6500}.v97-switch{display:flex;align-items:flex-start;gap:9px;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fbfafc}.v97-switch input{width:auto!important;margin-top:2px}
 @media(max-width:800px){.v97-actions .btn{width:100%}}
 </style>
+<style>
+/* ===== V99 · CLIENTS_ONLY · CONSOLE OPERACIONAL DE DRY-RUN ===== */
+.v99mig-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.v99mig-card{border:1px solid var(--line);background:#fff;border-radius:14px;padding:13px}
+.v99mig-card h3{font-size:13px;margin:0 0 9px}
+.v99mig-card .field{margin-top:8px}.v99mig-card input[type=file]{width:100%;font-size:11px}
+.v99mig-head{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0}
+.v99mig-head .field{min-width:190px;flex:1}.v99mig-note{border:1px solid #e8dceb;background:#fbf7fc;border-radius:12px;padding:11px 12px;font-size:10px;line-height:1.55;color:#665b69}
+.v99mig-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.v99mig-status{border:1px dashed #d8c9dc;border-radius:12px;padding:11px;background:#fcfafc;font-size:10px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.v99mig-status.good{border-color:#bfe0cc;background:#f3fbf6;color:#287a52}.v99mig-status.bad{border-color:#efcaca;background:#fff7f7;color:#9b3b3b}
+.v99mig-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:12px 0}
+.v99mig-kpi{border:1px solid var(--line);border-radius:11px;padding:10px;background:#fff}.v99mig-kpi span{display:block;color:var(--muted);font-size:9px}.v99mig-kpi b{font-size:14px}
+.v99mig-table{width:100%;border-collapse:collapse;font-size:10px}.v99mig-table th,.v99mig-table td{border-bottom:1px solid #eee9f0;padding:8px;text-align:left;vertical-align:top}.v99mig-table th{font-size:9px;color:#6c626f;background:#fbfafc;position:sticky;top:0}
+.v99mig-table-wrap{border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:320px;margin:10px 0}
+.v99mig-tag{display:inline-flex;padding:3px 6px;border-radius:999px;background:#f1eaf3;color:#684972;font-size:9px;font-weight:800;margin:2px}
+.v99mig-warn{background:#fff3d9;color:#806000}.v99mig-danger{background:#fdebed;color:#973d4d}
+.v99mig-hash{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;word-break:break-all}
+.v99mig-section{margin-top:16px}.v99mig-section h3{margin:0 0 6px;font-size:13px}
+.v99mig-lock{display:flex;align-items:flex-start;gap:8px;padding:10px;border-radius:11px;border:1px solid #edd7df;background:#fff8fb;color:#754b5e;font-size:10px;margin-top:10px}
+@media(max-width:950px){.v99mig-grid{grid-template-columns:1fr}.v99mig-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){.v99mig-kpis{grid-template-columns:1fr 1fr}.v99mig-actions .btn{width:100%}}
+</style>
 <script>
 /* ===== V97 · READ-THROUGH CONTROLADO ===== */
 (function(){
@@ -7119,32 +7142,8 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  window.__imperioCentralApi=centralApi;
  window.__imperioV97={schema:SCHEMA,release:RELEASE,migrationId:MIGRATION_ID,contract:CONTRACT,migrate,status,enabled,setEnabled,probe,snapshotHeaders,localCatalogManifest,compareCatalog,fetchCatalog,catalogUsable,testCatalog,previewUnit,cardHtml,openArchitecture,financialImpact:'none',businessRulesChanged:false,operationalRemoteReadsScope:['services','categories'],unitOperationalReadThrough:false,operationalRemoteWritesEnabled:false,fallback:'local_automatic',sourceOfTruth:'local_with_verified_remote_read_fallback'};
 })();
-</script>
 
-<style>
-/* ===== V99 · CLIENTS_ONLY · CONSOLE OPERACIONAL DE DRY-RUN ===== */
-.v99mig-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
-.v99mig-card{border:1px solid var(--line);background:#fff;border-radius:14px;padding:13px}
-.v99mig-card h3{font-size:13px;margin:0 0 9px}
-.v99mig-card .field{margin-top:8px}.v99mig-card input[type=file]{width:100%;font-size:11px}
-.v99mig-head{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0}
-.v99mig-head .field{min-width:190px;flex:1}.v99mig-note{border:1px solid #e8dceb;background:#fbf7fc;border-radius:12px;padding:11px 12px;font-size:10px;line-height:1.55;color:#665b69}
-.v99mig-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
-.v99mig-status{border:1px dashed #d8c9dc;border-radius:12px;padding:11px;background:#fcfafc;font-size:10px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
-.v99mig-status.good{border-color:#bfe0cc;background:#f3fbf6;color:#287a52}.v99mig-status.bad{border-color:#efcaca;background:#fff7f7;color:#9b3b3b}
-.v99mig-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:12px 0}
-.v99mig-kpi{border:1px solid var(--line);border-radius:11px;padding:10px;background:#fff}.v99mig-kpi span{display:block;color:var(--muted);font-size:9px}.v99mig-kpi b{font-size:14px}
-.v99mig-table{width:100%;border-collapse:collapse;font-size:10px}.v99mig-table th,.v99mig-table td{border-bottom:1px solid #eee9f0;padding:8px;text-align:left;vertical-align:top}.v99mig-table th{font-size:9px;color:#6c626f;background:#fbfafc;position:sticky;top:0}
-.v99mig-table-wrap{border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:320px;margin:10px 0}
-.v99mig-tag{display:inline-flex;padding:3px 6px;border-radius:999px;background:#f1eaf3;color:#684972;font-size:9px;font-weight:800;margin:2px}
-.v99mig-warn{background:#fff3d9;color:#806000}.v99mig-danger{background:#fdebed;color:#973d4d}
-.v99mig-hash{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;word-break:break-all}
-.v99mig-section{margin-top:16px}.v99mig-section h3{margin:0 0 6px;font-size:13px}
-.v99mig-lock{display:flex;align-items:flex-start;gap:8px;padding:10px;border-radius:11px;border:1px solid #edd7df;background:#fff8fb;color:#754b5e;font-size:10px;margin-top:10px}
-@media(max-width:950px){.v99mig-grid{grid-template-columns:1fr}.v99mig-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:560px){.v99mig-kpis{grid-template-columns:1fr 1fr}.v99mig-actions .btn{width:100%}}
-</style>
-<script>
+
 /* ===== V99 · CLIENTS_ONLY · CONSOLE OPERACIONAL DE DRY-RUN ===== */
 (function(){
  const ROUTE='/api/v1/migrations/v94/clients/batches/excel/dry-run';
@@ -7258,7 +7257,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  window.v99ClientsDryRun=run;window.v99ClientsClear=clearResult;
  window.__imperioClientMigrationUI={route:ROUTE,canShow,canRun,renderPage,run,clearResult,getLastResult:()=>lastResult,commitExposed:false,sourceOfTruth:'postgresql_dry_run_staging_only'};
 })();
-</script>
 
+</script>
 
 </body></html>
