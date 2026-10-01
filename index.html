@@ -7192,7 +7192,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
    '<div class="field"><label>Backend</label><input value="'+esc(endpoint())+'" disabled></div></div>'+
    '<div class="v99mig-grid">'+UNIT_DEFS.map(unitCard).join('')+'</div>'+
    '<div class="v99mig-lock"><b>🔒</b><span><b>Commit indisponível nesta tela.</b> Mesmo um batch FINAL executado aqui continua sendo somente dry-run. A promoção real exige outro fluxo, gates explícitos e aprovação pelo reportHash.</span></div>'+
-   '<div class="v99mig-actions"><button id="v99migRunBtn" class="btn btn-primary" onclick="v99ClientsDryRun()">Executar dry-run</button><button class="btn btn-ghost" onclick="v99ClientsClear()">Limpar resultado</button></div>'+
+   '<div class="v99mig-actions"><button id="v99migRunBtn" class="btn btn-primary" onclick="v99ClientsDryRun()">Executar dry-run</button><button id="v99migReloadBtn" class="btn btn-ghost" onclick="v99ClientsReloadReport()">Recarregar relatório</button><button class="btn btn-ghost" onclick="v99ClientsClear()">Limpar resultado</button></div>'+
    '<div id="v99migStatus" class="v99mig-status">Selecione de 1 a 3 arquivos .xlsx. Cada arquivo deve corresponder à unidade indicada no cartão.</div>'+
    '<div id="v99migResult"></div>';
  }
@@ -7228,15 +7228,45 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   }catch(e){lastResult=null;document.getElementById('v99migResult').innerHTML='';status('Dry-run não executado: '+(e?.message||e),'bad');return null}
   finally{if(btn){btn.disabled=false;btn.textContent='Executar dry-run'}}
  }
+ async function reloadReport(){
+  if(!canRun()){status('Sessão sem permissão de administrador de rede. Entre novamente no backend central.','bad');return null}
+  let batchId=document.getElementById('v99migBatch')?.value.trim()||'';
+  if(!/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(batchId)){status('Batch ID inválido.','bad');return null}
+  let btn=document.getElementById('v99migReloadBtn');
+  try{
+   if(btn){btn.disabled=true;btn.textContent='Carregando…'}status('Carregando relatório já persistido no staging. Nenhum arquivo será reenviado.');
+   let res=await fetch(endpoint()+'/api/v1/migrations/v94/clients/batches/'+encodeURIComponent(batchId)+'/report',{method:'GET',credentials:'include',headers:{Accept:'application/json'}});
+   let txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}
+   if(!res.ok)throw new Error(errorMessage(data,res.status));
+   lastResult=data;renderResult(data);status('Relatório recarregado do staging. Nenhum cliente foi importado.','good');return data
+  }catch(e){status('Relatório não carregado: '+(e?.message||e),'bad');return null}
+  finally{if(btn){btn.disabled=false;btn.textContent='Recarregar relatório'}}
+ }
  function tags(values,cls=''){let xs=(values||[]).filter(Boolean);return xs.length?xs.map(x=>'<span class="v99mig-tag '+cls+'">'+esc(x)+'</span>').join(''):'<span class="muted">—</span>'}
  function renderFiles(data){
-  let rows=(data.excel||[]).map(x=>'<tr><td><b>'+esc(x.unitId)+'</b></td><td>'+esc(x.fileName)+'<div class="v99mig-hash">'+esc(x.fileHash)+'</div></td><td>'+esc(x.sheetName)+'</td><td>'+esc(x.rowCount)+'</td><td>'+tags(x.unmappedHeaders,'v99mig-warn')+'</td><td>'+tags(x.duplicateCanonicalHeaders,'v99mig-danger')+'</td></tr>').join('');
+  let source=(data.excel&&data.excel.length)?data.excel:(data.report?.files||[]).map(x=>({unitId:x.unitId,fileName:x.fileName,fileHash:x.fileHash,sheetName:'—',rowCount:x.rows,unmappedHeaders:[],duplicateCanonicalHeaders:[]}));
+  let rows=source.map(x=>'<tr><td><b>'+esc(x.unitId)+'</b></td><td>'+esc(x.fileName)+'<div class="v99mig-hash">'+esc(x.fileHash)+'</div></td><td>'+esc(x.sheetName||'—')+'</td><td>'+esc(x.rowCount??x.rows??0)+'</td><td>'+tags(x.unmappedHeaders,'v99mig-warn')+'</td><td>'+tags(x.duplicateCanonicalHeaders,'v99mig-danger')+'</td></tr>').join('');
   return '<div class="v99mig-section"><h3>Arquivos e mapeamento</h3><div class="v99mig-table-wrap"><table class="v99mig-table"><thead><tr><th>Unidade</th><th>Arquivo / hash</th><th>Planilha</th><th>Linhas</th><th>Colunas não mapeadas</th><th>Mapeamentos duplicados</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
  }
+ function conflictDiagnostics(report){
+  let conflicts=report.conflicts||[],byType={},byField={};
+  for(const c of conflicts){byType[c.type]=(byType[c.type]||0)+1;let f=c.field||'sem campo';byField[f]=(byField[f]||0)+1}
+  let typeTags=Object.entries(byType).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'<span class="v99mig-tag v99mig-danger">'+esc(k)+': '+esc(v)+'</span>').join('');
+  let fieldTags=Object.entries(byField).sort((a,b)=>b[1]-a[1]).map(([k,v])=>'<span class="v99mig-tag v99mig-warn">'+esc(k)+': '+esc(v)+'</span>').join('');
+  return '<div class="v99mig-section"><h3>Diagnóstico dos conflitos</h3><div class="v99mig-note"><b>Por tipo:</b> '+(typeTags||'—')+'<br><b>Por campo:</b> '+(fieldTags||'—')+'<br><span class="muted">AMBIGUOUS_WEAK_MATCH significa que há indício de duplicidade, mas a evidência não é suficiente para fundir pessoas automaticamente.</span></div></div>'
+ }
  function renderConflicts(report){
-  let rows=(report.conflicts||[]).map(c=>'<tr><td class="v99mig-hash">'+esc(c.clusterId)+'</td><td>'+esc(c.type)+'</td><td>'+esc(c.field||'—')+'</td><td>'+esc(c.centralValue??'—')+'</td><td>'+esc(c.sourceValue??'—')+'</td><td><span class="v99mig-tag v99mig-danger">'+esc(c.resolution||'REVIEW_REQUIRED')+'</span></td></tr>').join('');
-  if(!rows)return '<div class="v99mig-section"><h3>Conflitos</h3><div class="v99mig-note">Nenhum conflito encontrado neste dry-run.</div></div>';
-  return '<div class="v99mig-section"><h3>Conflitos para conferência</h3><div class="v99mig-table-wrap"><table class="v99mig-table"><thead><tr><th>Cluster</th><th>Tipo</th><th>Campo</th><th>Central</th><th>Origem</th><th>Resolução</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+  let conflicts=report.conflicts||[];
+  if(!conflicts.length)return '<div class="v99mig-section"><h3>Conflitos</h3><div class="v99mig-note">Nenhum conflito encontrado neste dry-run.</div></div>';
+  let plans=report.plans||[],byId=new Map(plans.map(p=>[p.clusterId,p])),limit=300;
+  let rows=conflicts.slice(0,limit).map(c=>{
+   let p=byId.get(c.clusterId)||{},src=p.source||{},srcRows=(p.sourceRows||[]).map(x=>(x.unitId||'?')+' #'+(x.sourceRow||'?')).join(', ');
+   let candidateClusters=(c.candidateClusterIds||[]).map(id=>{let cp=byId.get(id),cs=cp?.source||{};return (cs.name||id)+' ['+((cp?.sourceRows||[]).map(x=>(x.unitId||'?')+' #'+(x.sourceRow||'?')).join(', ')||id)+']'}).join(' | ');
+   let candidates=candidateClusters||((c.candidateClientIds||[]).join(' | '))||'—';
+   return '<tr><td><b>'+esc(src.name||'—')+'</b><div class="muted">'+esc(srcRows||c.clusterId)+'</div></td><td>'+esc(c.type)+'</td><td>'+esc(c.field||'—')+'</td><td>'+esc(src.phone||src.email||c.sourceValue||'—')+'</td><td>'+esc(candidates)+'</td><td><span class="v99mig-tag v99mig-danger">'+esc(c.resolution||'REVIEW_REQUIRED')+'</span></td></tr>'
+  }).join('');
+  let note=conflicts.length>limit?'<div class="v99mig-note">Mostrando os primeiros '+limit+' de '+esc(conflicts.length)+' conflitos para evitar travar o navegador. O total continua preservado no relatório.</div>':'';
+  return conflictDiagnostics(report)+'<div class="v99mig-section"><h3>Conflitos para conferência</h3>'+note+'<div class="v99mig-table-wrap"><table class="v99mig-table"><thead><tr><th>Cliente / linha</th><th>Tipo</th><th>Campo</th><th>Valor de origem</th><th>Candidatos relacionados</th><th>Resolução</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
  }
  function renderDiff(report){
   let rows=(report.files||[]).map(f=>'<tr><td><b>'+esc(f.unitId)+'</b></td><td>'+esc(f.comparedToBatchId||'Primeiro snapshot')+'</td><td>'+esc(f.snapshotDiff?.new||0)+'</td><td>'+esc(f.snapshotDiff?.changed||0)+'</td><td>'+esc(f.snapshotDiff?.unchanged||0)+'</td><td>'+esc(f.snapshotDiff?.missingFromNewSnapshot||0)+'</td></tr>').join('');
@@ -7254,8 +7284,8 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  if(baseBuild){let wrapped=function(){let out=baseBuild.apply(this,arguments);if(canShow()&&!document.getElementById('v99migNav')){let b=document.createElement('button');b.id='v99migNav';b.textContent='Migração';b.className=(typeof page!=='undefined'&&page==='migration-clients')?'active':'';b.onclick=()=>setPage('migration-clients');adminTabs.appendChild(b)}return out};window.buildAdminNav=wrapped;try{buildAdminNav=wrapped}catch(e){}}
  const baseRender=window.renderAdmin||((typeof renderAdmin==='function')?renderAdmin:null);
  if(baseRender){let wrapped=function(){if(typeof page!=='undefined'&&page==='migration-clients')return renderPage();return baseRender.apply(this,arguments)};window.renderAdmin=wrapped;try{renderAdmin=wrapped}catch(e){}}
- window.v99ClientsDryRun=run;window.v99ClientsClear=clearResult;
- window.__imperioClientMigrationUI={route:ROUTE,canShow,canRun,renderPage,run,clearResult,getLastResult:()=>lastResult,commitExposed:false,sourceOfTruth:'postgresql_dry_run_staging_only'};
+ window.v99ClientsDryRun=run;window.v99ClientsReloadReport=reloadReport;window.v99ClientsClear=clearResult;
+ window.__imperioClientMigrationUI={route:ROUTE,reportRoute:'/api/v1/migrations/v94/clients/batches/:batchId/report',canShow,canRun,renderPage,run,reloadReport,clearResult,getLastResult:()=>lastResult,commitExposed:false,sourceOfTruth:'postgresql_dry_run_staging_only'};
 })();
 
 </script>

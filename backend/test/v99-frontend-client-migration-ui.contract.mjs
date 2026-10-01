@@ -29,6 +29,12 @@ ok(js.includes('PRE_CUTOVER')&&js.includes('FINAL · dry-run'),'fases futuras su
 ok(js.includes('sourceUpdatedAtReliable'),'confiabilidade do updatedAt configurável por arquivo');
 ok(js.includes('sheetName'),'planilha específica pode ser informada por unidade');
 ok(js.includes('reportHash'),'hash de aprovação é exibido');
+ok(js.includes("'/api/v1/migrations/v94/clients/batches/'+encodeURIComponent(batchId)+'/report'"),'relatório persistido pode ser recarregado sem reenviar Excel');
+ok(js.includes('v99ClientsReloadReport'),'UI expõe recarga somente leitura do relatório');
+ok(js.includes('Diagnóstico dos conflitos')&&js.includes('candidateClusterIds'),'conflitos exibem diagnóstico e candidatos relacionados');
+ok(js.includes('sourceRows')&&js.includes('Cliente / linha'),'conflitos exibem cliente e linha de origem');
+ok(js.includes('slice(0,limit)')&&js.includes('limit=300'),'renderização de conflitos é limitada para não travar navegador');
+
 ok(js.includes('unmappedHeaders')&&js.includes('duplicateCanonicalHeaders'),'mapeamento de colunas é auditável');
 ok(js.includes('snapshotDiff')&&js.includes('missingFromNewSnapshot'),'comparação de snapshots é exibida');
 ok(js.includes('report.conflicts')&&js.includes('REVIEW_REQUIRED'),'conflitos são exibidos para conferência');
