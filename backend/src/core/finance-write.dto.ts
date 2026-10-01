@@ -6,6 +6,10 @@ export class OpenCashDto {
 }
 export class CloseCashDto {
  @IsNumber({maxDecimalPlaces:2}) @Min(0) closingAmount!:number;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) systemExpected?:number;
+ @IsOptional() @IsNumber({maxDecimalPlaces:2}) difference?:number;
+ @IsOptional() @IsString() @MaxLength(500) closeNote?:string;
+ @IsOptional() @IsObject() snapshot?:Record<string,unknown>;
 }
 export class CreateCommandDto {
  @IsOptional() @IsString() @MaxLength(128) clientId?:string;
@@ -52,4 +56,8 @@ export class CashAdjustmentDto{
  @IsString() @IsNotEmpty() @MaxLength(80) kind!:string;
  @IsNumber({maxDecimalPlaces:2}) amount!:number;
  @IsOptional() @IsObject() payload?:Record<string,unknown>;
+}
+
+export class ReopenCashDto{
+ @IsString() @IsNotEmpty() @MaxLength(500) reason!:string;
 }

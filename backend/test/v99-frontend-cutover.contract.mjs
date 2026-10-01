@@ -25,7 +25,8 @@ ok(html.includes("items:newItems.map(it=>centralItemPayload(it,resDraft.date))")
 ok(html.includes("items:combined.map(it=>centralItemPayload(it,original.date))"),'adição de serviço atualiza visita central completa');
 ok(!html.includes("No corte central inicial, salve um serviço por agendamento"),'limitação de serviço único removida');
 ok(html.includes("financeMode:'postgresql_central'"),'financeiro operacional usa PostgreSQL central no modo oficial');
-ok(html.includes("cashSessions(date='')")&&html.includes("syncCommand(id,body)")&&html.includes("cashAdjustment(id,body"),'ponte financeira expõe leitura, snapshot e ajustes centrais');
+ok(html.includes("cashSessions(date='')")&&html.includes("syncCommand(id,body)")&&html.includes("cashAdjustment(id,body")&&html.includes("reopenCash(id,body)"),'ponte financeira expõe leitura, snapshot e ciclo de caixa centrais');
+ok(html.includes("if(officialProductionMode()){\n const legacyRenderCashV99"),'ponte financeira não altera runtime legado fora da produção oficial');
 ok(html.includes('central_finance_refresh')&&html.includes('Comanda não finalizada no banco central'),'frontend trata PostgreSQL como autoridade antes de finalizar a comanda');
 ok(html.includes("Salve as alterações da reserva no banco central antes de abrir a comanda"),'alterações pendentes de agenda não vazam para financeiro');
 ok(!html.includes('value="master"'),'login não expõe usuário legado padrão');

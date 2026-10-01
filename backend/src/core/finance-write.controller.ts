@@ -6,7 +6,7 @@ import { RequirePermissions } from '../common/permissions.decorator';
 import { UnitScoped } from '../common/unit-scope.decorator';
 import type { ImperioRequest } from '../common/request-context';
 import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
-import { AddCommandServiceDto, CashAdjustmentDto, CloseCashDto, CreateCommandDto, OpenCashDto, ReceivePaymentDto, SettleProfessionalDto, SyncCommandDto } from './finance-write.dto';
+import { AddCommandServiceDto, CashAdjustmentDto, CloseCashDto, CreateCommandDto, OpenCashDto, ReceivePaymentDto, ReopenCashDto, SettleProfessionalDto, SyncCommandDto } from './finance-write.dto';
 
 @Controller('api/v1')
 export class FinanceWriteController {
@@ -41,13 +41,22 @@ export class FinanceWriteController {
  @UnitScoped() @RequirePermissions('cash.close')
  async closeCash(@Req() req:ImperioRequest,@Param('id') id:string,@Body() b:CloseCashDto){
   assertOperationalWriteEnabled(req.unitId!);return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${'cash-close|'+id}))`;const row=await tx.cashSession.findFirst({where:{id,unitId:req.unitId!}});if(!row)throw new NotFoundException('Caixa não encontrado nesta unidade');if(row.status!=='OPEN')throw new ConflictException('Caixa já fechado');
-   const updated=await tx.cashSession.update({where:{id},data:{status:'CLOSED',closingAmount:this.money(b.closingAmount),closedAt:new Date(),closedByUserId:req.principal!.userId,version:{increment:1}}});
+   const legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload as any:{};const updated=await tx.cashSession.update({where:{id},data:{status:'CLOSED',closingAmount:this.money(b.closingAmount),closedAt:new Date(),closedByUserId:req.principal!.userId,legacyPayload:{...legacy,systemExpected:b.systemExpected??null,difference:b.difference??null,closeNote:b.closeNote||'',snapshot:b.snapshot||null} as Prisma.InputJsonValue,version:{increment:1}}});
    await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'cash.closed',entityType:'CashSession',entityId:id,legacyPayload:{closingAmount:b.closingAmount},occurredAt:new Date()}});return updated;});
  }
 
  @Post('cash-sessions/:id/adjustments')
  @UnitScoped() @RequirePermissions('cash.adjust')
  async cashAdjustment(@Req() req:ImperioRequest,@Param('id') id:string,@Body() b:CashAdjustmentDto,@Headers('idempotency-key') key?:string){assertOperationalWriteEnabled(req.unitId!);const adjustmentId=this.id(req.unitId!+'|cash-adjustment|'+id,key);return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${'cash-adjustment|'+id}))`;const row=await tx.cashSession.findFirst({where:{id,unitId:req.unitId!,status:'OPEN'}});if(!row)throw new ConflictException('Caixa aberto da unidade é obrigatório');const legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload as any:{};const adjustments=Array.isArray(legacy.adjustments)?legacy.adjustments:[];if(adjustments.some((x:any)=>x?.id===adjustmentId))return row;const next={...legacy,adjustments:[...adjustments,{id:adjustmentId,kind:b.kind,amount:b.amount,payload:b.payload||{},createdAt:new Date().toISOString(),userId:req.principal!.userId}]};const updated=await tx.cashSession.update({where:{id},data:{legacyPayload:next as Prisma.InputJsonValue,version:{increment:1}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'cash.adjusted',entityType:'CashSession',entityId:id,legacyPayload:{adjustmentId,kind:b.kind,amount:b.amount},occurredAt:new Date()}});return updated;});}
+
+ @Post('cash-sessions/:id/reopen')
+ @UnitScoped() @RequirePermissions('cash.reopen')
+ async reopenCash(@Req() req:ImperioRequest,@Param('id') id:string,@Body() b:ReopenCashDto){
+  assertOperationalWriteEnabled(req.unitId!);return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${'cash-reopen|'+id}))`;const row=await tx.cashSession.findFirst({where:{id,unitId:req.unitId!}});if(!row)throw new NotFoundException('Caixa não encontrado nesta unidade');if(row.status!=='CLOSED')throw new ConflictException('Somente caixa fechado pode ser reaberto');
+   const legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload as any:{};
+   const updated=await tx.cashSession.update({where:{id},data:{status:'OPEN',closingAmount:null,closedAt:null,closedByUserId:null,legacyPayload:{...legacy,reopenedAt:new Date().toISOString(),reopenedBy:req.principal!.userId,reopenReason:b.reason} as Prisma.InputJsonValue,version:{increment:1}}});
+   await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'cash.reopened',entityType:'CashSession',entityId:id,legacyPayload:{reason:b.reason},occurredAt:new Date()}});return updated;});
+ }
 
  @Post('commands')
  @UnitScoped() @RequirePermissions('finance.manage')
