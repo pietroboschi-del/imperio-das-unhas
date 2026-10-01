@@ -148,16 +148,57 @@ function normalizeHeader(header:string){
   return header.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'');
 }
 
-const HEADER_ALIASES:Record<string,string>={
+export const CLIENT_HEADER_ALIASES:Record<string,string>={
   nome:'name',nomedocliente:'name',nomecliente:'name',cliente:'name',razaosocial:'name',
-  telefone:'phone',telefone1:'phone',celular:'phone',whatsapp:'phone',fone:'phone',fone1:'phone',
+  celular:'phone',whatsapp:'phone',mobile:'phone',
+  telefone:'phoneFixed',telefone1:'phoneFixed',fone:'phoneFixed',fone1:'phoneFixed',
   email:'email',emailcliente:'email',correioeletronico:'email',
   cpf:'cpf',cpfcliente:'cpf',documento:'cpf',documentocliente:'cpf',
   id:'sourceId',idcliente:'sourceId',clienteid:'sourceId',codigo:'sourceId',codigocliente:'sourceId',codcliente:'sourceId',codigodocliente:'sourceId',
+  aniversario:'birthDate',datadenascimento:'birthDate',nascimento:'birthDate',
+  sexo:'gender',genero:'gender',
+  comoconheceu:'referralSource',origemcliente:'referralSource',canaldeorigem:'referralSource',
+  cep:'postalCode',
+  endereco:'addressLine',logradouro:'addressLine',
+  numero:'addressNumber',numerodoendereco:'addressNumber',
+  estado:'state',uf:'state',
+  cidade:'city',
+  complemento:'addressComplement',
+  bairro:'neighborhood',
+  profissao:'profession',
+  cadastrado:'sourceCreatedAt',datacadastro:'sourceCreatedAt',datadecadastro:'sourceCreatedAt',cadastradoem:'sourceCreatedAt',
+  obs:'notes',observacao:'notes',observacoes:'notes',
+  rg:'rg',
   updatedat:'sourceUpdatedAt',dataalteracao:'sourceUpdatedAt',datadealteracao:'sourceUpdatedAt',ultimaalteracao:'sourceUpdatedAt',dataultimaalteracao:'sourceUpdatedAt',atualizadoem:'sourceUpdatedAt',modificacao:'sourceUpdatedAt',
   registrationunitid:'registrationUnitId',unidadedecadastro:'registrationUnitId',unidadecadastro:'registrationUnitId',
   registrationunitproven:'registrationUnitProven',unidadecadastrocomprovada:'registrationUnitProven',
 };
+
+export function mapClientHeaders(headers:string[]){
+  return headers.map(sourceHeader=>({sourceHeader,canonicalKey:sourceHeader?(CLIENT_HEADER_ALIASES[normalizeHeader(sourceHeader)]||null):null}));
+}
+
+export function applyClientHeaderMapping(raw:Record<string,unknown>,mapping:Array<{sourceHeader:string;canonicalKey:string|null}>){
+  for(const {sourceHeader,canonicalKey} of mapping){
+    if(!canonicalKey||!sourceHeader)continue;
+    let value=raw[sourceHeader];
+    if((canonicalKey==='sourceUpdatedAt'||canonicalKey==='sourceCreatedAt')&&typeof value==='number')value=excelSerialToIso(value);
+    if(String(value??'').trim()==='')continue;
+    if(canonicalKey==='phone'){
+      // Celular/WhatsApp têm precedência sobre telefone fixo quando ambos existem.
+      raw.phone=value;
+      continue;
+    }
+    if(canonicalKey==='phoneFixed'){
+      if(raw.phoneFixed===undefined||String(raw.phoneFixed??'').trim()==='')raw.phoneFixed=value;
+      continue;
+    }
+    if(raw[canonicalKey]===undefined||String(raw[canonicalKey]??'').trim()==='')raw[canonicalKey]=value;
+  }
+  // Compatibilidade: se a origem só trouxer telefone fixo, ele ainda pode ser usado como telefone principal.
+  if((raw.phone===undefined||String(raw.phone??'').trim()==='')&&String(raw.phoneFixed??'').trim()!=='')raw.phone=raw.phoneFixed;
+  return raw;
+}
 
 function excelSerialToIso(value:number){
   if(!Number.isFinite(value)||value<1||value>100000)return value;
@@ -190,7 +231,7 @@ export function parseClientWorkbook(buffer:Buffer,requestedSheetName?:string){
   const headerRow=parsed.find(r=>r.values.some(v=>String(v??'').trim()!==''));
   if(!headerRow)throw new Error('Planilha "'+sheet.name+'" está vazia');
   const headers=headerRow.values.map(v=>String(v??'').trim());
-  const mapping=headers.map(sourceHeader=>({sourceHeader,canonicalKey:sourceHeader?(HEADER_ALIASES[normalizeHeader(sourceHeader)]||null):null}));
+  const mapping=mapClientHeaders(headers);
   const canonicalCounts=new Map<string,number>();
   for(const m of mapping)if(m.canonicalKey)canonicalCounts.set(m.canonicalKey,(canonicalCounts.get(m.canonicalKey)||0)+1);
   const duplicateCanonicalHeaders=[...canonicalCounts.entries()].filter(([,n])=>n>1).map(([k])=>k).sort();
@@ -202,12 +243,7 @@ export function parseClientWorkbook(buffer:Buffer,requestedSheetName?:string){
       const h=headers[i];if(!h)continue;
       raw[h]=row.values[i]??'';
     }
-    for(const {sourceHeader,canonicalKey} of mapping){
-      if(!canonicalKey||!sourceHeader)continue;
-      let value=raw[sourceHeader];
-      if(canonicalKey==='sourceUpdatedAt'&&typeof value==='number')value=excelSerialToIso(value);
-      if((raw[canonicalKey]===undefined||String(raw[canonicalKey]??'').trim()==='')&&String(value??'').trim()!=='')raw[canonicalKey]=value;
-    }
+    applyClientHeaderMapping(raw,mapping);
     dataRows.push(raw);
   }
   return {

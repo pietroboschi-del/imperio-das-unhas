@@ -26,6 +26,23 @@ export type ClientSourceMeta = {
   sourceId: string | null;
   sourceUpdatedAtReliable: boolean;
 };
+export type ClientLegacyProfile = {
+  birthDate: string | null;
+  phoneFixed: string | null;
+  gender: string | null;
+  referralSource: string | null;
+  postalCode: string | null;
+  addressLine: string | null;
+  addressNumber: string | null;
+  state: string | null;
+  city: string | null;
+  addressComplement: string | null;
+  neighborhood: string | null;
+  profession: string | null;
+  sourceCreatedAt: string | null;
+  notes: string | null;
+  rg: string | null;
+};
 export type NormalizedClientRow = {
   source: ClientSourceMeta;
   name: string | null;
@@ -36,6 +53,7 @@ export type NormalizedClientRow = {
   registrationUnitId: string | null;
   registrationUnitProven: boolean;
   sourceUpdatedAt: string | null;
+  legacyProfile: ClientLegacyProfile;
   fingerprint: string;
   raw: Record<string, unknown>;
 };
@@ -117,7 +135,26 @@ export const normalizeNameKey=(v:unknown)=>{const s=normalizeName(v);return s?s.
 export const normalizePhone=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');if(!d)return null;if(d.startsWith('55')&&d.length>=12)return `+${d}`;if(d.length===10||d.length===11)return `+55${d}`;return `+${d}`;};
 export const normalizeEmail=(v:unknown)=>{const s=asText(v).toLowerCase();return s||null;};
 export const normalizeCpf=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');return d.length===11?d:null;};
-const isoOrNull=(v:unknown)=>{const s=asText(v);if(!s)return null;const d=new Date(s);return Number.isNaN(d.getTime())?null:d.toISOString();};
+const normalizedText=(v:unknown)=>{const s=asText(v).replace(/\s+/g,' ');return s||null;};
+const nonZeroText=(v:unknown)=>{const s=asText(v);if(!s||/^0+(?:[.,]0+)?$/.test(s))return null;return s;};
+const normalizePostalCode=(v:unknown)=>{const d=asText(v).replace(/\D/g,'');return d.length===8?`${d.slice(0,5)}-${d.slice(5)}`:null;};
+const normalizePtBrDate=(v:unknown,allowDayMonth=false)=>{
+  const s=asText(v);if(!s)return null;
+  let m=s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+  if(!m)return null;
+  const day=Number(m[1]),month=Number(m[2]),year=m[3]?Number(m[3]):null;
+  if(month<1||month>12||day<1||day>31)return null;
+  if(year===null)return allowDayMonth?`${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}`:null;
+  if(year<1800||year>2100)return null;
+  const d=new Date(Date.UTC(year,month-1,day));
+  if(d.getUTCFullYear()!==year||d.getUTCMonth()!==month-1||d.getUTCDate()!==day)return null;
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+};
+const isoOrNull=(v:unknown)=>{
+  const s=asText(v);if(!s)return null;
+  const br=normalizePtBrDate(s,false);if(br)return `${br}T00:00:00.000Z`;
+  const d=new Date(s);return Number.isNaN(d.getTime())?null:d.toISOString();
+};
 
 export function assertClientBatchSet(input: unknown): asserts input is ClientBatchSetInput {
   const x=input as ClientBatchSetInput;
@@ -145,7 +182,7 @@ export function normalizeBatchSet(input: ClientBatchSetInput): NormalizedClientR
       const sourceIdValue=first(raw,['sourceId','id','clientId','clienteId','codigo','código']);
       const sourceId=sourceIdValue==null?null:asText(sourceIdValue)||null;
       const name=normalizeName(first(raw,['name','nome','cliente','clientName']));
-      const phone=normalizePhone(first(raw,['phone','telefone','celular','whatsapp','mobile']));
+      const phone=normalizePhone(first(raw,['phone','celular','whatsapp','mobile','phoneFixed','telefone']));
       const email=normalizeEmail(first(raw,['email','e-mail','mail']));
       const cpf=normalizeCpf(first(raw,['cpf','document','documento']));
       const reg=first(raw,['registrationUnitId','registrationUnit','unidadeCadastro']);
@@ -153,7 +190,24 @@ export function normalizeBatchSet(input: ClientBatchSetInput): NormalizedClientR
       const provenRaw=first(raw,['registrationUnitProven','registrationUnitReliable','unidadeCadastroComprovada']);
       const registrationUnitProven=provenRaw===true||asText(provenRaw).toLowerCase()==='true'||asText(provenRaw)==='1';
       const sourceUpdatedAt=isoOrNull(first(raw,['updatedAt','modifiedAt','dataAlteracao','ultimaAlteracao']));
-      const normalizedCore={name,nameKey:normalizeNameKey(name),phone,email,cpf,registrationUnitId:registrationUnitProven?registrationUnitId:null,registrationUnitProven,sourceUpdatedAt};
+      const legacyProfile:ClientLegacyProfile={
+        birthDate:normalizePtBrDate(first(raw,['birthDate','aniversario','nascimento']),true),
+        phoneFixed:normalizePhone(first(raw,['phoneFixed','telefone','fone'])),
+        gender:normalizedText(first(raw,['gender','sexo','genero'])),
+        referralSource:normalizedText(first(raw,['referralSource','comoConheceu','origemCliente'])),
+        postalCode:normalizePostalCode(first(raw,['postalCode','cep'])),
+        addressLine:normalizedText(first(raw,['addressLine','endereco','logradouro'])),
+        addressNumber:nonZeroText(first(raw,['addressNumber','numero'])),
+        state:normalizedText(first(raw,['state','estado','uf']))?.toUpperCase()||null,
+        city:normalizedText(first(raw,['city','cidade'])),
+        addressComplement:normalizedText(first(raw,['addressComplement','complemento'])),
+        neighborhood:normalizedText(first(raw,['neighborhood','bairro'])),
+        profession:normalizedText(first(raw,['profession','profissao'])),
+        sourceCreatedAt:normalizePtBrDate(first(raw,['sourceCreatedAt','cadastrado','dataCadastro']),false),
+        notes:normalizedText(first(raw,['notes','obs','observacao','observacoes'])),
+        rg:normalizedText(first(raw,['rg'])),
+      };
+      const normalizedCore={name,nameKey:normalizeNameKey(name),phone,email,cpf,registrationUnitId:registrationUnitProven?registrationUnitId:null,registrationUnitProven,sourceUpdatedAt,legacyProfile};
       out.push({
         source:{batchId:input.batchId,phase:input.phase,unitId:file.unitId,exportedAt:new Date(file.exportedAt).toISOString(),fileName:file.fileName,fileHash:file.fileHash.toLowerCase(),sourceRow,sourceId,sourceUpdatedAtReliable:file.sourceUpdatedAtReliable===true},
         ...normalizedCore,

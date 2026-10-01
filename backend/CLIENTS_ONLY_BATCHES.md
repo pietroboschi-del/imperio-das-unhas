@@ -107,3 +107,22 @@ O parser não executa macros nem fórmulas. Ele lê apenas valores armazenados n
 Cabeçalhos conhecidos em português/inglês são mapeados para nome, telefone, e-mail, CPF, identificador de origem e data de alteração. Cabeçalhos não reconhecidos continuam preservados na linha bruta e aparecem em `unmappedHeaders`.
 
 A coluna genérica `Unidade` NÃO é convertida em `registrationUnitId`. Somente cabeçalhos explicitamente equivalentes a “unidade de cadastro” podem preencher esse campo, preservando a regra de não inferir a unidade original a partir do arquivo.
+
+
+## Layout real Avec SalãoVIP validado
+
+O export real analisado utiliza uma única aba `Sheet1` com 20 colunas:
+
+`Cliente`, `Código`, `Aniversário`, `Telefone`, `Celular`, `E-mail`, `Sexo`, `Como Conheceu`, `CPF`, `CEP`, `Endereço`, `Número`, `Estado`, `Cidade`, `Complemento`, `Bairro`, `Profissão`, `Cadastrado`, `Obs`, `RG`.
+
+Regras específicas:
+
+- `Celular` é o telefone principal quando preenchido;
+- `Telefone` é preservado como telefone fixo secundário e só vira principal quando não existe celular;
+- `Código` é apenas identificador/proveniência do legado e nunca é usado sozinho para fundir clientes entre unidades;
+- `Cadastrado` é a data de criação no sistema de origem, não um `updatedAt`;
+- `Aniversário` é normalizado apenas quando a data é válida; valores inválidos continuam preservados no `raw` do staging, mas não são promovidos como data válida;
+- `Número = 0` é tratado como ausência, pois o export do legado usa zero em campos vazios;
+- sexo, origem (`Como Conheceu`), CEP/endereço, profissão, observações e RG permanecem preservados no payload normalizado de staging;
+- nenhum desses campos altera a regra de deduplicação principal, que continua baseada em CPF ou combinações de identidade mais fortes;
+- dados do arquivo real usado para validar o formato não são armazenados no repositório.
