@@ -66,6 +66,8 @@ jobs:
         run: npm test
       - name: Frontend central bridge contract
         run: npm run test:frontend-central-bridge
+      - name: CLIENTS_ONLY migration UI contract
+        run: npm run test:frontend-client-migration-ui
       - name: Deployment cutover contract
         run: npm run test:deployment-cutover
       - name: Build production container

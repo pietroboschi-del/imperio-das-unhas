@@ -2386,6 +2386,146 @@ function printCommissionReceiptV45(id){let pay=(db.commissionPayments||[]).find(
 </head><body><div class="box"><pre>${escapeHtml(txt)}</pre><div class="muted">Gerado pelo Império das Unhas · ${escapeHtml(currentUserName())}</div><button onclick="window.print()" style="margin-top:20px;padding:10px 16px">Imprimir / Salvar PDF</button></div>
 
 
+
+<style>
+/* ===== V99 · CLIENTS_ONLY · CONSOLE OPERACIONAL DE DRY-RUN ===== */
+.v99mig-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0}
+.v99mig-card{border:1px solid var(--line);background:#fff;border-radius:14px;padding:13px}
+.v99mig-card h3{font-size:13px;margin:0 0 9px}
+.v99mig-card .field{margin-top:8px}.v99mig-card input[type=file]{width:100%;font-size:11px}
+.v99mig-head{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:12px 0}
+.v99mig-head .field{min-width:190px;flex:1}.v99mig-note{border:1px solid #e8dceb;background:#fbf7fc;border-radius:12px;padding:11px 12px;font-size:10px;line-height:1.55;color:#665b69}
+.v99mig-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.v99mig-status{border:1px dashed #d8c9dc;border-radius:12px;padding:11px;background:#fcfafc;font-size:10px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
+.v99mig-status.good{border-color:#bfe0cc;background:#f3fbf6;color:#287a52}.v99mig-status.bad{border-color:#efcaca;background:#fff7f7;color:#9b3b3b}
+.v99mig-kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:12px 0}
+.v99mig-kpi{border:1px solid var(--line);border-radius:11px;padding:10px;background:#fff}.v99mig-kpi span{display:block;color:var(--muted);font-size:9px}.v99mig-kpi b{font-size:14px}
+.v99mig-table{width:100%;border-collapse:collapse;font-size:10px}.v99mig-table th,.v99mig-table td{border-bottom:1px solid #eee9f0;padding:8px;text-align:left;vertical-align:top}.v99mig-table th{font-size:9px;color:#6c626f;background:#fbfafc;position:sticky;top:0}
+.v99mig-table-wrap{border:1px solid var(--line);border-radius:12px;overflow:auto;max-height:320px;margin:10px 0}
+.v99mig-tag{display:inline-flex;padding:3px 6px;border-radius:999px;background:#f1eaf3;color:#684972;font-size:9px;font-weight:800;margin:2px}
+.v99mig-warn{background:#fff3d9;color:#806000}.v99mig-danger{background:#fdebed;color:#973d4d}
+.v99mig-hash{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;word-break:break-all}
+.v99mig-section{margin-top:16px}.v99mig-section h3{margin:0 0 6px;font-size:13px}
+.v99mig-lock{display:flex;align-items:flex-start;gap:8px;padding:10px;border-radius:11px;border:1px solid #edd7df;background:#fff8fb;color:#754b5e;font-size:10px;margin-top:10px}
+@media(max-width:950px){.v99mig-grid{grid-template-columns:1fr}.v99mig-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:560px){.v99mig-kpis{grid-template-columns:1fr 1fr}.v99mig-actions .btn{width:100%}}
+</style>
+<script>
+/* ===== V99 · CLIENTS_ONLY · CONSOLE OPERACIONAL DE DRY-RUN ===== */
+(function(){
+ const ROUTE='/api/v1/migrations/v94/clients/batches/excel/dry-run';
+ const CSRF_KEY='imperio-v96-shadow-csrf';
+ const PRINCIPAL_KEY='imperio-v99-central-principal';
+ const UNIT_DEFS=[
+  {id:'centro',label:'Centro de Contagem'},
+  {id:'big',label:'Big Shopping'},
+  {id:'shopping-contagem',label:'Shopping Contagem'}
+ ];
+ let lastResult=null;
+
+ function esc(v){return typeof escapeHtml==='function'?escapeHtml(String(v??'')):String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+ function productionMode(){try{let h=String(location?.hostname||'').toLowerCase();return !!h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'}catch(e){return false}}
+ function localAdmin(){try{return window.__imperioV63?.currentUser?.()?.role==='admin'}catch(e){return false}}
+ function principal(){try{return JSON.parse(sessionStorage.getItem(PRINCIPAL_KEY)||'null')}catch(e){return null}}
+ function networkAdmin(){return principal()?.networkAdmin===true}
+ function canShow(){return localAdmin()&&(!productionMode()||networkAdmin())}
+ function canRun(){return localAdmin()&&networkAdmin()}
+ function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
+ function csrf(){try{return sessionStorage.getItem(CSRF_KEY)||''}catch(e){return ''}}
+ function dtValue(){let d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
+ function unitCard(u){
+  return '<div class="v99mig-card"><h3>'+esc(u.label)+'</h3>'+
+   '<div class="field"><label>Arquivo .xlsx</label><input id="v99migFile_'+esc(u.id)+'" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></div>'+
+   '<div class="field"><label>Data/hora da exportação</label><input id="v99migAt_'+esc(u.id)+'" type="datetime-local" value="'+dtValue()+'"></div>'+
+   '<div class="field"><label>Nome da planilha (opcional)</label><input id="v99migSheet_'+esc(u.id)+'" placeholder="Primeira planilha, se vazio"></div>'+
+   '<label class="check" style="margin-top:9px"><input id="v99migReliable_'+esc(u.id)+'" type="checkbox"> Data de alteração da origem é confiável</label></div>'
+ }
+ function renderPage(){
+  if(!localAdmin()){
+   subbar.textContent='Migração de clientes · acesso restrito';
+   adminPage.innerHTML='<div class="page-head"><div><h1>Migração de Clientes</h1><div class="muted">CLIENTS_ONLY</div></div></div><div class="v63-access-denied"><b>Acesso restrito</b><div style="margin-top:6px">Somente Administração pode acessar esta área.</div></div>';
+   return;
+  }
+  if(productionMode()&&!networkAdmin()){
+   subbar.textContent='Migração de clientes · autenticação central obrigatória';
+   adminPage.innerHTML='<div class="page-head"><div><h1>Migração de Clientes</h1><div class="muted">CLIENTS_ONLY</div></div></div><div class="v63-access-denied"><b>Administrador de rede necessário</b><div style="margin-top:6px">Saia e entre novamente com um usuário central que possua permissão de administrador de rede.</div></div>';
+   return;
+  }
+  subbar.textContent='Migração de clientes · Excel · dry-run somente';
+  adminPage.innerHTML='<div class="page-head"><div><h1>Migração de Clientes</h1><div class="muted">Batches versionados · inspeção e reconciliação sem importação</div></div><div class="spacer"></div><span class="pill">CLIENTS_ONLY</span></div>'+
+   '<div class="v99mig-note"><b>Fluxo seguro:</b> os arquivos enviados nesta tela entram apenas em staging/auditoria e geram relatório. Nenhum cliente é criado por esta tela. Snapshots anteriores não são somados cegamente e a unidade do arquivo não é usada como unidade original de cadastro.</div>'+
+   '<div class="v99mig-head"><div class="field"><label>Batch ID</label><input id="v99migBatch" value="BATCH_1_REHEARSAL" autocomplete="off"></div>'+
+   '<div class="field"><label>Fase</label><select id="v99migPhase"><option value="REHEARSAL">REHEARSAL</option><option value="PRE_CUTOVER">PRE_CUTOVER</option><option value="FINAL">FINAL · dry-run</option></select></div>'+
+   '<div class="field"><label>Backend</label><input value="'+esc(endpoint())+'" disabled></div></div>'+
+   '<div class="v99mig-grid">'+UNIT_DEFS.map(unitCard).join('')+'</div>'+
+   '<div class="v99mig-lock"><b>🔒</b><span><b>Commit indisponível nesta tela.</b> Mesmo um batch FINAL executado aqui continua sendo somente dry-run. A promoção real exige outro fluxo, gates explícitos e aprovação pelo reportHash.</span></div>'+
+   '<div class="v99mig-actions"><button id="v99migRunBtn" class="btn btn-primary" onclick="v99ClientsDryRun()">Executar dry-run</button><button class="btn btn-ghost" onclick="v99ClientsClear()">Limpar resultado</button></div>'+
+   '<div id="v99migStatus" class="v99mig-status">Selecione de 1 a 3 arquivos .xlsx. Cada arquivo deve corresponder à unidade indicada no cartão.</div>'+
+   '<div id="v99migResult"></div>';
+ }
+ function status(text,kind=''){let el=document.getElementById('v99migStatus');if(!el)return;el.className='v99mig-status '+kind;el.textContent=text}
+ function selected(){
+  let out=[];
+  for(const u of UNIT_DEFS){
+   let input=document.getElementById('v99migFile_'+u.id),file=input?.files?.[0];
+   if(!file)continue;
+   let at=document.getElementById('v99migAt_'+u.id)?.value||'',sheet=document.getElementById('v99migSheet_'+u.id)?.value.trim()||'';
+   if(!at)throw new Error('Informe a data/hora da exportação de '+u.label);
+   let exportedAt=new Date(at);if(Number.isNaN(exportedAt.getTime()))throw new Error('Data/hora inválida em '+u.label);
+   out.push({unit:u,file,meta:{unitId:u.id,exportedAt:exportedAt.toISOString(),...(sheet?{sheetName:sheet}:{}),sourceUpdatedAtReliable:!!document.getElementById('v99migReliable_'+u.id)?.checked}});
+  }
+  if(!out.length)throw new Error('Selecione pelo menos um arquivo .xlsx');
+  return out
+ }
+ function errorMessage(data,statusCode){let m=data?.message||data?.error||('HTTP '+statusCode);return Array.isArray(m)?m.join(' · '):String(m)}
+ async function run(){
+  if(!canRun()){status('Sessão sem permissão de administrador de rede. Entre novamente no backend central.','bad');return null}
+  let token=csrf();if(!token){status('Token CSRF da sessão central ausente. Saia e entre novamente antes do dry-run.','bad');return null}
+  let btn=document.getElementById('v99migRunBtn');
+  try{
+   let batchId=document.getElementById('v99migBatch')?.value.trim()||'',phase=document.getElementById('v99migPhase')?.value||'REHEARSAL';
+   if(!/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(batchId))throw new Error('Batch ID inválido');
+   let files=selected(),manifest={batchId,phase,files:files.map(x=>x.meta)},form=new FormData();
+   form.append('manifest',JSON.stringify(manifest));for(const x of files)form.append('files',x.file,x.file.name);
+   if(btn){btn.disabled=true;btn.textContent='Processando…'}status('Enviando '+files.length+' arquivo(s) para dry-run. Nenhum commit será executado.');
+   let res=await fetch(endpoint()+ROUTE,{method:'POST',credentials:'include',headers:{Accept:'application/json','X-CSRF-Token':token},body:form});
+   let txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}
+   if(!res.ok)throw new Error(errorMessage(data,res.status));
+   lastResult=data;renderResult(data);status('Dry-run concluído. Revise mapeamentos, duplicidades e conflitos antes de qualquer próxima etapa.','good');return data
+  }catch(e){lastResult=null;document.getElementById('v99migResult').innerHTML='';status('Dry-run não executado: '+(e?.message||e),'bad');return null}
+  finally{if(btn){btn.disabled=false;btn.textContent='Executar dry-run'}}
+ }
+ function tags(values,cls=''){let xs=(values||[]).filter(Boolean);return xs.length?xs.map(x=>'<span class="v99mig-tag '+cls+'">'+esc(x)+'</span>').join(''):'<span class="muted">—</span>'}
+ function renderFiles(data){
+  let rows=(data.excel||[]).map(x=>'<tr><td><b>'+esc(x.unitId)+'</b></td><td>'+esc(x.fileName)+'<div class="v99mig-hash">'+esc(x.fileHash)+'</div></td><td>'+esc(x.sheetName)+'</td><td>'+esc(x.rowCount)+'</td><td>'+tags(x.unmappedHeaders,'v99mig-warn')+'</td><td>'+tags(x.duplicateCanonicalHeaders,'v99mig-danger')+'</td></tr>').join('');
+  return '<div class="v99mig-section"><h3>Arquivos e mapeamento</h3><div class="v99mig-table-wrap"><table class="v99mig-table"><thead><tr><th>Unidade</th><th>Arquivo / hash</th><th>Planilha</th><th>Linhas</th><th>Colunas não mapeadas</th><th>Mapeamentos duplicados</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+ }
+ function renderConflicts(report){
+  let rows=(report.conflicts||[]).map(c=>'<tr><td class="v99mig-hash">'+esc(c.clusterId)+'</td><td>'+esc(c.type)+'</td><td>'+esc(c.field||'—')+'</td><td>'+esc(c.centralValue??'—')+'</td><td>'+esc(c.sourceValue??'—')+'</td><td><span class="v99mig-tag v99mig-danger">'+esc(c.resolution||'REVIEW_REQUIRED')+'</span></td></tr>').join('');
+  if(!rows)return '<div class="v99mig-section"><h3>Conflitos</h3><div class="v99mig-note">Nenhum conflito encontrado neste dry-run.</div></div>';
+  return '<div class="v99mig-section"><h3>Conflitos para conferência</h3><div class="v99mig-table-wrap"><table class="v99mig-table"><thead><tr><th>Cluster</th><th>Tipo</th><th>Campo</th><th>Central</th><th>Origem</th><th>Resolução</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+ }
+ function renderDiff(report){
+  let rows=(report.files||[]).map(f=>'<tr><td><b>'+esc(f.unitId)+'</b></td><td>'+esc(f.comparedToBatchId||'Primeiro snapshot')+'</td><td>'+esc(f.snapshotDiff?.new||0)+'</td><td>'+esc(f.snapshotDiff?.changed||0)+'</td><td>'+esc(f.snapshotDiff?.unchanged||0)+'</td><td>'+esc(f.snapshotDiff?.missingFromNewSnapshot||0)+'</td></tr>').join('');
+  return '<div class="v99mig-section"><h3>Comparação com snapshot anterior</h3><div class="v99mig-table-wrap"><table class="v99mig-table"><thead><tr><th>Unidade</th><th>Comparado com</th><th>Novos</th><th>Alterados</th><th>Iguais</th><th>Ausentes no novo</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>'
+ }
+ function renderResult(data){
+  let r=data.report||{},s=r.summary||{};
+  document.getElementById('v99migResult').innerHTML=
+   '<div class="v99mig-kpis"><div class="v99mig-kpi"><span>Criar</span><b>'+esc(s.creates||0)+'</b></div><div class="v99mig-kpi"><span>Atualizações seguras</span><b>'+esc(s.safeUpdates||0)+'</b></div><div class="v99mig-kpi"><span>Sem alteração</span><b>'+esc(s.unchanged||0)+'</b></div><div class="v99mig-kpi"><span>Review</span><b>'+esc(s.reviewRequired||0)+'</b></div><div class="v99mig-kpi"><span>Conflitos</span><b>'+esc(s.conflicts||0)+'</b></div><div class="v99mig-kpi"><span>Vínculos a adicionar</span><b>'+esc(s.unitLinksToAdd||0)+'</b></div></div>'+
+   '<div class="v99mig-note"><b>Batch:</b> '+esc(r.batchId)+' · <b>fase:</b> '+esc(r.phase)+'<br><b>reportHash:</b> <span class="v99mig-hash">'+esc(r.reportHash||'—')+'</span><br><b>Cliente de rede:</b> '+esc(r.crossUnit?.multiUnitClusters||0)+' cluster(s) aparecem em mais de uma unidade.</div>'+
+   renderFiles(data)+renderDiff(r)+renderConflicts(r);
+ }
+ function clearResult(){lastResult=null;let r=document.getElementById('v99migResult');if(r)r.innerHTML='';status('Resultado limpo. Os arquivos selecionados permanecem no formulário.')}
+ const baseBuild=window.buildAdminNav||((typeof buildAdminNav==='function')?buildAdminNav:null);
+ if(baseBuild){let wrapped=function(){let out=baseBuild.apply(this,arguments);if(canShow()&&!document.getElementById('v99migNav')){let b=document.createElement('button');b.id='v99migNav';b.textContent='Migração';b.className=(typeof page!=='undefined'&&page==='migration-clients')?'active':'';b.onclick=()=>setPage('migration-clients');adminTabs.appendChild(b)}return out};window.buildAdminNav=wrapped;try{buildAdminNav=wrapped}catch(e){}}
+ const baseRender=window.renderAdmin||((typeof renderAdmin==='function')?renderAdmin:null);
+ if(baseRender){let wrapped=function(){if(typeof page!=='undefined'&&page==='migration-clients')return renderPage();return baseRender.apply(this,arguments)};window.renderAdmin=wrapped;try{renderAdmin=wrapped}catch(e){}}
+ window.v99ClientsDryRun=run;window.v99ClientsClear=clearResult;
+ window.__imperioClientMigrationUI={route:ROUTE,canShow,canRun,renderPage,run,clearResult,getLastResult:()=>lastResult,commitExposed:false,sourceOfTruth:'postgresql_dry_run_staging_only'};
+})();
+</script>
+
 </body></html>`);w.document.close()}
 function openCommissionReceipt(id){let pay=(db.commissionPayments||[]).find(x=>x.id===id);if(!pay)return;let p=db.pros.find(x=>x.id===pay.professionalId),u=db.units.find(x=>x.id===pay.unitId);modal('Recibo de pagamento',`<div style="border:1px solid var(--line);border-radius:14px;padding:20px;background:#fff"><div class="eyebrow">RECIBO DE PAGAMENTO DE COMISSÃO</div><h2 style="margin:6px 0 18px">${escapeHtml(p?.name||pay.professionalName||'Profissional')}</h2><div class="booking-summary"><div class="row"><span>Data do pagamento</span><b>${formatDateBR(pay.paidDate)}</b></div><div class="row"><span>Período trabalhado</span><b>${formatDateBR(pay.periodFrom)} a ${formatDateBR(pay.periodTo)}</b></div><div class="row"><span>Unidade</span><b>${escapeHtml(u?.name||'')}</b></div><div class="row"><span>Valor recebido</span><b>${money(pay.amount)}</b></div><div class="row"><span>Forma</span><b>${escapeHtml(pay.paymentMethod||'')}</b></div><div class="row"><span>Conta de saída</span><b>${escapeHtml(pay.accountName||'')}</b></div></div>${pay.note?`<div class="inline-note" style="margin-top:12px"><b>Observação:</b> ${escapeHtml(pay.note)}</div>`:''}<div style="margin-top:28px;border-top:1px solid #bbb;padding-top:18px;text-align:center;color:var(--muted)">Assinatura da profissional</div></div>`,`<button class="btn btn-ghost" onclick="copyCommissionReceiptV45('${id}')">Copiar</button><button class="btn btn-soft" onclick="printCommissionReceiptV45('${id}')">Imprimir / Salvar PDF</button><button class="btn btn-primary" onclick="closeModal()">Concluir</button>`)}
 
