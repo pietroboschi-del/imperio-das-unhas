@@ -171,7 +171,7 @@ function parseSheet(xml:string,strings:string[]):Array<{rowNumber:number;values:
     const rowNumber=Number(attr(rm[1],'r')||sequential)||sequential;sequential=rowNumber+1;
     const values:unknown[]=[];let nextCol=0;
     for(const cm of rm[2].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>/gi)){
-      const ref=attr(cm[1],'r');const idx=(ref&&columnIndex(ref))??nextCol;nextCol=idx+1;
+      const ref=attr(cm[1],'r');const byRef=ref?columnIndex(ref):null;const idx=byRef??nextCol;nextCol=idx+1;
       values[idx]=cellValue(cm[1],cm[2],strings);
     }
     rows.push({rowNumber,values});
