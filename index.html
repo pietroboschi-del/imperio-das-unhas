@@ -7531,23 +7531,26 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  }
  const baseSave=window.v63SaveUser;
  if(typeof baseSave==='function'){
-  window.v63SaveUser=async function(userId=''){
+  window.v63SaveUser=function(userId=''){
    if(!production())return baseSave.apply(this,arguments);
-   let x;
-   try{x=capture(userId);validate(x)}catch(e){toast('Usuário não salvo: '+e.message);return false}
-   let pass=document.getElementById('v63UserPassword');
-   try{
-    let synced=await syncCentral(x);
-    if(pass)pass.value=randomLocalSecret();
-    let localResult=baseSave.apply(this,arguments);
-    if(localResult===false)throw new Error('O cadastro local recusou a operação após a sincronização central');
-    let local=localUser(userId,x.username);
-    if(local){local.centralUserId=synced.central.id;local.centralSyncedAt=new Date().toISOString();local.centralSyncStatus='synced';local.password=randomLocalSecret();save({render:false});try{renderSettings()}catch(e){}}
-    toast('Usuário salvo no backend central ✓');return true
-   }catch(e){
-    if(pass)pass.value=x.password;
-    toast('Usuário não salvo no backend central: '+(e?.message||e));return false
-   }
+   const self=this,args=arguments;
+   return (async()=>{
+    let x;
+    try{x=capture(userId);validate(x)}catch(e){toast('Usuário não salvo: '+e.message);return false}
+    let pass=document.getElementById('v63UserPassword');
+    try{
+     let synced=await syncCentral(x);
+     if(pass)pass.value=randomLocalSecret();
+     let localResult=baseSave.apply(self,args);
+     if(localResult===false)throw new Error('O cadastro local recusou a operação após a sincronização central');
+     let local=localUser(userId,x.username);
+     if(local){local.centralUserId=synced.central.id;local.centralSyncedAt=new Date().toISOString();local.centralSyncStatus='synced';local.password=randomLocalSecret();save({render:false});try{renderSettings()}catch(e){}}
+     toast('Usuário salvo no backend central ✓');return true
+    }catch(e){
+     if(pass)pass.value=x.password;
+     toast('Usuário não salvo no backend central: '+(e?.message||e));return false
+    }
+   })();
   };
  }
  window.__imperioCentralUserAccess={production,networkAdmin,backendPermissions,splitPermissions,syncCentral,decorateUserModal};
