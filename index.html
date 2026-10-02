@@ -7407,7 +7407,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  }
  function injectClientsButton(){
   if(!canUse())return;let head=document.querySelector('#adminPage .page-head');if(!head||document.getElementById('v99dupOpen'))return;
-  let b=document.createElement('button');b.id='v99dupOpen';b.className='btn btn-soft';b.textContent='Possíveis duplicados';b.onclick=function(){setPage(PAGE)};head.appendChild(b)
+  let b=document.createElement('button');b.id='v99dupOpen';b.className='btn btn-soft';b.textContent='Possíveis duplicados';b.onclick=function(){renderPage()};head.appendChild(b)
  }
  const baseClients=window.renderClients||((typeof renderClients==='function')?renderClients:null);
  if(baseClients){let wrapped=function(){let out=baseClients.apply(this,arguments);try{injectClientsButton()}catch(e){}return out};window.renderClients=wrapped;try{renderClients=wrapped}catch(e){}}
@@ -7416,6 +7416,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  const baseBuild=window.buildAdminNav||((typeof buildAdminNav==='function')?buildAdminNav:null);
  if(baseBuild){let wrapped=function(){let out=baseBuild.apply(this,arguments);try{if(typeof page!=='undefined'&&page===PAGE){let buttons=[...adminTabs.querySelectorAll('button')];let clients=buttons.find(x=>x.textContent.trim()==='Clientes');if(clients)clients.classList.add('active')}}catch(e){}return out};window.buildAdminNav=wrapped;try{buildAdminNav=wrapped}catch(e){}}
 
+ window.v99DupOpenPage=renderPage;
  window.v99DupLoad=load;
  window.v99DupSetFilter=function(v){state.filter=v;state.index=0;state.candidateId='';renderLoaded()};
  window.v99DupSearch=function(v){state.query=v;state.index=0;state.candidateId='';renderLoaded()};
