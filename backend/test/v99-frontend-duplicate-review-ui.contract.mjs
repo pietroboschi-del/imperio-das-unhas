@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const repoRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+const html=fs.readFileSync(path.join(repoRoot,'index.html'),'utf8');
+let tests=0;const ok=(v,m)=>{tests++;if(!v)throw new Error(m)};
+const marker='/* ===== V99 · CLIENT DUPLICATE REVIEW UI ===== */';
+const first=html.indexOf(marker),second=html.indexOf(marker,first+marker.length);
+ok(first>=0&&second>first,'estilo e script da revisão de duplicidades presentes');
+const scriptEnd=html.indexOf('</script>',second);
+ok(scriptEnd>second,'script da revisão possui fechamento');
+const js=html.slice(second+marker.length,scriptEnd);
+new Function(js);tests++;
+
+ok(js.includes("PERMISSION='clients.duplicates.review'"),'UI exige permissão dedicada');
+ok(js.includes("p.networkAdmin===true")&&js.includes("p.permissions.includes(PERMISSION)"),'networkAdmin ou permissão global podem revisar');
+ok(js.includes("PAGE='client-duplicate-reviews'"),'rota visual dedicada existe');
+ok(js.includes("Possíveis duplicados"),'entrada aparece dentro de Clientes');
+ok(js.includes("baseClients")&&js.includes("injectClientsButton"),'Clientes recebe atalho sem criar nova área global');
+ok(js.includes("/api/v1/client-duplicate-reviews/"),'UI usa API de revisão');
+ok(js.includes("method:'POST'"),'decisões são persistidas');
+ok(js.includes("credentials:'include'")&&js.includes("'X-CSRF-Token'"),'decisão usa cookie e CSRF');
+ok(js.includes("'MERGE'")&&js.includes("'KEEP_SEPARATE'")&&js.includes("'REVIEW_LATER'"),'três decisões estão disponíveis');
+ok(js.includes('candidateClusters')&&js.includes('state.candidateId'),'comparação mantém candidato selecionado');
+ok(js.includes('v99dup-different'),'diferenças são destacadas');
+ok(js.includes("state.filter==='pending'")&&js.includes("state.filter==='resolved'")&&js.includes("state.filter==='later'"),'filtros operacionais existem');
+ok(js.includes('state.query'),'busca da fila existe');
+ok(js.includes('reportHash'),'hash do relatório fica visível');
+ok(js.includes('Nenhum cadastro real é mesclado')&&js.includes('clientMutation:false'),'UI deixa explícito que a decisão não mescla imediatamente');
+ok(!js.includes('/clients/batches/commit'),'UI não promove batch');
+ok(!js.includes('db.clients.push')&&!js.includes('db.clients='),'UI não altera clientes locais');
+ok(js.includes("confirm('Registrar que estes dois cadastros devem ser mesclados?"),'MERGE exige confirmação humana adicional');
+console.log(JSON.stringify({ok:true,tests,feature:'frontend_duplicate_review_queue'}));

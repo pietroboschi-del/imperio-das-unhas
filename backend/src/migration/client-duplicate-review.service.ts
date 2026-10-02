@@ -23,7 +23,7 @@ export class ClientDuplicateReviewService {
       const candidateIds=[...new Set(plan.conflicts.flatMap(c=>c.candidateClusterIds||[]))].sort();
       const candidates=candidateIds.map(clusterId=>{
         const p=plansById.get(clusterId);
-        return p?{clusterId,name:p.source.name,phone:p.source.phone,email:p.source.email,sourceRows:p.sourceRows}:null;
+        return p?{clusterId,name:p.source.name,phone:p.source.phone,email:p.source.email,cpf:p.source.cpf,sourceRows:p.sourceRows}:null;
       }).filter(Boolean);
       const saved=byCluster.get(plan.clusterId);
       const current=saved&&saved.reportHash===report.reportHash?saved:null;

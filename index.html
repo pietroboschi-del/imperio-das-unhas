@@ -7290,4 +7290,142 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
 
 </script>
 
+<style>
+/* ===== V99 · CLIENT DUPLICATE REVIEW UI ===== */
+.v99dup-shell{max-width:1180px;margin:0 auto}.v99dup-toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin:12px 0}.v99dup-toolbar .field{min-width:220px;flex:1}.v99dup-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:12px 0}.v99dup-kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}.v99dup-kpi span{display:block;font-size:10px;color:var(--muted);margin-bottom:4px}.v99dup-kpi b{font-size:20px}.v99dup-filterbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:12px 0}.v99dup-filterbar button.active{background:#f1eaf3;color:var(--brand);border-color:#dac4df}.v99dup-search{min-width:240px;flex:1}.v99dup-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(47,23,59,.04)}.v99dup-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.v99dup-head .spacer{flex:1}.v99dup-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px}.v99dup-side{border:1px solid var(--line);border-radius:13px;padding:13px;background:#fcfbfc}.v99dup-side h3{margin:0 0 10px;font-size:14px}.v99dup-row{display:grid;grid-template-columns:105px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid #eee9f0;font-size:11px}.v99dup-row:last-child{border-bottom:0}.v99dup-row span{color:var(--muted)}.v99dup-row b{word-break:break-word}.v99dup-different{background:#fff5dd;margin:0 -7px;padding:7px;border-radius:8px}.v99dup-conflicts{margin-top:12px;padding:11px;border:1px solid #eadde8;border-radius:12px;background:#fbf8fc;font-size:10px;line-height:1.5}.v99dup-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.v99dup-actions .btn{min-width:145px}.v99dup-note{margin-top:10px}.v99dup-note textarea{width:100%;min-height:64px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px}.v99dup-status{padding:11px;border:1px dashed #d9cedd;border-radius:11px;background:#fcfafc;font-size:10px;margin:10px 0}.v99dup-status.good{background:#f3fbf6;border-color:#bfe0cc;color:#287a52}.v99dup-status.bad{background:#fff7f7;border-color:#efcaca;color:#9b3b3b}.v99dup-muted{font-size:10px;color:var(--muted)}.v99dup-pagination{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px}.v99dup-choice{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px;background:#fff}.v99dup-lock{padding:10px 12px;border:1px solid #ead8df;border-radius:11px;background:#fff8fb;color:#754b5e;font-size:10px;margin:10px 0}
+@media(max-width:760px){.v99dup-compare{grid-template-columns:1fr}.v99dup-progress{grid-template-columns:1fr}.v99dup-actions .btn{width:100%}}
+</style>
+<script>
+/* ===== V99 · CLIENT DUPLICATE REVIEW UI ===== */
+(function(){
+ const PAGE='client-duplicate-reviews',PERMISSION='clients.duplicates.review',PRINCIPAL_KEY='imperio-v99-central-principal',CSRF_KEY='imperio-v96-shadow-csrf';
+ let state={data:null,filter:'pending',query:'',index:0,candidateId:'',loading:false,error:''};
+
+ function esc(v){return typeof escapeHtml==='function'?escapeHtml(String(v==null?'':v)):String(v==null?'':v)}
+ function principal(){try{return JSON.parse(sessionStorage.getItem(PRINCIPAL_KEY)||'null')}catch(e){return null}}
+ function canUse(){let p=principal();return !!p&&(p.networkAdmin===true||(Array.isArray(p.permissions)&&p.permissions.includes(PERMISSION)))}
+ function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
+ function csrf(){try{return sessionStorage.getItem(CSRF_KEY)||''}catch(e){return ''}}
+ function normalize(v){return String(v==null?'':v).trim().toLowerCase().replace(/\s+/g,' ')}
+ function errorMessage(data,status){let m=data?.message||data?.error||('HTTP '+status);return Array.isArray(m)?m.join(' · '):String(m)}
+ async function request(path,opt){
+  opt=opt||{};let hasBody=opt.body!==undefined,headers={Accept:'application/json'};
+  if(hasBody){headers['Content-Type']='application/json';let token=csrf();if(!token)throw new Error('Sessão central sem token CSRF. Saia e entre novamente.');headers['X-CSRF-Token']=token}
+  let res=await fetch(endpoint()+path,{method:opt.method||'GET',credentials:'include',headers:headers,body:hasBody?JSON.stringify(opt.body):undefined});
+  let txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}
+  if(!res.ok)throw new Error(errorMessage(data,res.status));return data
+ }
+ function decisionOf(item){return item?.decision?.decision||''}
+ function isPending(item){let d=decisionOf(item);return !d||d==='REVIEW_LATER'||d==='STALE'}
+ function matches(item){
+  let q=normalize(state.query);if(!q)return true;
+  let values=[item?.source?.name,item?.source?.phone,item?.source?.email,item?.source?.cpf];
+  for(const c of item?.candidateClusters||[])values.push(c.name,c.phone,c.email,c.cpf);
+  return values.some(v=>normalize(v).includes(q))
+ }
+ function filtered(){
+  let rows=(state.data?.items||[]).filter(matches);
+  if(state.filter==='pending')rows=rows.filter(isPending);
+  if(state.filter==='resolved')rows=rows.filter(x=>['MERGE','KEEP_SEPARATE'].includes(decisionOf(x)));
+  if(state.filter==='later')rows=rows.filter(x=>decisionOf(x)==='REVIEW_LATER');
+  return rows
+ }
+ function unitLines(rows){return (rows||[]).map(x=>esc((x.unitId||'?')+' · linha '+(x.sourceRow||'?'))).join('<br>')||'—'}
+ function row(label,left,right){
+  let diff=normalize(left)!==normalize(right)&&!!normalize(left)&&!!normalize(right);
+  return '<div class="v99dup-row '+(diff?'v99dup-different':'')+'"><span>'+esc(label)+'</span><b>'+esc(left||'—')+'</b></div>'
+ }
+ function sourceSide(item,candidate){
+  let s=item.source||{},c=candidate||{};
+  let fields=[['Nome',s.name,c.name],['Celular/telefone',s.phone,c.phone],['E-mail',s.email,c.email],['CPF',s.cpf,c.cpf]];
+  return '<div class="v99dup-side"><h3>Cadastro em revisão</h3>'+fields.map(x=>row(x[0],x[1],x[2])).join('')+'<div class="v99dup-row"><span>Origem</span><b>'+unitLines(item.sourceRows)+'</b></div></div>'
+ }
+ function candidateSide(item,candidate){
+  if(!candidate)return '<div class="v99dup-side"><h3>Cadastro relacionado</h3><div class="v99dup-status">Este conflito não possui outro cluster candidato. Revise os valores conflitantes do próprio cadastro e escolha manter separado ou revisar depois.</div></div>';
+  let s=item.source||{},c=candidate||{};
+  let fields=[['Nome',c.name,s.name],['Celular/telefone',c.phone,s.phone],['E-mail',c.email,s.email],['CPF',c.cpf,s.cpf]];
+  return '<div class="v99dup-side"><h3>Possível duplicado</h3>'+fields.map(x=>row(x[0],x[1],x[2])).join('')+'<div class="v99dup-row"><span>Origem</span><b>'+unitLines(c.sourceRows)+'</b></div></div>'
+ }
+ function conflictHtml(item){
+  let xs=item.conflicts||[];if(!xs.length)return '';
+  return '<div class="v99dup-conflicts"><b>Por que entrou em revisão</b><br>'+xs.map(c=>'<span class="v99mig-tag v99mig-danger">'+esc(c.type)+(c.field?' · '+esc(c.field):'')+'</span>').join('')+'</div>'
+ }
+ function renderFilters(){
+  let rows=filtered(),total=state.data?.totals||{reviewRequired:0,decided:0,pending:0};
+  return '<div class="v99dup-progress"><div class="v99dup-kpi"><span>Total em revisão</span><b>'+esc(total.reviewRequired||0)+'</b></div><div class="v99dup-kpi"><span>Decididos</span><b>'+esc(total.decided||0)+'</b></div><div class="v99dup-kpi"><span>Pendentes</span><b>'+esc(total.pending||0)+'</b></div></div>'+
+   '<div class="v99dup-filterbar">'+
+   '<button class="btn btn-ghost btn-sm '+(state.filter==='pending'?'active':'')+'" onclick="v99DupSetFilter(\'pending\')">Pendentes</button>'+
+   '<button class="btn btn-ghost btn-sm '+(state.filter==='resolved'?'active':'')+'" onclick="v99DupSetFilter(\'resolved\')">Resolvidos</button>'+
+   '<button class="btn btn-ghost btn-sm '+(state.filter==='later'?'active':'')+'" onclick="v99DupSetFilter(\'later\')">Revisar depois</button>'+
+   '<button class="btn btn-ghost btn-sm '+(state.filter==='all'?'active':'')+'" onclick="v99DupSetFilter(\'all\')">Todos</button>'+
+   '<input class="search v99dup-search" placeholder="Buscar nome, telefone, e-mail ou CPF" value="'+esc(state.query)+'" oninput="v99DupSearch(this.value)">'+
+   '<span class="v99dup-muted">'+esc(rows.length)+' caso(s) no filtro</span></div>'
+ }
+ function renderItem(){
+  let host=document.getElementById('v99dupQueue');if(!host)return;
+  let rows=filtered();if(!rows.length){host.innerHTML='<div class="v99dup-status good">Nenhum caso neste filtro.</div>';return}
+  state.index=Math.max(0,Math.min(state.index,rows.length-1));let item=rows[state.index],candidates=item.candidateClusters||[];
+  if(!candidates.some(x=>x.clusterId===state.candidateId))state.candidateId=candidates[0]?.clusterId||'';
+  let selected=state.candidateId,candidate=candidates.find(x=>x.clusterId===selected)||null;
+  let d=decisionOf(item),status=d==='MERGE'?'Mesclar':d==='KEEP_SEPARATE'?'Manter separados':d==='REVIEW_LATER'?'Revisar depois':d==='STALE'?'Decisão anterior desatualizada':'Pendente';
+  let choices=candidates.length?'<div class="field" style="margin:10px 0"><label>Cadastro candidato</label><select id="v99dupCandidate" class="v99dup-choice" onchange="v99DupCandidateChanged(this.value)">'+candidates.map(x=>'<option value="'+esc(x.clusterId)+'" '+(x.clusterId===selected?'selected':'')+'>'+esc(x.name||x.clusterId)+' · '+esc(x.phone||x.email||'sem contato')+'</option>').join('')+'</select></div>':'';
+  host.innerHTML='<div class="v99dup-card"><div class="v99dup-head"><b>Caso '+esc(state.index+1)+' de '+esc(rows.length)+'</b><span class="pill">'+esc(status)+'</span><div class="spacer"></div><span class="v99dup-muted">'+esc(item.clusterId)+'</span></div>'+
+   choices+'<div id="v99dupCompare" class="v99dup-compare">'+sourceSide(item,candidate)+candidateSide(item,candidate)+'</div>'+conflictHtml(item)+
+   '<div class="v99dup-note"><label class="v99dup-muted">Observação da conferência (opcional)</label><textarea id="v99dupNote" maxlength="500" placeholder="Ex.: mesma cliente, grafia antiga; telefone familiar; pessoas diferentes...">'+esc(item.decision?.note||'')+'</textarea></div>'+
+   '<div class="v99dup-lock">As ações abaixo registram uma decisão auditada. Nenhum cadastro real é mesclado, apagado ou alterado nesta etapa.</div>'+
+   '<div class="v99dup-actions">'+
+   '<button class="btn btn-primary" '+(!candidate?'disabled':'')+' onclick="v99DupDecide(\'MERGE\')">Mesclar</button>'+
+   '<button class="btn btn-ghost" onclick="v99DupDecide(\'KEEP_SEPARATE\')">Manter separados</button>'+
+   '<button class="btn btn-soft" onclick="v99DupDecide(\'REVIEW_LATER\')">Revisar depois</button></div>'+
+   '<div class="v99dup-pagination"><button class="btn btn-ghost btn-sm" onclick="v99DupMove(-1)" '+(state.index===0?'disabled':'')+'>← Anterior</button><span class="v99dup-muted">'+esc(state.index+1)+' / '+esc(rows.length)+'</span><button class="btn btn-ghost btn-sm" onclick="v99DupMove(1)" '+(state.index>=rows.length-1?'disabled':'')+'>Próximo →</button></div></div>'
+ }
+ function renderLoaded(){
+  let host=document.getElementById('v99dupBody');if(!host||!state.data)return;
+  host.innerHTML=renderFilters()+'<div class="v99dup-status good">Fila carregada do staging · reportHash: <span class="v99mig-hash">'+esc(state.data.reportHash||'—')+'</span></div><div id="v99dupQueue"></div>';renderItem()
+ }
+ function status(text,kind){let el=document.getElementById('v99dupStatus');if(el){el.className='v99dup-status '+(kind||'');el.textContent=text}}
+ async function load(){
+  if(!canUse()){status('Seu usuário não possui permissão para revisar duplicidades.','bad');return}
+  let batch=document.getElementById('v99dupBatch')?.value.trim()||'BATCH_1_REHEARSAL';
+  try{state.loading=true;status('Carregando fila de revisão...');state.data=await request('/api/v1/client-duplicate-reviews/'+encodeURIComponent(batch));state.index=0;state.candidateId='';renderLoaded();status('Fila carregada. Nenhum cliente foi alterado.','good')}
+  catch(e){state.data=null;let b=document.getElementById('v99dupBody');if(b)b.innerHTML='';status('Não foi possível carregar: '+(e?.message||e),'bad')}
+  finally{state.loading=false}
+ }
+ function renderPage(){
+  subbar.textContent='Clientes · Possíveis duplicados · revisão humana';
+  if(!canUse()){adminPage.innerHTML='<div class="page-head"><div><h1>Possíveis duplicados</h1><div class="muted">Acesso restrito</div></div><div class="spacer"></div><button class="btn btn-ghost" onclick="setPage(\'clients\')">← Clientes</button></div><div class="v63-access-denied"><b>Permissão necessária</b><div style="margin-top:6px">Seu usuário precisa da permissão clients.duplicates.review.</div></div>';return}
+  adminPage.innerHTML='<div class="v99dup-shell"><div class="page-head"><div><h1>Possíveis duplicados</h1><div class="muted">Conferência humana antes de qualquer mesclagem real</div></div><div class="spacer"></div><button class="btn btn-ghost" onclick="setPage(\'clients\')">← Clientes</button></div>'+
+   '<div class="v99dup-toolbar"><div class="field"><label>Batch</label><input id="v99dupBatch" value="BATCH_1_REHEARSAL"></div><button class="btn btn-primary" onclick="v99DupLoad()">Carregar fila</button></div>'+
+   '<div id="v99dupStatus" class="v99dup-status">Carregando fila...</div><div id="v99dupBody"></div></div>';load()
+ }
+ async function decide(decision){
+  let rows=filtered(),item=rows[state.index];if(!item)return;
+  let target=state.candidateId,note=document.getElementById('v99dupNote')?.value.trim()||'';
+  if(decision==='MERGE'&&!target){status('Escolha um cadastro candidato para mesclar.','bad');return}
+  if(decision==='MERGE'&&!confirm('Registrar que estes dois cadastros devem ser mesclados? A mesclagem real NÃO acontece agora.'))return;
+  let body={decision:decision,note:note};if(decision==='MERGE')body.targetClusterId=target;
+  try{status('Salvando decisão...');await request('/api/v1/client-duplicate-reviews/'+encodeURIComponent(state.data.batchId)+'/'+encodeURIComponent(item.clusterId),{method:'POST',body:body});await load();status('Decisão salva e auditada. Nenhum cliente real foi alterado.','good')}
+  catch(e){status('Decisão não salva: '+(e?.message||e),'bad')}
+ }
+ function injectClientsButton(){
+  if(!canUse())return;let head=document.querySelector('#adminPage .page-head');if(!head||document.getElementById('v99dupOpen'))return;
+  let b=document.createElement('button');b.id='v99dupOpen';b.className='btn btn-soft';b.textContent='Possíveis duplicados';b.onclick=function(){setPage(PAGE)};head.appendChild(b)
+ }
+ const baseClients=window.renderClients||((typeof renderClients==='function')?renderClients:null);
+ if(baseClients){let wrapped=function(){let out=baseClients.apply(this,arguments);try{injectClientsButton()}catch(e){}return out};window.renderClients=wrapped;try{renderClients=wrapped}catch(e){}}
+ const baseRender=window.renderAdmin||((typeof renderAdmin==='function')?renderAdmin:null);
+ if(baseRender){let wrapped=function(){if(typeof page!=='undefined'&&page===PAGE)return renderPage();return baseRender.apply(this,arguments)};window.renderAdmin=wrapped;try{renderAdmin=wrapped}catch(e){}}
+ const baseBuild=window.buildAdminNav||((typeof buildAdminNav==='function')?buildAdminNav:null);
+ if(baseBuild){let wrapped=function(){let out=baseBuild.apply(this,arguments);try{if(typeof page!=='undefined'&&page===PAGE){let buttons=[...adminTabs.querySelectorAll('button')];let clients=buttons.find(x=>x.textContent.trim()==='Clientes');if(clients)clients.classList.add('active')}}catch(e){}return out};window.buildAdminNav=wrapped;try{buildAdminNav=wrapped}catch(e){}}
+
+ window.v99DupLoad=load;
+ window.v99DupSetFilter=function(v){state.filter=v;state.index=0;state.candidateId='';renderLoaded()};
+ window.v99DupSearch=function(v){state.query=v;state.index=0;state.candidateId='';renderLoaded()};
+ window.v99DupMove=function(d){state.index+=Number(d||0);state.candidateId='';renderItem()};
+ window.v99DupCandidateChanged=function(v){state.candidateId=String(v||'');renderItem()};
+ window.v99DupDecide=decide;
+ window.__imperioDuplicateReviewUI={page:PAGE,permission:PERMISSION,canUse:canUse,load:load,renderPage:renderPage,clientMutation:false,decisions:['MERGE','KEEP_SEPARATE','REVIEW_LATER']};
+})();
+</script>
+
 </body></html>

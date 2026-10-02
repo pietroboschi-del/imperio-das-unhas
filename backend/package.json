@@ -41,7 +41,7 @@
     "test:client-batches": "node --experimental-strip-types test/v99-client-batches.contract.mjs && node test/v99-client-duplicate-review.contract.mjs",
     "test:client-batch-rehearsal": "node test/v99-client-batch-rehearsal.integration.mjs",
     "test:client-excel": "node test/v99-client-excel.integration.mjs",
-    "test:frontend-client-migration-ui": "node test/v99-frontend-client-migration-ui.contract.mjs",
+    "test:frontend-client-migration-ui": "node test/v99-frontend-client-migration-ui.contract.mjs && node test/v99-frontend-duplicate-review-ui.contract.mjs",
     "admin:recover": "node dist/admin-recovery.js",
     "test:admin-recovery": "node test/v99-admin-recovery.contract.mjs",
     "test:avec-client-export": "node --experimental-strip-types test/v99-avec-client-export.contract.mjs",
