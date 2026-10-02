@@ -7297,7 +7297,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
 /* ===== V99 · CLIENT DUPLICATE REVIEW UI ===== */
 (function(){
  const PAGE='client-duplicate-reviews',PERMISSION='clients.duplicates.review',PRINCIPAL_KEY='imperio-v99-central-principal',CSRF_KEY='imperio-v96-shadow-csrf';
- let state={data:null,filter:'pending',query:'',index:0,candidateId:'',loading:false,error:''};
+ let state={data:null,filter:'pending',query:'',index:0,candidateId:'',loading:false,error:'',saving:false,actionMessage:'',actionKind:''};
 
  function esc(v){return typeof escapeHtml==='function'?escapeHtml(String(v==null?'':v)):String(v==null?'':v)}
  function principal(){try{return JSON.parse(sessionStorage.getItem(PRINCIPAL_KEY)||'null')}catch(e){return null}}
@@ -7371,10 +7371,11 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
    choices+'<div id="v99dupCompare" class="v99dup-compare">'+sourceSide(item,candidate)+candidateSide(item,candidate)+'</div>'+conflictHtml(item)+
    '<div class="v99dup-note"><label class="v99dup-muted">Observação da conferência (opcional)</label><textarea id="v99dupNote" maxlength="500" placeholder="Ex.: mesma cliente, grafia antiga; telefone familiar; pessoas diferentes...">'+esc(item.decision?.note||'')+'</textarea></div>'+
    '<div class="v99dup-lock">As ações abaixo registram uma decisão auditada. Nenhum cadastro real é mesclado, apagado ou alterado nesta etapa.</div>'+
+   '<div id="v99dupActionStatus" class="v99dup-status '+esc(state.actionKind||'')+'">'+esc(state.actionMessage||'')+'</div>'+
    '<div class="v99dup-actions">'+
-   '<button class="btn btn-primary" '+(!candidate?'disabled':'')+' onclick="v99DupDecide(\'MERGE\')">Mesclar</button>'+
-   '<button class="btn btn-ghost" onclick="v99DupDecide(\'KEEP_SEPARATE\')">Manter separados</button>'+
-   '<button class="btn btn-soft" onclick="v99DupDecide(\'REVIEW_LATER\')">Revisar depois</button></div>'+
+   '<button class="btn btn-primary" '+((!candidate||state.saving)?'disabled':'')+' onclick="v99DupDecide(\'MERGE\')">Mesclar</button>'+
+   '<button class="btn btn-ghost" '+(state.saving?'disabled':'')+' onclick="v99DupDecide(\'KEEP_SEPARATE\')">Manter separados</button>'+
+   '<button class="btn btn-soft" '+(state.saving?'disabled':'')+' onclick="v99DupDecide(\'REVIEW_LATER\')">Revisar depois</button></div>'+
    '<div class="v99dup-pagination"><button class="btn btn-ghost btn-sm" onclick="v99DupMove(-1)" '+(state.index===0?'disabled':'')+'>← Anterior</button><span class="v99dup-muted">'+esc(state.index+1)+' / '+esc(rows.length)+'</span><button class="btn btn-ghost btn-sm" onclick="v99DupMove(1)" '+(state.index>=rows.length-1?'disabled':'')+'>Próximo →</button></div></div>'
  }
  function renderLoaded(){
@@ -7397,13 +7398,26 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
    '<div id="v99dupStatus" class="v99dup-status">Carregando fila...</div><div id="v99dupBody"></div></div>';load()
  }
  async function decide(decision){
+  if(state.saving)return;
   let rows=filtered(),item=rows[state.index];if(!item)return;
   let target=state.candidateId,note=document.getElementById('v99dupNote')?.value.trim()||'';
-  if(decision==='MERGE'&&!target){status('Escolha um cadastro candidato para mesclar.','bad');return}
+  if(decision==='MERGE'&&!target){state.actionMessage='Escolha um cadastro candidato para mesclar.';state.actionKind='bad';renderItem();return}
   if(decision==='MERGE'&&!confirm('Registrar que estes dois cadastros devem ser mesclados? A mesclagem real NÃO acontece agora.'))return;
   let body={decision:decision,note:note};if(decision==='MERGE')body.targetClusterId=target;
-  try{status('Salvando decisão...');await request('/api/v1/client-duplicate-reviews/'+encodeURIComponent(state.data.batchId)+'/'+encodeURIComponent(item.clusterId),{method:'POST',body:body});await load();status('Decisão salva e auditada. Nenhum cliente real foi alterado.','good')}
-  catch(e){status('Decisão não salva: '+(e?.message||e),'bad')}
+  let clusterId=item.clusterId;
+  try{
+   state.saving=true;state.actionMessage='Salvando decisão...';state.actionKind='';renderItem();status('Salvando decisão...');
+   await request('/api/v1/client-duplicate-reviews/'+encodeURIComponent(state.data.batchId)+'/'+encodeURIComponent(clusterId),{method:'POST',body:body});
+   await load();
+   if(decision==='REVIEW_LATER'){
+    let refreshed=filtered(),at=refreshed.findIndex(x=>x.clusterId===clusterId);
+    if(at>=0&&refreshed.length>1)state.index=at<refreshed.length-1?at+1:Math.max(0,at-1);
+   }
+   state.saving=false;state.actionMessage='Decisão salva e auditada. Próximo caso pronto para revisão.';state.actionKind='good';renderLoaded();
+   status('Decisão salva e auditada. Nenhum cliente real foi alterado.','good');
+  }catch(e){
+   state.saving=false;state.actionMessage='Decisão não salva: '+(e?.message||e);state.actionKind='bad';renderItem();status(state.actionMessage,'bad')
+  }
  }
  function injectClientsButton(){
   if(!canUse())return;let head=document.querySelector('#adminPage .page-head');if(!head||document.getElementById('v99dupOpen'))return;

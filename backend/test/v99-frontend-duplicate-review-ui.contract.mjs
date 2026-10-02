@@ -33,4 +33,7 @@ ok(js.includes('Nenhum cadastro real é mesclado')&&js.includes('clientMutation:
 ok(!js.includes('/clients/batches/commit'),'UI não promove batch');
 ok(!js.includes('db.clients.push')&&!js.includes('db.clients='),'UI não altera clientes locais');
 ok(js.includes("confirm('Registrar que estes dois cadastros devem ser mesclados?"),'MERGE exige confirmação humana adicional');
+ok(js.includes("if(state.saving)return")&&js.includes("state.saving?'disabled':''"),'decisão bloqueia cliques repetidos enquanto salva');
+ok(js.includes('v99dupActionStatus')&&js.includes("actionMessage='Salvando decisão...'"),'feedback da ação fica visível junto aos botões');
+ok(js.includes("decision==='REVIEW_LATER'")&&js.includes("refreshed.findIndex")&&js.includes("state.index=at<refreshed.length-1?at+1"),'Revisar depois avança para outro caso após persistir');
 console.log(JSON.stringify({ok:true,tests,feature:'frontend_duplicate_review_queue'}));
