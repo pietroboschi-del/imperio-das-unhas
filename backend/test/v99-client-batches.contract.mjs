@@ -23,6 +23,13 @@ const centroDiff=report.files.find(f=>f.unitId==='centro').snapshotDiff;eq(centr
 const shared=report.plans.filter(p=>p.source.phone==='+5531988880000');eq(shared.length,2,'telefone familiar não funde nomes diferentes');ok(shared.every(p=>p.action==='CREATE'),'telefone compartilhado com nomes claramente diferentes não bloqueia criação separada');
 ok(report.invariants.missingRowsNeverDeleteCentralClients,'invariante no-delete');ok(report.invariants.registrationUnitNeverInferredFromFileUnit,'unidade do arquivo não vira registrationUnit');
 const again=reconcileClientBatch(input,{centro:prevCentro},central);eq(again.reportHash,report.reportHash,'dry-run determinístico/idempotente');
+const shuffledInput=structuredClone(input);
+shuffledInput.files.reverse();
+for(const f of shuffledInput.files)f.rows.reverse();
+const shuffledPrev={centro:{batchId:prevCentro.batchId,rows:[...prevCentro.rows].reverse()}};
+const shuffled=reconcileClientBatch(shuffledInput,shuffledPrev,[...central].reverse());
+eq(shuffled.reportHash,report.reportHash,'reportHash independe da ordem de arquivos, linhas, snapshots e clientes centrais');
+eq(shuffled.plans,report.plans,'planos canônicos permanecem idênticos após embaralhar a entrada');
 ok(report.reportHash.startsWith('sha256:'),'relatório possui hash de aprovação');
 
 const similarInput={mode:'CLIENTS_ONLY',batchId:'BATCH_WEAK_NAME_REVIEW',phase:'REHEARSAL',files:[{unitId:'centro',exportedAt:'2026-10-01T11:00:00-03:00',fileName:'similar.xlsx',fileHash:H(50),rows:[

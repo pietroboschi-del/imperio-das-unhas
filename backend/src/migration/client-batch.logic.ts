@@ -273,18 +273,29 @@ function provenanceMatches(c:CentralClientSnapshot,row:NormalizedClientRow){
 }
 
 class UnionFind{p:number[];constructor(n:number){this.p=Array.from({length:n},(_,i)=>i);}find(x:number):number{return this.p[x]===x?x:(this.p[x]=this.find(this.p[x]));}union(a:number,b:number){a=this.find(a);b=this.find(b);if(a!==b)this.p[b]=a;}}
+const sourceMetaKey=(s:ClientSourceMeta)=>`${s.unitId}|${String(s.sourceRow).padStart(12,'0')}|${s.sourceId||''}|${s.fileHash}`;
+const compareNormalizedRows=(a:NormalizedClientRow,b:NormalizedClientRow)=>sourceMetaKey(a.source).localeCompare(sourceMetaKey(b.source))||a.fingerprint.localeCompare(b.fingerprint);
+const compareConflicts=(a:ClientConflict,b:ClientConflict)=>
+  a.clusterId.localeCompare(b.clusterId)||
+  String(a.field||'').localeCompare(String(b.field||''))||
+  a.type.localeCompare(b.type)||
+  String(a.centralValue||'').localeCompare(String(b.centralValue||''))||
+  String(a.sourceValue||'').localeCompare(String(b.sourceValue||''))||
+  (a.candidateClientIds||[]).join('|').localeCompare((b.candidateClientIds||[]).join('|'))||
+  (a.candidateClusterIds||[]).join('|').localeCompare((b.candidateClusterIds||[]).join('|'));
 function clusterRows(rows:NormalizedClientRow[]){
-  const uf=new UnionFind(rows.length),byKey=new Map<string,number>();
-  rows.forEach((r,i)=>{for(const key of strongKeys(r)){const seen=byKey.get(key);if(seen!==undefined)uf.union(i,seen);else byKey.set(key,i);}});
-  const groups=new Map<number,NormalizedClientRow[]>();rows.forEach((r,i)=>{const k=uf.find(i);groups.set(k,[...(groups.get(k)||[]),r]);});
-  return [...groups.values()].sort((a,b)=>a[0].source.unitId.localeCompare(b[0].source.unitId)||a[0].source.sourceRow-b[0].source.sourceRow);
+  const ordered=[...rows].sort(compareNormalizedRows);
+  const uf=new UnionFind(ordered.length),byKey=new Map<string,number>();
+  ordered.forEach((r,i)=>{for(const key of strongKeys(r)){const seen=byKey.get(key);if(seen!==undefined)uf.union(i,seen);else byKey.set(key,i);}});
+  const groups=new Map<number,NormalizedClientRow[]>();ordered.forEach((r,i)=>{const k=uf.find(i);groups.set(k,[...(groups.get(k)||[]),r]);});
+  return [...groups.values()].map(g=>g.sort(compareNormalizedRows)).sort((a,b)=>sourceMetaKey(a[0].source).localeCompare(sourceMetaKey(b[0].source)));
 }
 function uniqueNonEmpty(values:Array<string|null>){return [...new Set(values.filter((x):x is string=>!!x))];}
 function latestReliable(rows:NormalizedClientRow[]){const xs=rows.filter(r=>r.source.sourceUpdatedAtReliable&&r.sourceUpdatedAt).map(r=>r.sourceUpdatedAt as string).sort();return xs.at(-1)||null;}
 
 export function reconcileClientBatch(input:ClientBatchSetInput,previous:PreviousSnapshots,central:CentralClientSnapshot[]):ClientBatchReport{
   const rows=normalizeBatchSet(input);
-  const centralNorm=central.map(c=>({...c,nameKey:normalizeNameKey(c.name),phoneN:normalizePhone(c.phone),emailN:normalizeEmail(c.email),cpfN:centralCpf(c)}));
+  const centralNorm=[...central].sort((a,b)=>a.id.localeCompare(b.id)).map(c=>({...c,nameKey:normalizeNameKey(c.name),phoneN:normalizePhone(c.phone),emailN:normalizeEmail(c.email),cpfN:centralCpf(c)}));
   const strongMap=new Map<string,Set<string>>(),phoneMap=new Map<string,Set<string>>(),emailMap=new Map<string,Set<string>>();
   const add=(m:Map<string,Set<string>>,k:string|null,id:string)=>{if(!k)return;const s=m.get(k)||new Set<string>();s.add(id);m.set(k,s);};
   for(const c of centralNorm){for(const k of strongKeys({cpf:c.cpfN,email:c.emailN,phone:c.phoneN,nameKey:c.nameKey}))add(strongMap,k,c.id);add(phoneMap,c.phoneN,c.id);add(emailMap,c.emailN,c.id);}
@@ -345,7 +356,12 @@ export function reconcileClientBatch(input:ClientBatchSetInput,previous:Previous
       p.action='REVIEW_REQUIRED';
     }
   }
-  plans.sort((a,b)=>a.clusterId.localeCompare(b.clusterId));const allConflicts=plans.flatMap(p=>p.conflicts).sort((a,b)=>a.clusterId.localeCompare(b.clusterId)||String(a.field||'').localeCompare(String(b.field||''))||a.type.localeCompare(b.type));
+  for(const p of plans){
+    p.sourceRows.sort((a,b)=>sourceMetaKey(a).localeCompare(sourceMetaKey(b)));
+    p.unitLinksToAdd.sort();
+    p.conflicts.sort(compareConflicts);
+  }
+  plans.sort((a,b)=>a.clusterId.localeCompare(b.clusterId));const allConflicts=plans.flatMap(p=>p.conflicts).sort(compareConflicts);
   const fileReports=[...input.files].sort((a,b)=>a.unitId.localeCompare(b.unitId)).map(file=>{const current=rows.filter(r=>r.source.unitId===file.unitId),prev=previous[file.unitId];return {unitId:file.unitId,exportedAt:new Date(file.exportedAt).toISOString(),fileName:file.fileName,fileHash:file.fileHash.toLowerCase(),rows:current.length,comparedToBatchId:prev?.batchId||null,snapshotDiff:compareSnapshots(current,prev?.rows||[])};});
   const core={mode:'CLIENTS_ONLY' as const,batchId:input.batchId,phase:input.phase,files:fileReports,crossUnit:{clusters:plans.length,multiUnitClusters:plans.filter(p=>new Set(p.sourceRows.map(x=>x.unitId)).size>1).length,reviewRequiredClusters:plans.filter(p=>p.action==='REVIEW_REQUIRED').length},summary:{creates:plans.filter(p=>p.action==='CREATE').length,safeUpdates:plans.filter(p=>p.action==='UPDATE_SAFE').length,unchanged:plans.filter(p=>p.action==='UNCHANGED').length,reviewRequired:plans.filter(p=>p.action==='REVIEW_REQUIRED').length,conflicts:allConflicts.length,unitLinksToAdd:plans.reduce((n,p)=>n+p.unitLinksToAdd.length,0)},plans,conflicts:allConflicts,invariants:{previousBatchesAreAuditOnly:true as const,missingRowsNeverDeleteCentralClients:true as const,phoneAloneNeverAutoMerges:true as const,centralNonEmptyValuesPreservedByDefault:true as const,registrationUnitNeverInferredFromFileUnit:true as const}};
   return {...core,reportHash:sha256Json(core)};

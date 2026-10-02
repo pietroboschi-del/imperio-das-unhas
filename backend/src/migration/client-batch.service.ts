@@ -216,8 +216,16 @@ export class ClientBatchService {
     for(const env of envelopes){
       const s=obj(env.summary) as StoredSummary;const unitId=asText(s.unitId);if(!unitId)throw new ConflictException(`Envelope ${env.id} sem unitId`);if(units.has(unitId))throw new ConflictException(`Mais de um snapshot encontrado para ${unitId} no batch ${batchId}`);units.add(unitId);
       const p=asText(s.phase);if(!phase)phase=p;else if(phase!==p)throw new ConflictException('Batch possui fases inconsistentes');
-      const entities=await db.migrationEntity.findMany({where:{envelopeId:env.id,sourceCollection:'clients'},orderBy:{createdAt:'asc'}});
-      const rows=entities.map(e=>{const payload=obj(e.payload);return obj(payload.raw);});
+      const entities=await db.migrationEntity.findMany({where:{envelopeId:env.id,sourceCollection:'clients'},orderBy:{id:'asc'}});
+      const rows=entities.map(e=>{
+        const payload=obj(e.payload),source=obj(payload.source),raw={...obj(payload.raw)};
+        if(raw.sourceRow===undefined&&source.sourceRow!==undefined)raw.sourceRow=source.sourceRow;
+        if(raw.sourceId===undefined&&source.sourceId!==undefined&&source.sourceId!==null)raw.sourceId=source.sourceId;
+        return raw;
+      }).sort((a,b)=>{
+        const ar=Number(a.sourceRow||0),br=Number(b.sourceRow||0);
+        return ar-br||asText(a.sourceId).localeCompare(asText(b.sourceId));
+      });
       files.push({unitId,exportedAt:asText(s.exportedAt||env.sourceGeneratedAt?.toISOString()),fileName:asText(s.fileName),fileHash:asText(s.fileHash||env.dataHash),sourceUpdatedAtReliable:s.sourceUpdatedAtReliable===true,parserVersion:asText(s.parserVersion)||undefined,rows});
     }
     const set={mode:'CLIENTS_ONLY' as const,batchId,phase:phase as ClientBatchSetInput['phase'],files};
@@ -227,14 +235,19 @@ export class ClientBatchService {
   private async loadPreviousSnapshot(unitId:string,batchId:string,db:Db){
     const env=await db.migrationEnvelope.findFirst({where:{instanceId:`clients:${unitId}`,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:{not:batchId},status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},orderBy:[{sourceGeneratedAt:'desc'},{createdAt:'desc'}]});
     if(!env)return {batchId:null,rows:[]};
-    const entities=await db.migrationEntity.findMany({where:{envelopeId:env.id,sourceCollection:'clients'},orderBy:{createdAt:'asc'}});
-    const rows=entities.map(e=>e.payload as unknown as ReturnType<typeof normalizeBatchSet>[number]);
+    const entities=await db.migrationEntity.findMany({where:{envelopeId:env.id,sourceCollection:'clients'},orderBy:{id:'asc'}});
+    const rows=entities.map(e=>e.payload as unknown as ReturnType<typeof normalizeBatchSet>[number]).sort((a,b)=>
+      a.source.unitId.localeCompare(b.source.unitId)||
+      a.source.sourceRow-b.source.sourceRow||
+      asText(a.source.sourceId).localeCompare(asText(b.source.sourceId))||
+      a.fingerprint.localeCompare(b.fingerprint)
+    );
     return {batchId:env.reconciliationId||null,rows};
   }
 
   private async centralSnapshot(db:Db):Promise<CentralClientSnapshot[]>{
-    const clients=await db.client.findMany({select:{id:true,name:true,phone:true,email:true,registrationUnitId:true,updatedAt:true,legacyPayload:true,unitLinks:{where:{active:true},select:{unitId:true}}}});
-    return clients.map(c=>({id:c.id,name:c.name,phone:c.phone,email:c.email,registrationUnitId:c.registrationUnitId,updatedAt:c.updatedAt.toISOString(),legacyPayload:c.legacyPayload,unitIds:c.unitLinks.map(x=>x.unitId).sort()}));
+    const clients=await db.client.findMany({orderBy:{id:'asc'},select:{id:true,name:true,phone:true,email:true,registrationUnitId:true,updatedAt:true,legacyPayload:true,unitLinks:{where:{active:true},orderBy:{unitId:'asc'},select:{unitId:true}}}});
+    return clients.map(c=>({id:c.id,name:c.name,phone:c.phone,email:c.email,registrationUnitId:c.registrationUnitId,updatedAt:c.updatedAt.toISOString(),legacyPayload:c.legacyPayload,unitIds:c.unitLinks.map(x=>x.unitId)}));
   }
 
   private async analyzeSet(set:ClientBatchSetInput,db:Db):Promise<ClientBatchReport>{
