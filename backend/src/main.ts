@@ -25,6 +25,43 @@ async function bootstrap(){
     schemaMigrationEnabled:String(process.env.SCHEMA_MIGRATION_ENABLED||'false')==='true',
     clientBatchFinalizeEnabled:String(process.env.CLIENT_BATCH_FINALIZE_ENABLED||'false')==='true',
   }));
+  if(String(process.env.CENTRO_GO_LIVE_DIAGNOSTIC_ENABLED||'false')==='true'){
+    const prisma=app.get(PrismaService);
+    const [centroUnit,activeServices,activeProfessionalLinks,activeUserAccesses,networkAdmins]=await Promise.all([
+      prisma.unit.count({where:{id:'centro',active:true}}),
+      prisma.service.count({where:{active:true}}),
+      prisma.professionalUnit.count({where:{unitId:'centro',active:true,professional:{active:true}}}),
+      prisma.userUnitAccess.count({where:{unitId:'centro',active:true,user:{active:true}}}),
+      prisma.user.count({where:{active:true,networkAdmin:true}}),
+    ]);
+    let clientBatch:{phase:string|null;reportHash:string|null;reviewRequired:number|null}|null=null;
+    try{
+      const result=await app.get(ClientBatchService).report('BATCH_1_REHEARSAL');
+      clientBatch={phase:result.report.phase,reportHash:result.report.reportHash,reviewRequired:result.report.summary.reviewRequired};
+    }catch{}
+    const centroGate=operationalWriteStatus('centro'),bigGate=operationalWriteStatus('big'),shoppingGate=operationalWriteStatus('shopping-contagem');
+    console.log('centro go-live diagnostic '+JSON.stringify({
+      databaseReachable:true,
+      centroUnitActive:centroUnit===1,
+      activeServices,
+      activeProfessionalLinks,
+      activeUserAccesses,
+      networkAdmins,
+      clientBatch,
+      operationalGate:{
+        centro:centroGate.unitEnabled,
+        big:bigGate.unitEnabled,
+        shoppingContagem:shoppingGate.unitEnabled,
+      },
+      migrationGatesClosed:
+        String(process.env.MIGRATION_IMPORT_ENABLED||'false')!=='true'&&
+        String(process.env.CLIENT_BATCH_COMMIT_ENABLED||'false')!=='true'&&
+        String(process.env.SCHEMA_MIGRATION_ENABLED||'false')!=='true'&&
+        String(process.env.CLIENT_BATCH_FINALIZE_ENABLED||'false')!=='true',
+      operationalPrerequisitesPresent:
+        centroUnit===1&&activeServices>0&&activeProfessionalLinks>0&&activeUserAccesses>0&&networkAdmins>0,
+    }));
+  }
   const finalizeEnabled=String(process.env.CLIENT_BATCH_FINALIZE_ENABLED||'false')==='true';
   if(finalizeEnabled){
     if(String(process.env.MIGRATION_IMPORT_ENABLED||'false')==='true'||String(process.env.CLIENT_BATCH_COMMIT_ENABLED||'false')==='true')throw new Error('CLIENT_BATCH_FINALIZE_ENABLED exige gates de import/commit fechados');

@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const main=fs.readFileSync(new URL('../src/main.ts',import.meta.url),'utf8');
+let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+ok(main.includes("CENTRO_GO_LIVE_DIAGNOSTIC_ENABLED"),'diagnóstico é opt-in');
+ok(main.includes("prisma.service.count({where:{active:true}})"),'catálogo ativo é contado');
+ok(main.includes("prisma.professionalUnit.count({where:{unitId:'centro'"),'profissionais ativos do Centro são contados');
+ok(main.includes("prisma.userUnitAccess.count({where:{unitId:'centro'"),'acessos ativos do Centro são contados');
+ok(main.includes("app.get(ClientBatchService).report('BATCH_1_REHEARSAL')"),'batch FINAL é conferido em leitura');
+ok(main.includes("operationalPrerequisitesPresent"),'diagnóstico resume pré-requisitos operacionais');
+ok(!main.includes("client.findMany({where:{active:true}}"),'diagnóstico não lê listagem de clientes');
+console.log(JSON.stringify({ok:true,tests,feature:'centro_go_live_readonly_diagnostic'}));
