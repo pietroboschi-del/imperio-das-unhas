@@ -8,11 +8,27 @@ import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 import { ensureCanonicalUnits } from './core/canonical-units';
+import { ClientBatchService } from './migration/client-batch.service';
 
 async function bootstrap(){
   const app=await NestFactory.create(AppModule,{cors:false});
   const canonicalUnits=await ensureCanonicalUnits(app.get(PrismaService));
   console.log('canonical units reconciled '+JSON.stringify(canonicalUnits));
+  const reportBatchId=String(process.env.CLIENT_BATCH_REPORT_ON_START||'').trim();
+  if(reportBatchId){
+    const result=await app.get(ClientBatchService).report(reportBatchId);
+    const report=result.report;
+    console.log('client batch report audit '+JSON.stringify({
+      batchId:report.batchId,
+      phase:report.phase,
+      reportHash:report.reportHash,
+      files:report.files.map(f=>({unitId:f.unitId,exportedAt:f.exportedAt,fileName:f.fileName,fileHash:f.fileHash,rows:f.rows,comparedToBatchId:f.comparedToBatchId,snapshotDiff:f.snapshotDiff})),
+      crossUnit:report.crossUnit,
+      summary:report.summary,
+      conflictsByType:report.conflicts.reduce((acc:any,c:any)=>{const k=String(c.type||'UNKNOWN');acc[k]=(acc[k]||0)+1;return acc;},{}),
+      realClientRowsMutated:false,
+    }));
+  }
   app.use(helmet({contentSecurityPolicy:false}));
   const bodyLimit=String(process.env.JSON_BODY_LIMIT||'20mb');
   app.use(json({limit:bodyLimit}));

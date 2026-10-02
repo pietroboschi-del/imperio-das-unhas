@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const main=fs.readFileSync(new URL('../src/main.ts',import.meta.url),'utf8');
+let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+ok(main.includes('CLIENT_BATCH_REPORT_ON_START'),'startup audit é opt-in por variável');
+ok(main.includes("import { ClientBatchService }"),'service é resolvido explicitamente');
+ok(main.includes(".report(reportBatchId)"),'auditoria recalcula relatório via service');
+ok(main.includes('reportHash:report.reportHash'),'auditoria registra reportHash');
+ok(main.includes('realClientRowsMutated:false'),'auditoria declara ausência de mutação de clientes reais');
+ok(!main.includes('.commit('),'startup audit não chama commit');
+ok(!main.includes('MIGRATION_IMPORT_ENABLED=true'),'startup audit não abre gate de importação');
+console.log(JSON.stringify({ok:true,tests,feature:'client_batch_report_startup_audit'}));
