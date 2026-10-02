@@ -7464,7 +7464,8 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  function normUnitName(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
  function selectedUnitRefs(role){
   let all=role==='admin'||!!document.getElementById('v63UserAllUnits')?.checked,localUnits=(db.units||[]).filter(u=>u.active!==false);
-  let ids=all?localUnits.map(u=>u.id):[...(document.querySelectorAll?.('.v63-user-unit:checked')||[])].map(x=>x.value);
+  if(all)return ALL_CENTRAL_UNITS.map(id=>({localId:id,name:id}));
+  let ids=[...(document.querySelectorAll?.('.v63-user-unit:checked')||[])].map(x=>x.value);
   return ids.map(id=>{let u=localUnits.find(x=>x.id===id);return {localId:id,name:u?.name||id}}).filter(x=>x.localId)
  }
  async function resolveUnitIds(refs){

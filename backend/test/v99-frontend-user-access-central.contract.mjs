@@ -21,6 +21,7 @@ ok(js.includes('normUnitName')&&js.includes("UNIT_MAP[ref.localId]||ref.localId"
 ok(js.includes('não está ativa/cadastrada no backend central'),'erro de unidade identifica a causa real');
 ok(js.includes("global=['units.read']")&&js.includes("global.push('clients.duplicates.review')"),'revisão de duplicidades é global sem elevar para networkAdmin');
 ok(js.includes("x.password.length<12"),'senha central exige mínimo de 12');
+ok(js.includes("if(all)return ALL_CENTRAL_UNITS.map(id=>({localId:id,name:id}))"),'Todas as unidades independe de db.units local');
 ok(js.includes("local.password=randomLocalSecret()"),'senha real não fica persistida localmente após sincronização');
 ok(!js.includes('local.password=x.password'),'senha real nunca é copiada ao cadastro local');
 ok(js.includes("existing?.networkAdmin"),'conta do dono central é protegida');
