@@ -8,12 +8,13 @@ import { ArchitectureModule } from './architecture/architecture.module';
 import { ShadowModule } from './shadow/shadow.module';
 import { ReadThroughModule } from './read-through/read-through.module';
 import { UserAdminModule } from './users/user-admin.module';
+import { BackupModule } from './backup/backup.module';
 import { SessionGuard } from './auth/session.guard';
 import { CsrfGuard } from './auth/csrf.guard';
 import { AccessGuard } from './auth/access.guard';
 
 @Module({
-  imports:[PrismaModule,AuthModule,MigrationModule,CoreModule,ArchitectureModule,ShadowModule,ReadThroughModule,UserAdminModule],
+  imports:[PrismaModule,AuthModule,MigrationModule,CoreModule,ArchitectureModule,ShadowModule,ReadThroughModule,UserAdminModule,BackupModule],
   providers:[
     {provide:APP_GUARD,useClass:SessionGuard},
     {provide:APP_GUARD,useClass:CsrfGuard},

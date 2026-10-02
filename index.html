@@ -7196,6 +7196,8 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
    '<div class="field"><label>Fase</label><select id="v99migPhase"><option value="REHEARSAL">REHEARSAL</option><option value="PRE_CUTOVER">PRE_CUTOVER</option><option value="FINAL">FINAL · dry-run</option></select></div>'+
    '<div class="field"><label>Backend</label><input value="'+esc(endpoint())+'" disabled></div></div>'+
    '<div class="v99mig-grid">'+UNIT_DEFS.map(unitCard).join('')+'</div>'+
+   '<div class="v99mig-note"><b>Proteção gratuita pré-migração:</b> gere um backup lógico completo do PostgreSQL e guarde o arquivo fora do Railway antes de qualquer promoção real.</div>'+
+   '<div class="v99mig-actions"><button id="v99backupBtn" class="btn btn-soft" onclick="v99DatabaseBackup()">Baixar backup lógico (.dump)</button></div>'+
    '<div class="v99mig-lock"><b>🔒</b><span><b>Commit indisponível nesta tela.</b> Mesmo um batch FINAL executado aqui continua sendo somente dry-run. A promoção real exige outro fluxo, gates explícitos e aprovação pelo reportHash.</span></div>'+
    '<div class="v99mig-actions"><button id="v99migRunBtn" class="btn btn-primary" onclick="v99ClientsDryRun()">Executar dry-run</button><button id="v99migReloadBtn" class="btn btn-ghost" onclick="v99ClientsReloadReport()">Recarregar relatório</button><button class="btn btn-ghost" onclick="v99ClientsClear()">Limpar resultado</button></div>'+
    '<div id="v99migStatus" class="v99mig-status">Selecione de 1 a 3 arquivos .xlsx. Cada arquivo deve corresponder à unidade indicada no cartão.</div>'+
@@ -7216,6 +7218,20 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   return out
  }
  function errorMessage(data,statusCode){let m=data?.message||data?.error||('HTTP '+statusCode);return Array.isArray(m)?m.join(' · '):String(m)}
+ async function backupDatabase(){
+  if(!canRun()){status('Sessão sem permissão de administrador de rede. Entre novamente no backend central.','bad');return null}
+  let btn=document.getElementById('v99backupBtn');
+  try{
+   if(btn){btn.disabled=true;btn.textContent='Gerando backup…'}status('Gerando backup lógico do PostgreSQL. Aguarde o download terminar.');
+   let res=await fetch(endpoint()+'/api/v1/admin/database-backup',{method:'GET',credentials:'include',headers:{Accept:'application/octet-stream'}});
+   if(!res.ok){let txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}throw new Error(errorMessage(data,res.status))}
+   let blob=await res.blob();if(!blob||blob.size<100)throw new Error('Backup recebido vazio ou incompleto');
+   let stamp=new Date().toISOString().replace(/[:.]/g,'-'),filename='imperio-postgres-'+stamp+'.dump';
+   let url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+   status('Backup lógico baixado ('+Math.max(1,Math.round(blob.size/1024))+' KB). Guarde este arquivo antes de continuar a migração.','good');return {filename,size:blob.size}
+  }catch(e){status('Backup não gerado: '+(e?.message||e),'bad');return null}
+  finally{if(btn){btn.disabled=false;btn.textContent='Baixar backup lógico (.dump)'}}
+ }
  async function run(){
   if(!canRun()){status('Sessão sem permissão de administrador de rede. Entre novamente no backend central.','bad');return null}
   let token=csrf();if(!token){status('Token CSRF da sessão central ausente. Saia e entre novamente antes do dry-run.','bad');return null}
@@ -7289,7 +7305,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  if(baseBuild){let wrapped=function(){let out=baseBuild.apply(this,arguments);if(canShow()&&!document.getElementById('v99migNav')){let b=document.createElement('button');b.id='v99migNav';b.textContent='Migração';b.className=(typeof page!=='undefined'&&page==='migration-clients')?'active':'';b.onclick=()=>setPage('migration-clients');adminTabs.appendChild(b)}return out};window.buildAdminNav=wrapped;try{buildAdminNav=wrapped}catch(e){}}
  const baseRender=window.renderAdmin||((typeof renderAdmin==='function')?renderAdmin:null);
  if(baseRender){let wrapped=function(){if(typeof page!=='undefined'&&page==='migration-clients')return renderPage();return baseRender.apply(this,arguments)};window.renderAdmin=wrapped;try{renderAdmin=wrapped}catch(e){}}
- window.v99ClientsDryRun=run;window.v99ClientsReloadReport=reloadReport;window.v99ClientsClear=clearResult;
+ window.v99DatabaseBackup=backupDatabase;window.v99ClientsDryRun=run;window.v99ClientsReloadReport=reloadReport;window.v99ClientsClear=clearResult;
  window.__imperioClientMigrationUI={route:ROUTE,reportRoute:'/api/v1/migrations/v94/clients/batches/:batchId/report',canShow,canRun,renderPage,run,reloadReport,clearResult,getLastResult:()=>lastResult,commitExposed:false,sourceOfTruth:'postgresql_dry_run_staging_only'};
 })();
 

@@ -1,0 +1,24 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+const controller=fs.readFileSync(new URL('../src/backup/database-backup.controller.ts',import.meta.url),'utf8');
+const moduleFile=fs.readFileSync(new URL('../src/backup/backup.module.ts',import.meta.url),'utf8');
+const app=fs.readFileSync(new URL('../src/app.module.ts',import.meta.url),'utf8');
+const docker=fs.readFileSync(new URL('../Dockerfile',import.meta.url),'utf8');
+const html=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+
+ok(controller.includes("@Controller('api/v1/admin/database-backup')"),'endpoint dedicado existe');
+ok(controller.includes('@NetworkAdmin()'),'backup exige administrador de rede');
+ok(controller.includes("spawn('pg_dump'"),'backup usa pg_dump nativo');
+ok(controller.includes("'--format=custom'")&&controller.includes("'--no-owner'")&&controller.includes("'--no-acl'"),'dump usa formato restaurável e portável');
+ok(controller.includes("PGPASSWORD:db.password")&&!controller.includes("spawn('pg_dump',[raw"),'senha não é passada na linha de comando');
+ok(controller.includes("Cache-Control','no-store")&&controller.includes("Content-Disposition"),'download não é cacheado e força arquivo');
+ok(controller.includes('DATABASE_LOGICAL_BACKUP_DOWNLOADED'),'download é auditado');
+ok(controller.includes("res.on('close'")&&controller.includes("child.kill('SIGTERM')"),'processo é encerrado se cliente abandona download');
+ok(moduleFile.includes('DatabaseBackupController')&&app.includes('BackupModule'),'módulo de backup está ligado ao app');
+ok(docker.includes('postgresql-client-18'),'container usa pg_dump compatível com PostgreSQL 18');
+ok(html.includes('/api/v1/admin/database-backup'),'frontend chama apenas endpoint administrativo de backup');
+ok(html.includes('Baixar backup lógico (.dump)'),'botão de backup é exposto ao administrador');
+ok(html.includes('URL.createObjectURL(blob)')&&html.includes("a.download=filename"),'arquivo é baixado no computador do administrador');
+ok(!controller.includes('pg_restore')&&!controller.includes('prisma:migrate'),'endpoint não restaura nem altera schema');
+console.log(JSON.stringify({ok:true,tests,feature:'free_logical_database_backup'}));

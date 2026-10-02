@@ -43,4 +43,6 @@ ok(!js.includes('db.clients.push')&&!js.includes('db.clients='),'console não al
 ok(!js.includes('MIGRATION_IMPORT_ENABLED')&&!js.includes('CLIENT_BATCH_COMMIT_ENABLED'),'UI não tenta abrir gates de importação');
 ok(js.includes('getLastResult:()=>lastResult'),'resultado fica somente em memória da sessão da página');
 
+ok(js.includes('/api/v1/admin/database-backup')&&js.includes('Baixar backup lógico (.dump)'),'admin pode baixar backup lógico gratuito antes da migração');
+ok(js.includes('URL.createObjectURL(blob)')&&js.includes('v99DatabaseBackup'),'backup é baixado como arquivo no navegador');
 console.log(JSON.stringify({ok:true,tests,feature:'v99_clients_migration_ui_dry_run_only'}));
