@@ -151,10 +151,36 @@ async function main(){
     ok(second.staged.every(x=>x.reused===true),'mesmos arquivos reutilizam staging');
     eq(second.report.reportHash,report.reportHash,'reprocessamento é idempotente');
 
-    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{
-      method:'POST',headers,body:JSON.stringify({batchId:'BATCH_1_REHEARSAL',approvalReportHash:report.reportHash})
+    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/BATCH_1_REHEARSAL/finalize-staging',{
+      method:'POST',headers,body:JSON.stringify({approvalReportHash:report.reportHash})
     });
-    eq(r.status,403,'commit bloqueado com gate fechado');
+    if(!r.ok)throw new Error(`finalize staging falhou HTTP ${r.status}: ${await r.text()}`);
+    const finalized=await r.json();
+    ok(finalized.ok===true&&finalized.mode==='finalize-staging','transição formal do staging executada');
+    eq(finalized.phase,'FINAL','batch passa formalmente para FINAL');
+    ok(finalized.realClientRowsMutated===false,'finalização do staging não altera clientes reais');
+    ok(finalized.finalReportHash!==report.reportHash,'fase FINAL produz novo reportHash');
+    eq(await prisma.client.count(),1,'nenhum cliente real criado ao finalizar staging');
+    eq(await prisma.clientUnitLink.count(),0,'nenhum vínculo real criado ao finalizar staging');
+
+    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/BATCH_1_REHEARSAL/report',{headers:{cookie}});
+    ok(r.ok,'relatório FINAL recuperável');
+    const finalReport=(await r.json()).report;
+    eq(finalReport.phase,'FINAL','relatório persistido está FINAL');
+    eq(finalReport.reportHash,finalized.finalReportHash,'hash FINAL é estável na leitura');
+
+    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/BATCH_1_REHEARSAL/finalize-staging',{
+      method:'POST',headers,body:JSON.stringify({approvalReportHash:report.reportHash})
+    });
+    ok(r.ok,'repetição da finalização é idempotente');
+    const repeated=await r.json();
+    ok(repeated.duplicate===true,'repetição não refaz a transição');
+    eq(repeated.finalReportHash,finalized.finalReportHash,'repetição preserva hash FINAL');
+
+    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{
+      method:'POST',headers,body:JSON.stringify({batchId:'BATCH_1_REHEARSAL',approvalReportHash:finalized.finalReportHash})
+    });
+    eq(r.status,403,'commit continua bloqueado com gate fechado');
 
     eq(await prisma.client.count(),1,'cliente central preservado após tentativa de commit');
     eq(await prisma.clientUnitLink.count(),0,'nenhum vínculo criado com commit bloqueado');

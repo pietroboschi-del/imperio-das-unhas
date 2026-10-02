@@ -14,6 +14,14 @@ async function bootstrap(){
   const app=await NestFactory.create(AppModule,{cors:false});
   const canonicalUnits=await ensureCanonicalUnits(app.get(PrismaService));
   console.log('canonical units reconciled '+JSON.stringify(canonicalUnits));
+  const finalizeEnabled=String(process.env.CLIENT_BATCH_FINALIZE_ENABLED||'false')==='true';
+  if(finalizeEnabled){
+    if(String(process.env.MIGRATION_IMPORT_ENABLED||'false')==='true'||String(process.env.CLIENT_BATCH_COMMIT_ENABLED||'false')==='true')throw new Error('CLIENT_BATCH_FINALIZE_ENABLED exige gates de import/commit fechados');
+    const finalizeBatchId=String(process.env.CLIENT_BATCH_FINALIZE_BATCH_ID||'').trim();
+    const finalizeApprovalHash=String(process.env.CLIENT_BATCH_FINALIZE_APPROVAL_HASH||'').trim();
+    const finalized=await app.get(ClientBatchService).finalizeStaging(finalizeBatchId,{approvalReportHash:finalizeApprovalHash});
+    console.log('client batch staging finalized '+JSON.stringify(finalized));
+  }
   const reportBatchId=String(process.env.CLIENT_BATCH_REPORT_ON_START||'').trim();
   if(reportBatchId){
     const result=await app.get(ClientBatchService).report(reportBatchId);

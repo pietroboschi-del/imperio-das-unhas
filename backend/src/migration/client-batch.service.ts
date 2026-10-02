@@ -30,6 +30,7 @@ type CommitInput = {
   approvalReportHash: string;
   resolutions?: Record<string, Resolution>;
 };
+type FinalizeStagingInput = { approvalReportHash: string };
 
 type StoredSummary = {
   mode?: string;
@@ -44,6 +45,9 @@ type StoredSummary = {
   canonicalRowsHash?: string;
   rowCount?: number;
   committedReportHash?: string;
+  finalizedAt?: string;
+  finalizedFromPhase?: string;
+  finalizedFromReportHash?: string;
 };
 
 const json=(value:unknown)=>value as Prisma.InputJsonValue;
@@ -73,6 +77,57 @@ export class ClientBatchService {
   async report(batchId: string) {
     const set=await this.loadBatchSet(batchId,this.prisma);
     return {ok:true,mode:'report',report:await this.analyzeSet(set,this.prisma)};
+  }
+
+  async finalizeStaging(batchId:string,input:FinalizeStagingInput,actorUserId?:string) {
+    const id=clean(batchId),approval=clean(input?.approvalReportHash);
+    if(!id||!/^sha256:[0-9a-f]{64}$/i.test(approval))throw new BadRequestException('batchId e approvalReportHash são obrigatórios');
+    const transition=await this.prisma.$transaction(async tx=>{
+      const all=await this.batchEnvelopes(id,tx);
+      if(!all.length)throw new ConflictException('Batch CLIENTS_ONLY não encontrado');
+      if(all.some(e=>e.status===ImportStatus.IMPORTED))throw new ConflictException('Batch já possui envelope importado e não pode mudar de fase');
+      const set=await this.loadBatchSet(id,tx,true);
+      const current=await this.analyzeSet(set,tx);
+      const finalizedHashes=all.map(e=>clean((obj(e.summary) as StoredSummary).finalizedFromReportHash)).filter(Boolean);
+      if(set.phase==='FINAL'){
+        if(finalizedHashes.length===all.length&&finalizedHashes.every(h=>h===approval)){
+          return {duplicate:true,fromPhase:'FINAL',previousReportHash:approval,currentReportHash:current.reportHash};
+        }
+        throw new ConflictException('Batch já está FINAL e o hash de finalização não corresponde à aprovação informada');
+      }
+      if(!['REHEARSAL','PRE_CUTOVER'].includes(set.phase))throw new ConflictException('Transição para FINAL permitida somente a partir de REHEARSAL ou PRE_CUTOVER');
+      if(current.reportHash!==approval)throw new ConflictException('Relatório mudou; recalcule o dry-run e aprove o reportHash atual antes de finalizar o staging');
+      const now=new Date();
+      for(const env of all){
+        const summary={...obj(env.summary),phase:'FINAL',finalizedAt:now.toISOString(),finalizedFromPhase:set.phase,finalizedFromReportHash:current.reportHash};
+        await tx.migrationEnvelope.update({where:{id:env.id},data:{summary:json(summary)}});
+      }
+      await tx.auditEvent.create({data:{
+        id:`audit:client-batch-finalize:${randomUUID()}`,
+        userId:clean(actorUserId)||null,
+        action:'CLIENT_BATCH_STAGING_FINALIZED',
+        entityType:'MigrationEnvelope',
+        entityId:id,
+        occurredAt:now,
+        legacyPayload:json({batchId:id,fromPhase:set.phase,toPhase:'FINAL',approvalReportHash:current.reportHash,envelopeIds:all.map(e=>e.id)}),
+      }});
+      return {duplicate:false,fromPhase:set.phase,previousReportHash:current.reportHash,currentReportHash:null};
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable,timeout:60000,maxWait:30000});
+    const {report}=await this.report(id);
+    return {
+      ok:true,
+      mode:'finalize-staging',
+      batchId:id,
+      duplicate:transition.duplicate,
+      fromPhase:transition.fromPhase,
+      phase:report.phase,
+      previousReportHash:transition.previousReportHash,
+      finalReportHash:report.reportHash,
+      summary:report.summary,
+      crossUnit:report.crossUnit,
+      commitEnabled:this.commitEnabled(),
+      realClientRowsMutated:false,
+    };
   }
 
   async commit(input: unknown) {
