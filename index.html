@@ -7461,10 +7461,24 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  function selectedLocalPermissions(){
   let out={};document.querySelectorAll?.('.v67-perm-check')?.forEach(el=>{let k=el.dataset?.key;if(k)out[k]=!!el.checked});return out
  }
- function selectedUnits(role){
-  let all=role==='admin'||!!document.getElementById('v63UserAllUnits')?.checked;
-  if(all)return ALL_CENTRAL_UNITS.slice();
-  return [...(document.querySelectorAll?.('.v63-user-unit:checked')||[])].map(x=>UNIT_MAP[x.value]||x.value).filter(x=>ALL_CENTRAL_UNITS.includes(x))
+ function normUnitName(v){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
+ function selectedUnitRefs(role){
+  let all=role==='admin'||!!document.getElementById('v63UserAllUnits')?.checked,localUnits=(db.units||[]).filter(u=>u.active!==false);
+  let ids=all?localUnits.map(u=>u.id):[...(document.querySelectorAll?.('.v63-user-unit:checked')||[])].map(x=>x.value);
+  return ids.map(id=>{let u=localUnits.find(x=>x.id===id);return {localId:id,name:u?.name||id}}).filter(x=>x.localId)
+ }
+ async function resolveUnitIds(refs){
+  let rows=await request('/api/v1/units'),active=(Array.isArray(rows)?rows:[]).filter(u=>u&&u.active!==false),out=[];
+  for(const ref of refs){
+   let mapped=UNIT_MAP[ref.localId]||ref.localId,n=normUnitName(ref.name),match=
+    active.find(u=>String(u.id)===String(mapped))||
+    active.find(u=>String(u.id)===String(ref.localId))||
+    active.find(u=>normUnitName(u.name)===n)||
+    active.find(u=>n.includes(normUnitName(u.name))||normUnitName(u.name).includes(n));
+   if(!match)throw new Error('A unidade "'+(ref.name||ref.localId)+'" não está ativa/cadastrada no backend central');
+   if(!out.includes(String(match.id)))out.push(String(match.id))
+  }
+  return out
  }
  function backendPermissions(localMap){
   let out=new Set();for(const [localKey,backendKey] of Object.entries(LOCAL_TO_BACKEND))if(localMap[localKey])out.add(backendKey);return [...out].sort()
@@ -7476,12 +7490,12 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   return {global:[...new Set(global)].sort(),unit:[...new Set(unit)].sort()}
  }
  function capture(userId=''){
-  let role=document.getElementById('v63UserRole')?.value||'reception',username=document.getElementById('v63UserLogin')?.value.trim()||'',displayName=document.getElementById('v63UserName')?.value.trim()||'',password=document.getElementById('v63UserPassword')?.value||'',active=!!document.getElementById('v63UserActive')?.checked,localMap=selectedLocalPermissions(),units=selectedUnits(role),perm=splitPermissions(localMap),local=localUser(userId,username);
-  return {userId,role,username,displayName,password,active,localMap,units,perm,local,centralUserId:local?.centralUserId||''}
+  let role=document.getElementById('v63UserRole')?.value||'reception',username=document.getElementById('v63UserLogin')?.value.trim()||'',displayName=document.getElementById('v63UserName')?.value.trim()||'',password=document.getElementById('v63UserPassword')?.value||'',active=!!document.getElementById('v63UserActive')?.checked,localMap=selectedLocalPermissions(),unitRefs=selectedUnitRefs(role),perm=splitPermissions(localMap),local=localUser(userId,username);
+  return {userId,role,username,displayName,password,active,localMap,unitRefs,units:[],perm,local,centralUserId:local?.centralUserId||''}
  }
  function validate(x){
   if(!x.username||!x.displayName)throw new Error('Informe nome e login');
-  if(!x.units.length)throw new Error('Selecione pelo menos uma unidade');
+  if(!x.unitRefs.length)throw new Error('Selecione pelo menos uma unidade');
   if(!x.userId&&x.password.length<12)throw new Error('Para usuário central novo, a senha deve ter no mínimo 12 caracteres');
   if(x.userId&&x.password&&x.password.length<12)throw new Error('A nova senha deve ter no mínimo 12 caracteres');
  }
@@ -7506,6 +7520,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  }
  async function syncCentral(x){
   if(!networkAdmin())throw new Error('Somente o administrador de rede pode criar ou alterar usuários centrais');
+  x.units=await resolveUnitIds(x.unitRefs);
   let existing=await resolveCentral(x),p=payload(x),central,isNew=!existing;
   if(existing?.networkAdmin)throw new Error('A conta do dono central é protegida e não pode ser alterada por esta tela');
   if(isNew){
@@ -7521,7 +7536,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  function decorateUserModal(){
   let pass=document.getElementById('v63UserPassword');if(pass){pass.minLength=12;pass.placeholder=window.__v67EditingUserId?'Deixe em branco para manter · mínimo 12 se alterar':'Mínimo 12 caracteres';}
   let body=document.querySelector?.('#modalHost .modal-body');if(body&&!document.getElementById('v99CentralUserNote')){
-   let note=document.createElement('div');note.id='v99CentralUserNote';note.className='v63-note';note.style.marginTop='12px';note.innerHTML='<b>Usuário central:</b> em produção, salvar sincroniza este cadastro com PostgreSQL. A senha é enviada somente ao backend para hash e não fica gravada em texto neste navegador. Para liberar duplicidades, use Personalizado e marque <b>Clientes · revisar possíveis duplicados</b>.';
+   let note=document.createElement('div');note.id='v99CentralUserNote';note.className='v63-note';note.style.marginTop='12px';note.innerHTML='<b>Usuário central:</b> em produção, salvar sincroniza este cadastro com PostgreSQL. A senha é enviada somente ao backend para hash e não fica gravada em texto neste navegador. Para liberar duplicidades, use Personalizado e marque <b>Clientes · revisar possíveis duplicados</b>. As unidades são validadas contra o backend central no momento de salvar.';
    body.appendChild(note)
   }
  }
