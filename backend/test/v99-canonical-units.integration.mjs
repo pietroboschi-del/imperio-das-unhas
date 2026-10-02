@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {PrismaClient} from '@prisma/client';
-import {ensureCanonicalUnits,CANONICAL_UNITS} from '../src/core/canonical-units.ts';
-import {UserAdminService} from '../src/users/user-admin.service.ts';
-import {assertOperationalWriteEnabled,operationalWriteStatus} from '../src/common/operational-write-gate.ts';
+import {ensureCanonicalUnits,CANONICAL_UNITS} from '../dist/src/core/canonical-units.js';
+import {UserAdminService} from '../dist/src/users/user-admin.service.js';
+import {assertOperationalWriteEnabled,operationalWriteStatus} from '../dist/src/common/operational-write-gate.js';
 
 const prisma=new PrismaClient();
 const username='ci_all_units_reception';
