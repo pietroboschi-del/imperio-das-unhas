@@ -8,59 +8,107 @@ Banco definitivo:
 - serviço: `Postgres`;
 - volume: `postgres-volume`;
 - mount: `/var/lib/postgresql/data`;
-- imagem: PostgreSQL oficial Railway;
-- último deploy observado após o hardening de backup: `853e47f7-120a-46c7-99e2-d53a13a3d301`;
-- status do deploy: `SUCCESS`.
+- imagem: PostgreSQL 18 Railway;
+- deployment observado: `853e47f7-120a-46c7-99e2-d53a13a3d301`;
+- status: `SUCCESS`.
 
-Em 2026-10-01 foi aplicada ao volume a política `DAILY`. A documentação da Railway define retenção de 6 dias para essa agenda. O conector atual não expõe a listagem de schedules/backups no read-back, portanto a existência de um backup individual deve ser confirmada pela listagem de backups antes de qualquer importação real.
+Em 2026-10-02 a aba Backups do Railway mostrou `No Backups`. No plano atual, criação de backup de volume e PITR exige Pro. Portanto:
 
-## Regra obrigatória antes da migração real
+- não há agenda automática de backups Railway confirmada;
+- não há PITR habilitado;
+- não existe recuperação point-in-time disponível.
 
-NÃO iniciar importação de dados reais sem cumprir todos os itens:
+## Proteção gratuita confirmada para a migração atual
 
-1. manter escrita operacional desligada;
-2. confirmar que o backend aponta para o PostgreSQL de produção;
-3. criar um backup manual imediatamente antes da importação;
-4. registrar o ID e timestamp desse backup;
-5. confirmar que o backup aparece na listagem;
-6. somente então executar reconciliação/importação;
-7. preservar o backup pré-migração até a validação ponta a ponta do Centro.
+Foi gerado um backup lógico completo via `pg_dump` PostgreSQL 18, formato custom:
 
-Com Railway CLI, a operação esperada é:
+`imperio-postgres-2026-10-02T20-06-42-410Z.dump`
 
-```bash
-railway postgres pitr backup create --project 6151f6fc-f429-49ad-8791-7ea4c6eb17d5 --environment production --service Postgres --name pre-real-data-cutover
-railway postgres pitr backup list --project 6151f6fc-f429-49ad-8791-7ea4c6eb17d5 --environment production --service Postgres --json
-```
+Evidência:
+- download concluído no navegador;
+- tamanho aproximado observado: 1,7 MB;
+- backend respondeu HTTP 200 em `2026-10-02T20:06:36Z`;
+- SHA da aplicação que gerou o backup: `ec9009bb074fa52dea9f9352b3b1f9f1e1111fa6`.
+
+Para esta migração:
+
+`PROTECTED_BY_CONFIRMED_LOGICAL_BACKUP_2026_10_02`
+
+Esse dump é um ponto de recuperação fixo. Ele não contém alterações realizadas depois de sua geração.
+
+## Migration de schema validada
+
+A execução controlada de `prisma migrate deploy` encontrou:
+
+- 12 migrations;
+- `No pending migrations to apply.`.
+
+Depois da validação:
+- `SCHEMA_MIGRATION_ENABLED=false`;
+- `MIGRATION_IMPORT_ENABLED=false`;
+- `CLIENT_BATCH_COMMIT_ENABLED=false`;
+- `OPERATIONAL_WRITES_UNITS=centro`.
+
+## Regra antes de importar dados reais
+
+NÃO iniciar promoção/importação real sem:
+
+1. manter o arquivo `.dump` preservado fora do Railway;
+2. validar o arquivo com `pg_restore --list`;
+3. manter `MIGRATION_IMPORT_ENABLED=false` até o bloco explicitamente autorizado;
+4. manter `CLIENT_BATCH_COMMIT_ENABLED=false` até aprovação do batch/reportHash;
+5. manter escrita operacional restrita à unidade autorizada;
+6. possuir SHA exato de aplicação para rollback.
 
 Não versionar credenciais ou `DATABASE_URL`.
+
+## Validação do dump
+
+A validação é somente leitura:
+
+```bash
+pg_restore --list imperio-postgres-2026-10-02T20-06-42-410Z.dump
+```
+
+Se o comando falhar, considerar o arquivo inválido e gerar um novo backup antes de continuar.
 
 ## Rollback
 
 ### Código
 
-Rollback de aplicação deve usar SHA exato. Nunca usar `main` ou branch flutuante como referência de rollback.
+Rollback de aplicação deve usar SHA exato. Nunca usar `main` ou branch flutuante.
+
+- SHA atual validado: `ec9009bb074fa52dea9f9352b3b1f9f1e1111fa6`;
+- SHA anterior validado: `63a1c36ad9a1c8ad4f0b0550a7e74258537bb133`.
 
 ### Dados
 
-Se a importação falhar antes da liberação operacional:
+Se uma futura importação falhar:
 
 1. interromper novas escritas;
-2. guardar logs/relatório da falha;
-3. identificar o backup manual `pre-real-data-cutover`;
-4. restaurar somente esse backup confirmado;
-5. validar `/api/v1/health`;
-6. conferir as três unidades e saldos críticos;
-7. só reabrir escrita após aprovação da reconciliação.
+2. guardar logs/reportHash/relatório da falha;
+3. validar o dump com `pg_restore --list`;
+4. criar um PostgreSQL 18 separado;
+5. restaurar o dump no banco separado;
+6. validar schema, contagens e dados críticos;
+7. somente então decidir entre recuperação seletiva ou troca controlada do banco.
 
-Restauração de volume é destrutiva para o estado atual do banco e NÃO deve ser executada como simples teste no banco de produção. O ensaio de restauração deve ocorrer antes do cutover operacional usando uma cópia/serviço isolado quando disponível.
+Exemplo em banco separado:
 
-## Gate de go-live
+```bash
+createdb imperio_restore_check
+pg_restore \
+  --no-owner \
+  --no-acl \
+  --exit-on-error \
+  --dbname imperio_restore_check \
+  imperio-postgres-2026-10-02T20-06-42-410Z.dump
+```
 
-O go-live fica bloqueado se qualquer um destes itens estiver ausente:
-- backup manual pré-migração com ID conhecido;
-- listagem confirmando o backup;
-- reconciliação aprovada;
-- ensaio de restauração isolado ou procedimento de restauração validado;
-- checkpoint do SHA de aplicação anterior;
-- escrita ainda restrita à unidade autorizada no momento do cutover.
+NÃO usar `--clean` contra produção como primeira ação e não executar restauração destrutiva apenas como teste.
+
+## Limitação sem PITR
+
+Uma restauração integral desse dump retorna ao estado das 20:06 UTC de 2026-10-02. Dados gravados depois desse instante não estão nele.
+
+Antes de cada mudança estrutural ou importação relevante, gere novo backup lógico e preserve uma cópia fora do computador operacional.

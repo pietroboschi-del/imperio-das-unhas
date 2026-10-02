@@ -50,25 +50,25 @@
     "postgresService": "Postgres",
     "volume": "postgres-volume",
     "volumeMountPath": "/var/lib/postgresql/data",
-    "automaticBackupSchedule": [
-      "DAILY"
-    ],
-    "dailyRetentionDays": 6,
+    "automaticBackupSchedule": [],
+    "dailyRetentionDays": 0,
     "scheduleProvisioning": {
-      "appliedAt": "2026-10-01T13:25:31.830Z",
-      "postgresDeploymentId": "853e47f7-120a-46c7-99e2-d53a13a3d301",
-      "deploymentStatus": "SUCCESS",
-      "connectorReadback": "backup schedule metadata is not exposed by the current Railway connector"
+      "verifiedAt": "2026-10-02T20:06:42.410Z",
+      "railwayBackupsAvailable": false,
+      "pitrEnabled": false,
+      "reason": "Railway Backups tab showed No Backups; creating backups/PITR requires Pro on the current plan."
     },
     "preMigration": {
-      "manualBackupRequired": true,
-      "verifyBackupIdBeforeImport": true,
-      "lockBackupRecommended": true,
-      "operationalWritesMustRemainDisabledUntilCutover": true
+      "logicalBackupRequired": true,
+      "verifyBackupFileBeforeImport": true,
+      "confirmedBackupFile": "imperio-postgres-2026-10-02T20-06-42-410Z.dump",
+      "confirmedBackupHttpStatus": 200,
+      "confirmedBackupRequestAt": "2026-10-02T20:06:36Z",
+      "operationalWritesMustRemainRestrictedUntilCutover": true
     },
     "rollback": {
       "application": "redeploy the previous exact Git SHA",
-      "database": "restore the verified pre-migration Railway volume backup only if migration validation fails",
+      "database": "validate the confirmed pg_dump custom-format file and restore first into a separate PostgreSQL 18 database before any production cutover",
       "destructiveRestoreDuringPreparation": false,
       "restoreRehearsalRequiredBeforeOperationalCutover": true
     }
@@ -84,17 +84,19 @@
       "lastObservedDeploymentStatus": "SUCCESS"
     },
     "backupRollback": {
-      "dailyVolumeBackupConfigured": true,
-      "dailyRetentionDays": 6,
-      "manualPreMigrationSnapshotRequired": true,
-      "pitrRequiredForSafePointInTimeRestore": false,
+      "dailyVolumeBackupConfigured": false,
+      "dailyRetentionDays": 0,
+      "logicalBackupConfirmed": true,
+      "logicalBackupFile": "imperio-postgres-2026-10-02T20-06-42-410Z.dump",
+      "logicalBackupFormat": "pg_dump-custom",
+      "pitrRequiredForSafePointInTimeRestore": true,
       "pitrEnabled": false,
-      "connectorLimitation": "Current connected Railway agent does not expose on-demand backup creation or PITR enable/status.",
-      "migrationGate": "BLOCKED_UNTIL_MANUAL_BACKUP_OR_PITR_CONFIRMED",
+      "currentPlanLimitation": "Railway volume backup creation and PITR require Pro; current plan showed No Backups.",
+      "migrationGate": "PROTECTED_BY_CONFIRMED_LOGICAL_BACKUP_2026_10_02",
       "schemaMigrationGate": {
         "defaultEnabled": false,
-        "activationRequires": "MANUAL_BACKUP_OR_PITR_CONFIRMED",
-        "productionRule": "Do not run prisma migrate deploy while migrationGate is blocked."
+        "activationRequires": "CONFIRMED_LOGICAL_BACKUP_OR_MANUAL_VOLUME_BACKUP_OR_PITR",
+        "productionRule": "Run prisma migrate deploy only after a verified recovery artifact exists; return SCHEMA_MIGRATION_ENABLED to false after validation."
       }
     }
   }

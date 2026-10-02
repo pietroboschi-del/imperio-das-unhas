@@ -41,9 +41,9 @@ Mantenha `MIGRATION_IMPORT_ENABLED=false` e `OPENAPI_ENABLED=false` em operaçã
 
 ## Ativação
 
-1. Suba PostgreSQL e backend com writes desligados e `SCHEMA_MIGRATION_ENABLED=false` enquanto o gate de backup/PITR estiver bloqueado.
+1. Suba PostgreSQL e backend com `SCHEMA_MIGRATION_ENABLED=false` enquanto não existir artefato de recuperação verificado.
 2. Confirme `GET /api/v1/health`.
-3. Depois de confirmar o backup manual/PITR, faça um deployment controlado com `SCHEMA_MIGRATION_ENABLED=true` para aplicar `prisma migrate deploy`; valide o resultado e retorne a variável para `false`.
+3. Depois de confirmar backup lógico, backup de volume ou PITR, faça um deployment controlado com `SCHEMA_MIGRATION_ENABLED=true` para aplicar `prisma migrate deploy`; valide o resultado e retorne a variável para `false`.
 4. Crie o administrador por comando one-off usando `ADMIN_USERNAME`, `ADMIN_PASSWORD` e `ADMIN_NAME`; remova esses segredos do ambiente após a criação.
 5. Reconcile/import os dados reais e confira o estado vigente do Centro.
 6. Ative `OPERATIONAL_WRITES_ENABLED=true` com `OPERATIONAL_WRITES_UNITS=centro`.
@@ -55,7 +55,7 @@ O frontend não deve usar fallback de escrita legado quando o modo central estiv
 
 ## Proteção de dados
 
-O runbook de recuperação está em `PRODUCTION_RECOVERY.md`. A política automática atual é diária; antes da migração real é obrigatório criar e verificar um backup manual `pre-real-data-cutover`. Nenhuma restauração destrutiva deve ser feita no banco de produção apenas para teste.
+O runbook de recuperação está em `PRODUCTION_RECOVERY.md`. No plano atual não há backup automático Railway nem PITR confirmados. Para a migração atual existe um backup lógico `pg_dump` confirmado; ele deve ser validado com `pg_restore --list` e qualquer ensaio de restauração deve ocorrer primeiro em PostgreSQL 18 separado. Nenhuma restauração destrutiva deve ser feita no banco de produção apenas para teste.
 
 
 ## Cookie de sessão entre frontend e backend

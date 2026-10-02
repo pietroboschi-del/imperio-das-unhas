@@ -40,16 +40,16 @@ ok(release.validatedWorkflow?.runId===36866440047&&release.validatedWorkflow?.co
 ok(release.deploymentRefPolicy==='exact_commit_sha_only'&&release.mainMutationAllowed===false,'deploy exige SHA exato sem alterar main');
 ok(JSON.stringify(release.rollout?.firstFortnight?.operationalWriteUnits)===JSON.stringify(['centro']),'primeira quinzena libera escrita somente no Centro');
 ok(new Set(release.rollout?.firstFortnight?.blockedWriteUnits||[]).size===2&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('big')&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('shopping-contagem'),'Big e Shopping Contagem permanecem bloqueados para escrita');
-ok(release.infrastructure?.backupRollback?.dailyVolumeBackupConfigured===true,'release registra backup diário de volume');
-ok(release.infrastructure?.backupRollback?.migrationGate==='BLOCKED_UNTIL_MANUAL_BACKUP_OR_PITR_CONFIRMED','migração real fica bloqueada sem snapshot/PITR confirmado');
-ok(release.infrastructure?.backupRollback?.schemaMigrationGate?.defaultEnabled===false&&release.infrastructure?.backupRollback?.schemaMigrationGate?.activationRequires==='MANUAL_BACKUP_OR_PITR_CONFIRMED','schema migration permanece bloqueada até proteção de restore confirmada');
+ok(release.infrastructure?.backupRollback?.dailyVolumeBackupConfigured===false&&release.infrastructure?.backupRollback?.logicalBackupConfirmed===true,'release registra ausência de backup Railway e backup lógico confirmado');
+ok(release.infrastructure?.backupRollback?.migrationGate==='PROTECTED_BY_CONFIRMED_LOGICAL_BACKUP_2026_10_02','migração atual está protegida pelo dump lógico confirmado');
+ok(release.infrastructure?.backupRollback?.schemaMigrationGate?.defaultEnabled===false&&release.infrastructure?.backupRollback?.schemaMigrationGate?.activationRequires==='CONFIRMED_LOGICAL_BACKUP_OR_MANUAL_VOLUME_BACKUP_OR_PITR','schema migration exige proteção de restore confirmada');
 ok(deployment.includes('SCHEMA_MIGRATION_ENABLED=false')&&deployment.includes('SCHEMA_MIGRATION_ENABLED=true'),'runbook define ativação controlada e retorno do gate de schema');
-ok(rollback.includes('Nunca execute restauração in-place')&&rollback.includes('PITR restaura em um novo serviço irmão'),'runbook privilegia rollback não destrutivo');
-ok(rollback.includes('pre-migration-official-2026-10-01'),'runbook define snapshot manual pré-migração');
+ok(rollback.includes('NUNCA restaure o dump diretamente')&&rollback.includes('PostgreSQL 18 separado'),'runbook privilegia rollback não destrutivo em banco separado');
+ok(rollback.includes('imperio-postgres-2026-10-02T20-06-42-410Z.dump')&&rollback.includes('pg_restore --list'),'runbook registra dump confirmado e validação de integridade');
 ok(release.recovery?.postgresService==='Postgres'&&release.recovery?.volume==='postgres-volume','release fixa PostgreSQL e volume de produção');
-ok(JSON.stringify(release.recovery?.automaticBackupSchedule)===JSON.stringify(['DAILY'])&&release.recovery?.dailyRetentionDays===6,'release registra política automática diária e retenção');
-ok(release.recovery?.preMigration?.manualBackupRequired===true&&release.recovery?.preMigration?.verifyBackupIdBeforeImport===true,'backup manual confirmado é gate da migração real');
+ok(JSON.stringify(release.recovery?.automaticBackupSchedule)===JSON.stringify([])&&release.recovery?.dailyRetentionDays===0,'release não inventa política automática inexistente');
+ok(release.recovery?.preMigration?.logicalBackupRequired===true&&release.recovery?.preMigration?.verifyBackupFileBeforeImport===true,'backup lógico validável é gate da migração real');
 ok(release.recovery?.rollback?.destructiveRestoreDuringPreparation===false&&release.recovery?.rollback?.restoreRehearsalRequiredBeforeOperationalCutover===true,'restore destrutivo não é usado como teste no banco real');
-ok(recovery.includes('pre-real-data-cutover')&&recovery.includes('NÃO iniciar importação de dados reais'),'runbook exige snapshot verificável antes do import');
+ok(recovery.includes('pg_restore --list')&&recovery.includes('NÃO iniciar promoção/importação real'),'runbook exige dump verificável antes do import');
 
 console.log(JSON.stringify({ok:true,tests,feature:'v99_deployment_cutover_contract'}));
