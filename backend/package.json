@@ -19,7 +19,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:contracts": "node test/v95-contract.test.mjs && node test/v96-shadow-contract.test.mjs && node test/v97-read-through-contract.test.mjs && node test/v99-frontend-cutover.contract.mjs",
     "test:reconciliation": "node test/v98a-reconciliation.test.mjs",
-    "test:integration": "node test/v98a-postgres.integration.mjs",
+    "test:integration": "node test/v98a-postgres.integration.mjs && node --experimental-strip-types test/v99-canonical-units.integration.mjs",
     "test:import-contract": "node test/v98a-import-integrity.contract.mjs",
     "cutover:project": "node tools/project-cutover-state.mjs",
     "test:cutover": "node test/v98a-cutover-projection.test.mjs",

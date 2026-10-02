@@ -6,9 +6,13 @@ import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
+import { PrismaService } from './prisma/prisma.service';
+import { ensureCanonicalUnits } from './core/canonical-units';
 
 async function bootstrap(){
   const app=await NestFactory.create(AppModule,{cors:false});
+  const canonicalUnits=await ensureCanonicalUnits(app.get(PrismaService));
+  console.log('canonical units reconciled '+JSON.stringify(canonicalUnits));
   app.use(helmet({contentSecurityPolicy:false}));
   const bodyLimit=String(process.env.JSON_BODY_LIMIT||'20mb');
   app.use(json({limit:bodyLimit}));
