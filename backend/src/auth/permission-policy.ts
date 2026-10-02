@@ -2,7 +2,7 @@ export const BACKEND_PERMISSIONS = [
   'units.read',
   'catalog.read','catalog.manage',
   'professionals.read','professionals.manage','professionals.compensation.manage',
-  'clients.read','clients.manage',
+  'clients.read','clients.manage','clients.duplicates.review',
   'agenda.read','agenda.manage',
   'cash.read','cash.open','cash.adjust','cash.close','cash.reopen',
   'finance.read','finance.manage','finance.receivables.settle',

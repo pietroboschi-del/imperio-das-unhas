@@ -368,6 +368,25 @@ model MigrationEntity {
 }
 
 
+
+model ClientDuplicateReview {
+  id                   String   @id @default(cuid())
+  batchId              String
+  clusterId            String
+  reportHash           String
+  decision             String
+  mergeTargetClusterId String?
+  note                 String?
+  reviewedByUserId     String
+  reviewedAt           DateTime @default(now())
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([batchId, clusterId])
+  @@index([batchId, decision])
+  @@index([reviewedByUserId, reviewedAt])
+}
+
 model OpenCommand {
   id                  String   @id
   unitId              String

@@ -1,0 +1,25 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+const schema=fs.readFileSync(new URL('../prisma/schema.prisma',import.meta.url),'utf8');
+const policy=fs.readFileSync(new URL('../src/auth/permission-policy.ts',import.meta.url),'utf8');
+const controller=fs.readFileSync(new URL('../src/migration/client-duplicate-review.controller.ts',import.meta.url),'utf8');
+const service=fs.readFileSync(new URL('../src/migration/client-duplicate-review.service.ts',import.meta.url),'utf8');
+const migration=fs.readFileSync(new URL('../prisma/migrations/20261002_v99_client_duplicate_review/migration.sql',import.meta.url),'utf8');
+
+ok(schema.includes('model ClientDuplicateReview'),'schema persiste decisões de revisão');
+ok(schema.includes('@@unique([batchId, clusterId])'),'uma decisão vigente por cluster/batch');
+ok(policy.includes("'clients.duplicates.review'"),'permissão específica existe');
+ok(!policy.match(/OWNER_ONLY_PERMISSIONS[^\n]*clients\.duplicates\.review/),'permissão pode ser delegada à funcionária sem networkAdmin');
+ok(controller.includes("@RequirePermissions('clients.duplicates.review')"),'fila exige permissão dedicada');
+ok(controller.includes("@Get(':batchId')")&&controller.includes("@Post(':batchId/:clusterId')"),'fila e decisão possuem endpoints');
+ok(service.includes("clientBatches.report(id)"),'fila usa o relatório persistido como fonte de verdade');
+ok(service.includes("x.action==='REVIEW_REQUIRED'"),'somente casos de review entram na fila');
+ok(service.includes("saved.reportHash===report.reportHash"),'decisão antiga fica stale quando relatório muda');
+ok(service.includes("c.candidateClusterIds||[]"),'MERGE usa candidatos relacionados do relatório');
+ok(service.includes("Mesclagem permitida somente com candidato relacionado"),'merge arbitrário é bloqueado');
+ok(service.includes("CLIENT_DUPLICATE_REVIEW_DECISION"),'toda decisão gera auditoria');
+ok(service.includes("clientRowsMutated:false")&&!service.includes('.client.update(')&&!service.includes('.client.create(')&&!service.includes('.client.delete'),'revisão não altera clientes');
+ok(migration.includes('CREATE TABLE "ClientDuplicateReview"'),'migration cria tabela');
+ok(migration.includes('ClientDuplicateReview_batchId_clusterId_key'),'migration protege unicidade');
+console.log(JSON.stringify({ok:true,tests,feature:'client_duplicate_review_queue'}));
