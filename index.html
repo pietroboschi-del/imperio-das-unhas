@@ -6968,6 +6968,11 @@ button,.btn,input,select,textarea{touch-action:manipulation}
 @media(max-width:950px){.v99mig-grid{grid-template-columns:1fr}.v99mig-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:560px){.v99mig-kpis{grid-template-columns:1fr 1fr}.v99mig-actions .btn{width:100%}}
 </style>
+<style>
+/* ===== V99 · CLIENT DUPLICATE REVIEW UI ===== */
+.v99dup-shell{max-width:1180px;margin:0 auto}.v99dup-toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin:12px 0}.v99dup-toolbar .field{min-width:220px;flex:1}.v99dup-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:12px 0}.v99dup-kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}.v99dup-kpi span{display:block;font-size:10px;color:var(--muted);margin-bottom:4px}.v99dup-kpi b{font-size:20px}.v99dup-filterbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:12px 0}.v99dup-filterbar button.active{background:#f1eaf3;color:var(--brand);border-color:#dac4df}.v99dup-search{min-width:240px;flex:1}.v99dup-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(47,23,59,.04)}.v99dup-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.v99dup-head .spacer{flex:1}.v99dup-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px}.v99dup-side{border:1px solid var(--line);border-radius:13px;padding:13px;background:#fcfbfc}.v99dup-side h3{margin:0 0 10px;font-size:14px}.v99dup-row{display:grid;grid-template-columns:105px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid #eee9f0;font-size:11px}.v99dup-row:last-child{border-bottom:0}.v99dup-row span{color:var(--muted)}.v99dup-row b{word-break:break-word}.v99dup-different{background:#fff5dd;margin:0 -7px;padding:7px;border-radius:8px}.v99dup-conflicts{margin-top:12px;padding:11px;border:1px solid #eadde8;border-radius:12px;background:#fbf8fc;font-size:10px;line-height:1.5}.v99dup-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.v99dup-actions .btn{min-width:145px}.v99dup-note{margin-top:10px}.v99dup-note textarea{width:100%;min-height:64px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px}.v99dup-status{padding:11px;border:1px dashed #d9cedd;border-radius:11px;background:#fcfafc;font-size:10px;margin:10px 0}.v99dup-status.good{background:#f3fbf6;border-color:#bfe0cc;color:#287a52}.v99dup-status.bad{background:#fff7f7;border-color:#efcaca;color:#9b3b3b}.v99dup-muted{font-size:10px;color:var(--muted)}.v99dup-pagination{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px}.v99dup-choice{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px;background:#fff}.v99dup-lock{padding:10px 12px;border:1px solid #ead8df;border-radius:11px;background:#fff8fb;color:#754b5e;font-size:10px;margin:10px 0}
+@media(max-width:760px){.v99dup-compare{grid-template-columns:1fr}.v99dup-progress{grid-template-columns:1fr}.v99dup-actions .btn{width:100%}}
+</style>
 <script>
 /* ===== V97 · READ-THROUGH CONTROLADO ===== */
 (function(){
@@ -7288,14 +7293,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  window.__imperioClientMigrationUI={route:ROUTE,reportRoute:'/api/v1/migrations/v94/clients/batches/:batchId/report',canShow,canRun,renderPage,run,reloadReport,clearResult,getLastResult:()=>lastResult,commitExposed:false,sourceOfTruth:'postgresql_dry_run_staging_only'};
 })();
 
-</script>
 
-<style>
-/* ===== V99 · CLIENT DUPLICATE REVIEW UI ===== */
-.v99dup-shell{max-width:1180px;margin:0 auto}.v99dup-toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin:12px 0}.v99dup-toolbar .field{min-width:220px;flex:1}.v99dup-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:12px 0}.v99dup-kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}.v99dup-kpi span{display:block;font-size:10px;color:var(--muted);margin-bottom:4px}.v99dup-kpi b{font-size:20px}.v99dup-filterbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:12px 0}.v99dup-filterbar button.active{background:#f1eaf3;color:var(--brand);border-color:#dac4df}.v99dup-search{min-width:240px;flex:1}.v99dup-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(47,23,59,.04)}.v99dup-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.v99dup-head .spacer{flex:1}.v99dup-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px}.v99dup-side{border:1px solid var(--line);border-radius:13px;padding:13px;background:#fcfbfc}.v99dup-side h3{margin:0 0 10px;font-size:14px}.v99dup-row{display:grid;grid-template-columns:105px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid #eee9f0;font-size:11px}.v99dup-row:last-child{border-bottom:0}.v99dup-row span{color:var(--muted)}.v99dup-row b{word-break:break-word}.v99dup-different{background:#fff5dd;margin:0 -7px;padding:7px;border-radius:8px}.v99dup-conflicts{margin-top:12px;padding:11px;border:1px solid #eadde8;border-radius:12px;background:#fbf8fc;font-size:10px;line-height:1.5}.v99dup-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.v99dup-actions .btn{min-width:145px}.v99dup-note{margin-top:10px}.v99dup-note textarea{width:100%;min-height:64px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px}.v99dup-status{padding:11px;border:1px dashed #d9cedd;border-radius:11px;background:#fcfafc;font-size:10px;margin:10px 0}.v99dup-status.good{background:#f3fbf6;border-color:#bfe0cc;color:#287a52}.v99dup-status.bad{background:#fff7f7;border-color:#efcaca;color:#9b3b3b}.v99dup-muted{font-size:10px;color:var(--muted)}.v99dup-pagination{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px}.v99dup-choice{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px;background:#fff}.v99dup-lock{padding:10px 12px;border:1px solid #ead8df;border-radius:11px;background:#fff8fb;color:#754b5e;font-size:10px;margin:10px 0}
-@media(max-width:760px){.v99dup-compare{grid-template-columns:1fr}.v99dup-progress{grid-template-columns:1fr}.v99dup-actions .btn{width:100%}}
-</style>
-<script>
 /* ===== V99 · CLIENT DUPLICATE REVIEW UI ===== */
 (function(){
  const PAGE='client-duplicate-reviews',PERMISSION='clients.duplicates.review',PRINCIPAL_KEY='imperio-v99-central-principal',CSRF_KEY='imperio-v96-shadow-csrf';
@@ -7427,5 +7425,8 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  window.__imperioDuplicateReviewUI={page:PAGE,permission:PERMISSION,canUse:canUse,load:load,renderPage:renderPage,clientMutation:false,decisions:['MERGE','KEEP_SEPARATE','REVIEW_LATER']};
 })();
 </script>
+
+
+
 
 </body></html>
