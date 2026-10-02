@@ -18,7 +18,8 @@ ok(js.includes("p.networkAdmin===true")&&js.includes("p.permissions.includes(PER
 ok(js.includes("PAGE='client-duplicate-reviews'"),'rota visual dedicada existe');
 ok(js.includes("Possíveis duplicados"),'entrada aparece dentro de Clientes');
 ok(js.includes("baseClients")&&js.includes("injectClientsButton"),'Clientes recebe atalho sem criar nova área global');
-ok(js.includes("b.onclick=function(){renderPage()}")&&!js.includes("b.onclick=function(){setPage(PAGE)}"),'atalho abre revisão sem passar pelo guard legado de páginas');
+ok(js.includes("b.setAttribute('onclick','v99DupOpenPage()')")&&!js.includes("b.onclick=function(){setPage(PAGE)}"),'atalho abre revisão sem passar pelo guard legado de páginas');
+ok(js.includes("window.v99DupOpenPage=renderPage"),'handler inline persiste mesmo se Clientes reescrever innerHTML');
 ok(js.includes("/api/v1/client-duplicate-reviews/"),'UI usa API de revisão');
 ok(js.includes("method:'POST'"),'decisões são persistidas');
 ok(js.includes("credentials:'include'")&&js.includes("'X-CSRF-Token'"),'decisão usa cookie e CSRF');

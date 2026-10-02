@@ -7407,7 +7407,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  }
  function injectClientsButton(){
   if(!canUse())return;let head=document.querySelector('#adminPage .page-head');if(!head||document.getElementById('v99dupOpen'))return;
-  let b=document.createElement('button');b.id='v99dupOpen';b.className='btn btn-soft';b.textContent='Possíveis duplicados';b.onclick=function(){renderPage()};head.appendChild(b)
+  let b=document.createElement('button');b.id='v99dupOpen';b.className='btn btn-soft';b.textContent='Possíveis duplicados';b.setAttribute('onclick','v99DupOpenPage()');head.appendChild(b)
  }
  const baseClients=window.renderClients||((typeof renderClients==='function')?renderClients:null);
  if(baseClients){let wrapped=function(){let out=baseClients.apply(this,arguments);try{injectClientsButton()}catch(e){}return out};window.renderClients=wrapped;try{renderClients=wrapped}catch(e){}}
