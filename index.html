@@ -4406,7 +4406,7 @@ openReportDrilldown=function(type){if(type==='services_margin'){let s=window.v59
   settings:[['users','Usuários e Acessos'],['communication','Comunicação'],['notifications','Notificações'],['system','Sistema']]
  };
  const ACTIONS=[
-  ['agenda.edit','Agenda · criar/alterar agendamentos'],['clients.edit','Clientes · criar/alterar cadastros'],['pros.edit','Profissionais · alterar cadastro'],['pros.commissions.edit','Profissionais · comissões e remuneração'],['services.edit','Serviços · criar/alterar'],
+  ['agenda.edit','Agenda · criar/alterar agendamentos'],['clients.edit','Clientes · criar/alterar cadastros'],['clients.duplicates.review','Clientes · revisar possíveis duplicados'],['pros.edit','Profissionais · alterar cadastro'],['pros.commissions.edit','Profissionais · comissões e remuneração'],['services.edit','Serviços · criar/alterar'],
   ['cash.open','Caixa · abrir'],['cash.adjust','Caixa · sangria/suprimento/transferência'],['cash.close','Caixa · fechar'],['cash.reopen','Caixa · reabrir'],
   ['finance.entry.create','Financeiro · criar lançamento'],['finance.accounts.edit','Financeiro · alterar contas'],['finance.receivables.settle','Financeiro · baixar Conta Mensal'],
   ['stock.purchase','Estoque · registrar compra'],['stock.request','Estoque · criar solicitação'],['stock.transfer','Estoque · transferir'],['stock.inventory','Estoque · inventário/ajuste'],
@@ -7425,6 +7425,134 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  window.v99DupDecide=decide;
  window.__imperioDuplicateReviewUI={page:PAGE,permission:PERMISSION,canUse:canUse,load:load,renderPage:renderPage,clientMutation:false,decisions:['MERGE','KEEP_SEPARATE','REVIEW_LATER']};
 })();
+
+/* ===== V99 · CENTRAL USER ACCESS SYNC ===== */
+(function(){
+ const PRINCIPAL_KEY='imperio-v99-central-principal',CSRF_KEY='imperio-v96-shadow-csrf';
+ const UNIT_MAP=Object.freeze({u1:'big',u2:'shopping-contagem',u3:'centro',big:'big','shopping-contagem':'shopping-contagem',centro:'centro'});
+ const ALL_CENTRAL_UNITS=['big','shopping-contagem','centro'];
+ const LOCAL_TO_BACKEND=Object.freeze({
+  'page.agenda':'agenda.read','action.agenda.edit':'agenda.manage',
+  'page.clients':'clients.read','action.clients.edit':'clients.manage','action.clients.duplicates.review':'clients.duplicates.review',
+  'page.pros':'professionals.read','action.pros.edit':'professionals.manage','action.pros.commissions.edit':'professionals.compensation.manage',
+  'page.services':'catalog.read','action.services.edit':'catalog.manage',
+  'page.cash':'cash.read','action.cash.open':'cash.open','action.cash.adjust':'cash.adjust','action.cash.close':'cash.close','action.cash.reopen':'cash.reopen',
+  'page.finance':'finance.read','action.finance.entry.create':'finance.manage','action.finance.accounts.edit':'finance.manage','action.finance.receivables.settle':'finance.receivables.settle',
+  'page.stock':'stock.read','action.stock.purchase':'stock.manage','action.stock.request':'stock.manage','action.stock.transfer':'stock.manage','action.stock.inventory':'stock.manage',
+  'page.reports':'reports.read',
+  'page.actions':'tasks.read','action.tasks.create':'tasks.manage','action.tasks.complete':'tasks.manage'
+ });
+ function production(){try{let h=String(location?.hostname||'').toLowerCase();return !!h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'}catch(e){return false}}
+ function principal(){try{return JSON.parse(sessionStorage.getItem(PRINCIPAL_KEY)||'null')}catch(e){return null}}
+ function networkAdmin(){return principal()?.networkAdmin===true}
+ function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
+ function csrf(){try{return sessionStorage.getItem(CSRF_KEY)||''}catch(e){return ''}}
+ function centralError(data,status){let m=Array.isArray(data?.message)?data.message.join(' · '):(data?.message||('HTTP '+status));return new Error(String(m))}
+ async function request(path,opt={}){
+  let hasBody=opt.body!==undefined,headers={Accept:'application/json',...(hasBody?{'Content-Type':'application/json'}:{})},token=csrf();
+  if(token)headers['X-CSRF-Token']=token;
+  let res=await fetch(endpoint()+path,{credentials:'include',method:opt.method||'GET',headers,body:hasBody?JSON.stringify(opt.body):undefined});
+  let txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}
+  if(!res.ok)throw centralError(data,res.status);return data
+ }
+ function localUser(userId,username){
+  let rows=db.userAccounts||[];return userId?rows.find(x=>x.id===userId):rows.find(x=>String(x.username||'').trim().toLowerCase()===String(username||'').trim().toLowerCase())
+ }
+ function selectedLocalPermissions(){
+  let out={};document.querySelectorAll?.('.v67-perm-check')?.forEach(el=>{let k=el.dataset?.key;if(k)out[k]=!!el.checked});return out
+ }
+ function selectedUnits(role){
+  let all=role==='admin'||!!document.getElementById('v63UserAllUnits')?.checked;
+  if(all)return ALL_CENTRAL_UNITS.slice();
+  return [...(document.querySelectorAll?.('.v63-user-unit:checked')||[])].map(x=>UNIT_MAP[x.value]||x.value).filter(x=>ALL_CENTRAL_UNITS.includes(x))
+ }
+ function backendPermissions(localMap){
+  let out=new Set();for(const [localKey,backendKey] of Object.entries(LOCAL_TO_BACKEND))if(localMap[localKey])out.add(backendKey);return [...out].sort()
+ }
+ function splitPermissions(localMap){
+  let all=backendPermissions(localMap),global=['units.read'];
+  if(all.includes('clients.duplicates.review'))global.push('clients.duplicates.review');
+  let unit=all.filter(x=>x!=='clients.duplicates.review'&&x!=='units.read');
+  return {global:[...new Set(global)].sort(),unit:[...new Set(unit)].sort()}
+ }
+ function capture(userId=''){
+  let role=document.getElementById('v63UserRole')?.value||'reception',username=document.getElementById('v63UserLogin')?.value.trim()||'',displayName=document.getElementById('v63UserName')?.value.trim()||'',password=document.getElementById('v63UserPassword')?.value||'',active=!!document.getElementById('v63UserActive')?.checked,localMap=selectedLocalPermissions(),units=selectedUnits(role),perm=splitPermissions(localMap),local=localUser(userId,username);
+  return {userId,role,username,displayName,password,active,localMap,units,perm,local,centralUserId:local?.centralUserId||''}
+ }
+ function validate(x){
+  if(!x.username||!x.displayName)throw new Error('Informe nome e login');
+  if(!x.units.length)throw new Error('Selecione pelo menos uma unidade');
+  if(!x.userId&&x.password.length<12)throw new Error('Para usuário central novo, a senha deve ter no mínimo 12 caracteres');
+  if(x.userId&&x.password&&x.password.length<12)throw new Error('A nova senha deve ter no mínimo 12 caracteres');
+ }
+ async function resolveCentral(x){
+  let list=await request('/api/v1/admin/users');
+  if(x.centralUserId){let row=list.find(v=>v.id===x.centralUserId);if(row)return row}
+  let exact=list.find(v=>String(v.username||'').toLowerCase()===x.username.toLowerCase());
+  return exact||null
+ }
+ function payload(x){
+  let systemRole=x.role==='manager'||x.role==='admin'?'ADMINISTRATIVE':'OPERATOR';
+  return {username:x.username,displayName:x.displayName,active:x.active,systemRole,permissions:x.perm.global,units:x.units.map(unitId=>({unitId,role:x.role||'operator',permissions:x.perm.unit}))}
+ }
+ async function setCredential(centralUser,x,isNew){
+  if(isNew){
+   let invite=await request('/api/v1/auth/users/'+encodeURIComponent(centralUser.id)+'/activation-token',{method:'POST',body:{}});
+   await request('/api/v1/auth/activate',{method:'POST',body:{token:invite.token,newPassword:x.password}});
+  }else if(x.password){
+   let reset=await request('/api/v1/auth/users/'+encodeURIComponent(centralUser.id)+'/reset-token',{method:'POST',body:{}});
+   await request('/api/v1/auth/reset',{method:'POST',body:{token:reset.token,newPassword:x.password}});
+  }
+ }
+ async function syncCentral(x){
+  if(!networkAdmin())throw new Error('Somente o administrador de rede pode criar ou alterar usuários centrais');
+  let existing=await resolveCentral(x),p=payload(x),central,isNew=!existing;
+  if(existing?.networkAdmin)throw new Error('A conta do dono central é protegida e não pode ser alterada por esta tela');
+  if(isNew){
+   central=await request('/api/v1/admin/users',{method:'POST',body:p});
+   await setCredential(central,x,true);
+  }else{
+   central=await request('/api/v1/admin/users/'+encodeURIComponent(existing.id)+'/access',{method:'PATCH',body:p});
+   await setCredential({...existing,...central},x,false);
+  }
+  return {central,isNew}
+ }
+ function randomLocalSecret(){try{return 'central_only_'+crypto.randomUUID()}catch(e){return 'central_only_'+Date.now()+'_'+Math.random().toString(36).slice(2)}}
+ function decorateUserModal(){
+  let pass=document.getElementById('v63UserPassword');if(pass){pass.minLength=12;pass.placeholder=window.__v67EditingUserId?'Deixe em branco para manter · mínimo 12 se alterar':'Mínimo 12 caracteres';}
+  let body=document.querySelector?.('#modalHost .modal-body');if(body&&!document.getElementById('v99CentralUserNote')){
+   let note=document.createElement('div');note.id='v99CentralUserNote';note.className='v63-note';note.style.marginTop='12px';note.innerHTML='<b>Usuário central:</b> em produção, salvar sincroniza este cadastro com PostgreSQL. A senha é enviada somente ao backend para hash e não fica gravada em texto neste navegador. Para liberar duplicidades, use Personalizado e marque <b>Clientes · revisar possíveis duplicados</b>.';
+   body.appendChild(note)
+  }
+ }
+ const baseOpen=window.v63OpenUser;
+ if(typeof baseOpen==='function'){
+  window.v63OpenUser=function(userId=''){let out=baseOpen.apply(this,arguments);setTimeout(decorateUserModal,0);return out};
+ }
+ const baseSave=window.v63SaveUser;
+ if(typeof baseSave==='function'){
+  window.v63SaveUser=async function(userId=''){
+   if(!production())return baseSave.apply(this,arguments);
+   let x;
+   try{x=capture(userId);validate(x)}catch(e){toast('Usuário não salvo: '+e.message);return false}
+   let pass=document.getElementById('v63UserPassword');
+   try{
+    let synced=await syncCentral(x);
+    if(pass)pass.value=randomLocalSecret();
+    let localResult=baseSave.apply(this,arguments);
+    if(localResult===false)throw new Error('O cadastro local recusou a operação após a sincronização central');
+    let local=localUser(userId,x.username);
+    if(local){local.centralUserId=synced.central.id;local.centralSyncedAt=new Date().toISOString();local.centralSyncStatus='synced';local.password=randomLocalSecret();save({render:false});try{renderSettings()}catch(e){}}
+    toast('Usuário salvo no backend central ✓');return true
+   }catch(e){
+    if(pass)pass.value=x.password;
+    toast('Usuário não salvo no backend central: '+(e?.message||e));return false
+   }
+  };
+ }
+ window.__imperioCentralUserAccess={production,networkAdmin,backendPermissions,splitPermissions,syncCentral,decorateUserModal};
+})();
+
 </script>
 
 

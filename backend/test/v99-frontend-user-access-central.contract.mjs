@@ -1,0 +1,25 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const repoRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+const html=fs.readFileSync(path.join(repoRoot,'index.html'),'utf8');
+let tests=0;const ok=(v,m)=>{tests++;if(!v)throw new Error(m)};
+ok(html.includes("['clients.duplicates.review','Clientes · revisar possíveis duplicados']"),'permissão aparece no editor local');
+ok(html.includes('/* ===== V99 · CENTRAL USER ACCESS SYNC ===== */'),'ponte de usuários central existe');
+const start=html.indexOf('/* ===== V99 · CENTRAL USER ACCESS SYNC ===== */');
+const end=html.indexOf('</script>',start);
+const js=html.slice(start,end);
+new Function(js);tests++;
+ok(js.includes("'/api/v1/admin/users'"),'lista/criação usa backend central');
+ok(js.includes("'/access'"),'edição central usa endpoint de acesso');
+ok(js.includes("'/activation-token'")&&js.includes("'/api/v1/auth/activate'"),'novo usuário usa ativação segura');
+ok(js.includes("'/reset-token'")&&js.includes("'/api/v1/auth/reset'"),'troca de senha usa reset seguro');
+ok(js.includes("'action.clients.duplicates.review':'clients.duplicates.review'"),'permissão local mapeia para permissão backend');
+ok(js.includes("global=['units.read']")&&js.includes("global.push('clients.duplicates.review')"),'revisão de duplicidades é global sem elevar para networkAdmin');
+ok(js.includes("x.password.length<12"),'senha central exige mínimo de 12');
+ok(js.includes("local.password=randomLocalSecret()"),'senha real não fica persistida localmente após sincronização');
+ok(!js.includes('local.password=x.password'),'senha real nunca é copiada ao cadastro local');
+ok(js.includes("existing?.networkAdmin"),'conta do dono central é protegida');
+ok(js.includes("Somente o administrador de rede"),'gestão central exige networkAdmin');
+console.log(JSON.stringify({ok:true,tests,feature:'central_user_access_settings'}));

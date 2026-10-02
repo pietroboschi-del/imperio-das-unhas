@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { sanitizeAssignablePermissions } from '../auth/permission-policy';
 
 export type UserUnitInput={unitId:string;role:string;permissions?:unknown};
-export type UserAccessInput={displayName?:string;active?:boolean;systemRole?:'ADMINISTRATIVE'|'OPERATOR';permissions?:unknown;units?:UserUnitInput[]};
+export type UserAccessInput={username?:string;displayName?:string;active?:boolean;systemRole?:'ADMINISTRATIVE'|'OPERATOR';permissions?:unknown;units?:UserUnitInput[]};
 
 @Injectable()
 export class UserAdminService{
@@ -36,11 +36,16 @@ export class UserAdminService{
 
   async updateAccess(userId:string,input:UserAccessInput){
     const current=await this.prisma.user.findUnique({where:{id:userId}});if(!current)throw new NotFoundException('Usuário não encontrado');
+    const username=input.username?.trim();
+    if(username&&username!==current.username){
+      const taken=await this.prisma.user.findUnique({where:{username}});
+      if(taken&&taken.id!==userId)throw new ConflictException('Usuário já existe com este login');
+    }
     if(current.networkAdmin)throw new ConflictException('Conta do dono não pode ser alterada por este endpoint');
     const units=input.units||[];if(input.units)await this.validateUnits(units);
     const permissions=input.permissions===undefined?undefined:sanitizeAssignablePermissions(input.permissions);
     return this.prisma.$transaction(async tx=>{
-      const user=await tx.user.update({where:{id:userId},data:{displayName:input.displayName?.trim()||undefined,active:input.active,systemRole:input.systemRole as SystemRole|undefined,permissions:permissions===undefined?undefined:permissions as Prisma.InputJsonValue,version:{increment:1}}});
+      const user=await tx.user.update({where:{id:userId},data:{username:username||undefined,displayName:input.displayName?.trim()||undefined,active:input.active,systemRole:input.systemRole as SystemRole|undefined,permissions:permissions===undefined?undefined:permissions as Prisma.InputJsonValue,version:{increment:1}}});
       if(input.units){
         await tx.userUnitAccess.deleteMany({where:{userId}});
         if(units.length)await tx.userUnitAccess.createMany({data:units.map(x=>({userId,unitId:String(x.unitId),role:String(x.role||'operator'),permissions:sanitizeAssignablePermissions(x.permissions) as Prisma.InputJsonValue,active:true}))});

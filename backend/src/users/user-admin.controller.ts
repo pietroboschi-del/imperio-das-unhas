@@ -18,6 +18,7 @@ class CreateUserDto{
   @IsOptional() @IsArray() @ValidateNested({each:true}) @Type(()=>UnitAccessDto) units?:UnitAccessDto[];
 }
 class UpdateUserAccessDto{
+  @IsOptional() @IsString() @MinLength(2) username?:string;
   @IsOptional() @IsString() @MinLength(2) displayName?:string;
   @IsOptional() @IsBoolean() active?:boolean;
   @IsOptional() @IsIn(['ADMINISTRATIVE','OPERATOR']) systemRole?:'ADMINISTRATIVE'|'OPERATOR';

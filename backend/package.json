@@ -35,7 +35,7 @@
     "test:operational-writes": "node test/v99-operational-writes.integration.mjs && node test/v99-centro-cutover.integration.mjs",
     "test:finance-flow": "node test/v99-finance-flow.integration.mjs",
     "test:public-booking": "node test/v99-public-booking.integration.mjs",
-    "test:frontend-central-bridge": "node test/v99-frontend-central-bridge.contract.mjs",
+    "test:frontend-central-bridge": "node test/v99-frontend-central-bridge.contract.mjs && node test/v99-frontend-user-access-central.contract.mjs",
     "start:prod": "node dist/main.js",
     "test:deployment-cutover": "node test/v99-deployment-cutover.contract.mjs",
     "test:client-batches": "node --experimental-strip-types test/v99-client-batches.contract.mjs && node test/v99-client-duplicate-review.contract.mjs",
