@@ -7052,10 +7052,47 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function centralClientPayload(){
   return {name:cfName.value.trim(),phone:cfPhone.value.trim(),email:cfEmail.value.trim()||undefined,cpf:digits(cfCpf.value)||undefined,birthDate:cfBirth.value||undefined,cep:cfCep.value.trim()||undefined,neighborhood:cfNeighborhood.value.trim()||undefined,city:cfCity.value.trim()||undefined,profession:cfProfession.value.trim()||undefined,source:cfSource.value||undefined,notes:cfNotes.value.trim()||undefined}
  }
+ function centralGlobalPermission(permission){
+  let p=centralPrincipal();if(!p)return false;if(p.networkAdmin===true)return true;
+  let values=Array.isArray(p.permissions)?p.permissions:Object.entries(p.permissions||{}).filter(([,v])=>v===true).map(([k])=>k);
+  return values.includes(permission)||values.includes('*')
+ }
+ function centralConfigAvailable(permission){return centralAuthenticated()&&centralGlobalPermission(permission)}
+ function centralUnitRef(id){return UNIT_TO_CENTRAL[id]||id}
+ function localUnitRef(id){return UNIT_TO_LOCAL[id]||id}
+ function centralServicePayload(id=''){
+  let proRules={};document.querySelectorAll('.service-pro-row').forEach(row=>{let pid=row.dataset.pro;proRules[pid]={enabled:!!row.querySelector('.spr-enabled')?.checked,duration:row.querySelector('.spr-duration')?.value===''?null:Number(row.querySelector('.spr-duration')?.value),commission:row.querySelector('.spr-commission')?.value===''?null:Number(row.querySelector('.spr-commission')?.value),price:row.querySelector('.spr-price')?.value===''?null:Number(row.querySelector('.spr-price')?.value),online:!!row.querySelector('.spr-online')?.checked}});
+  let categoryId=sfCat.value,category=db.categories.find(c=>c.id===categoryId);
+  return {id:id||('s'+Date.now()),name:sfName.value.trim(),categoryId,categoryName:category?.name||categoryId,price:Number(sfPrice.value),durationMin:Number(sfDur.value),active:sfActive.value==='1',config:{publicName:sfPublicName.value.trim(),clientArea:sfClientArea.value||'none',mustFinishBeforeSameArea:!!sfLeadSameArea.checked,description:sfDesc.value.trim(),publicDescription:sfPublicDesc.value.trim(),generatesReturn:!!sfReturn.checked,returnDays:sfReturn.checked?(Number(sfReturnDays.value)||null):null,show:!!sfShow.checked,online:!!sfOnline.checked,showPrice:!!sfShowPrice.checked,priceMode:sfPriceMode.value,websiteOrder:Number(sfOrder.value)||0,coverImage:window.serviceDraftCover||'',gallery:[...(window.serviceDraftGallery||[])],proRules}}
+ }
+ function centralProfessionalPayload(id=''){
+  let pid=id||window.proDraftId||('p'+Date.now()),unitIds=[...document.querySelectorAll('.pfUnit:checked')].map(x=>centralUnitRef(x.value)),schedule={},serviceRules={};
+  document.querySelectorAll('.schedule-row').forEach(r=>{let unit=centralUnitRef(r.dataset.unit);if(!unitIds.includes(unit))return;schedule[unit+'-'+r.dataset.day]={work:!!r.querySelector('.pfs-work')?.checked,start:r.querySelector('.pfs-start')?.value||'09:00',end:r.querySelector('.pfs-end')?.value||'18:00'}});
+  document.querySelectorAll('.pro-service-row').forEach(row=>{let sid=row.dataset.service;serviceRules[sid]={enabled:!!row.querySelector('.pfr-enabled')?.checked,duration:row.querySelector('.pfr-duration')?.value===''?null:Number(row.querySelector('.pfr-duration')?.value),commission:row.querySelector('.pfr-commission')?.value===''?null:Number(row.querySelector('.pfr-commission')?.value),price:row.querySelector('.pfr-price')?.value===''?null:Number(row.querySelector('.pfr-price')?.value),online:!!row.querySelector('.pfr-online')?.checked}});
+  return {id:pid,name:pfName.value.trim(),publicName:pfPublicName.value.trim()||pfName.value.trim(),active:pfActive.value==='1',unitIds,serviceRules,config:{specialty:pfSpec.value.trim(),agendaColor:pfAgendaColor.value||'',bio:pfBio.value.trim(),show:!!pfShow.checked,online:!!pfOnline.checked,photo:window.proDraftPhoto||'',cpf:pfCpf.value.trim(),birthDate:pfBirth.value,phone:pfPhone.value.trim(),email:pfEmail.value.trim(),notes:pfNotes.value.trim(),hasCompany:!!pfHasCompany.checked,cnpj:pfHasCompany.checked?pfCnpj.value.trim():'',legalName:pfHasCompany.checked?pfLegalName.value.trim():'',tradeName:pfHasCompany.checked?pfTradeName.value.trim():'',contractEndDate:pfHasCompany.checked?pfContractEnd.value:'',bank:pfBank.value.trim(),agency:pfAgency.value.trim(),account:pfAccount.value.trim(),accountType:pfAccountType.value,accountHolder:pfHolder.value.trim(),pixType:pfPixType.value,pixKey:pfPixKey.value.trim(),schedule}}
+ }
+ function applyCentralServices(rows){
+  for(const x of rows||[]){if(x.category&&!db.categories.some(c=>c.id===x.category.id))db.categories.push({id:x.category.id,name:x.category.name,active:x.category.active!==false});}
+  db.services=(rows||[]).map(x=>normalizeService(Object.assign({id:x.id,name:x.name,category:x.categoryId||'',price:Number(x.price||0),duration:Number(x.durationMin||30),active:x.active!==false,central:true},x.config||{})));
+ }
+ function applyCentralProfessionals(rows){
+  db.pros=(rows||[]).filter(Boolean).map(x=>{let c=x.config||{},schedule={};for(const [k,v] of Object.entries(c.schedule||{})){let m=String(k).match(/^(.*)-(\d)$/);if(m)schedule[localUnitRef(m[1])+'-'+m[2]]=v}let services=Object.entries(x.serviceRules||{}).filter(([,v])=>v&&v.enabled===true).map(([sid])=>sid);let p=normalizeProfessional(Object.assign({},c,{id:x.id,name:x.name,publicName:x.publicName||x.name,active:x.active!==false,units:(x.unitIds||[]).map(localUnitRef),schedule,services,central:true}));for(const [sid,r] of Object.entries(x.serviceRules||{})){let s=db.services.find(v=>v.id===sid);if(s){s.proRules=s.proRules||{};s.proRules[x.id]=r}}return p});
+ }
+ async function refreshCentralServiceConfig(){let rows=await centralApi.configServices();applyCentralServices(rows);return rows}
+ async function refreshCentralProfessionalConfig(){let [services,pros]=await Promise.all([centralApi.configServices(),centralApi.configProfessionals()]);applyCentralServices(services);applyCentralProfessionals(pros);return pros}
+ 
  const centralApi=Object.freeze({
   status(){return {enabled:centralEnabled(),unitId:centralUnitId(),localUnitId:centralLocalUnitId(),endpoint:endpoint(),scope:'controlled_three_unit_rollout',operationalWriteUnits:centralWriteUnits(),sourceOfTruth:centralEnabled()?'postgresql_central':'blocked_or_legacy_local',financeMode:'postgresql_central'}},
   enable(){return setCentralEnabled(true)},disable(){return setCentralEnabled(false)},
   units(){return centralRequest('/api/v1/units')},services(){return centralRequest('/api/v1/services')},professionals(){return centralRequest('/api/v1/professionals')},
+  configServices(){return centralRequest('/api/v1/config/services')},
+  createConfigService(body){return centralRequest('/api/v1/config/services',{method:'POST',body})},
+  updateConfigService(id,body){return centralRequest('/api/v1/config/services/'+encodeURIComponent(id),{method:'PATCH',body})},
+  setConfigServiceActive(id,active){return centralRequest('/api/v1/config/services/'+encodeURIComponent(id)+'/active',{method:'PATCH',body:{active}})},
+  configProfessionals(){return centralRequest('/api/v1/config/professionals')},
+  createConfigProfessional(body){return centralRequest('/api/v1/config/professionals',{method:'POST',body})},
+  updateConfigProfessional(id,body){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id),{method:'PATCH',body})},
+  setConfigProfessionalActive(id,active){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id)+'/active',{method:'PATCH',body:{active}})},
   clients(q=''){return centralRequest('/api/v1/clients'+(q?'?q='+encodeURIComponent(q):''))},
   bookings(date=''){return centralRequest('/api/v1/bookings'+(date?'?date='+encodeURIComponent(date):''))},
   createClient(body,key=operationKey('client')){return centralRequest('/api/v1/clients',{method:'POST',body,key})},
@@ -7091,10 +7128,26 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  async function refreshCentralAgenda(date){
   if(!centralEnabled())return false;let uid=centralLocalUnitId(),cid=centralUnitId(),result=await Promise.all([centralApi.bookings(date),centralApi.professionals(),centralApi.services()]);if(!centralEnabled()||centralLocalUnitId()!==uid||centralUnitId()!==cid)return false;let rows=result[0],pros=result[1],services=result[2];
   db.bookings=(db.bookings||[]).filter(b=>!(b.unit===uid&&b.date===date));
-  for(const p of pros||[]){let v=db.pros.find(x=>x.id===p.id);if(!v){v={id:p.id,name:p.name,publicName:p.publicName||p.name,active:true,units:[uid],services:[]};db.pros.push(v)}if(!v.units.includes(uid))v.units.push(uid);v.active=p.active!==false}
-  for(const x of services||[]){let v=db.services.find(y=>y.id===x.id);if(!v){v={id:x.id,name:x.name,active:true,price:Number(x.price||0),duration:Number(x.durationMin||30)};db.services.push(v)}v.name=x.name;v.active=x.active!==false;v.price=Number(x.price||0);v.duration=Number(x.durationMin||30)}
+  db.pros=(pros||[]).map(p=>normalizeProfessional({id:p.id,name:p.name,publicName:p.publicName||p.name,active:p.active!==false,units:[uid],services:[],central:true}));
+  db.services=(services||[]).map(x=>normalizeService({id:x.id,name:x.name,active:x.active!==false,price:Number(x.price||0),duration:Number(x.durationMin||30),central:true}))
   mergeCentralBookings(rows,uid);return true
  }
+ const legacyRenderServices=window.renderServices||((typeof renderServices==='function')?renderServices:null);
+ let centralServicesRefreshing=false;
+ if(legacyRenderServices){let wrapped=function(){let out=legacyRenderServices.apply(this,arguments);if(centralConfigAvailable('catalog.manage')&&!centralServicesRefreshing){centralServicesRefreshing=true;refreshCentralServiceConfig().then(()=>{if(page==='services')legacyRenderServices()}).catch(e=>toast('Catálogo central indisponível: '+e.message)).finally(()=>centralServicesRefreshing=false)}return out};window.renderServices=wrapped;try{renderServices=wrapped}catch(e){}}
+ const legacyRenderPros=window.renderPros||((typeof renderPros==='function')?renderPros:null);
+ let centralProsRefreshing=false;
+ if(legacyRenderPros){let wrapped=function(){let out=legacyRenderPros.apply(this,arguments);if(centralConfigAvailable('professionals.manage')&&!centralProsRefreshing){centralProsRefreshing=true;refreshCentralProfessionalConfig().then(()=>{if(page==='pros')legacyRenderPros()}).catch(e=>toast('Profissionais centrais indisponíveis: '+e.message)).finally(()=>centralProsRefreshing=false)}return out};window.renderPros=wrapped;try{renderPros=wrapped}catch(e){}}
+ const legacySaveService=window.saveService||((typeof saveService==='function')?saveService:null);
+ if(legacySaveService){let wrapped=function(id=''){if(!centralConfigAvailable('catalog.manage'))return legacySaveService.apply(this,arguments);if(!sfName.value.trim()){toast('Informe o nome do serviço');return}if(!sfPrice.value||Number(sfPrice.value)<0){toast('Informe um preço válido');return}if(!sfDur.value||Number(sfDur.value)<=0){toast('Informe a duração do serviço');return}return (async()=>{try{let body=centralServicePayload(id),row=id?await centralApi.updateConfigService(id,body):await centralApi.createConfigService(body);await refreshCentralServiceConfig();closeModal();legacyRenderServices();toast(id?'Serviço atualizado no banco central ✓':'Serviço cadastrado no banco central ✓');return row}catch(e){toast('Serviço não salvo: '+e.message);return false}})()};window.saveService=wrapped;try{saveService=wrapped}catch(e){}}
+ const legacyToggleService=window.toggleService||((typeof toggleService==='function')?toggleService:null);
+ if(legacyToggleService){let wrapped=function(id){if(!centralConfigAvailable('catalog.manage'))return legacyToggleService.apply(this,arguments);return (async()=>{let s=db.services.find(x=>x.id===id);if(!s)return;try{await centralApi.setConfigServiceActive(id,!s.active);await refreshCentralServiceConfig();legacyRenderServices();toast(!s.active?'Serviço ativado':'Serviço desativado')}catch(e){toast('Status do serviço não alterado: '+e.message)}})()};window.toggleService=wrapped;try{toggleService=wrapped}catch(e){}}
+ const legacyDuplicateService=window.duplicateService||((typeof duplicateService==='function')?duplicateService:null);
+ if(legacyDuplicateService){let wrapped=function(id){if(!centralConfigAvailable('catalog.manage'))return legacyDuplicateService.apply(this,arguments);return (async()=>{let s=db.services.find(x=>x.id===id);if(!s)return;try{let body={id:'s'+Date.now(),name:s.name+' - cópia',categoryId:s.category||'',categoryName:db.categories.find(c=>c.id===s.category)?.name||s.category||'',price:Number(s.price||0),durationMin:Number(s.duration||30),active:false,config:{...s,show:false,online:false,proRules:{}}};delete body.config.id;delete body.config.central;await centralApi.createConfigService(body);await refreshCentralServiceConfig();closeModal();legacyRenderServices();toast('Serviço duplicado no banco central como inativo ✓')}catch(e){toast('Serviço não duplicado: '+e.message)}})()};window.duplicateService=wrapped;try{duplicateService=wrapped}catch(e){}}
+ const legacySavePro=window.savePro||((typeof savePro==='function')?savePro:null);
+ if(legacySavePro){let wrapped=function(id=''){if(!centralConfigAvailable('professionals.manage'))return legacySavePro.apply(this,arguments);if(!pfName.value.trim()){toast('Informe o nome completo da profissional');return}let units=[...document.querySelectorAll('.pfUnit:checked')];if(!units.length){toast('Selecione pelo menos uma unidade');return}return (async()=>{try{let body=centralProfessionalPayload(id),row=id?await centralApi.updateConfigProfessional(id,body):await centralApi.createConfigProfessional(body);await refreshCentralProfessionalConfig();closeModal();legacyRenderPros();buildAdminNav();toast(id?'Profissional atualizada no banco central ✓':'Profissional cadastrada no banco central ✓');return row}catch(e){toast('Profissional não salva: '+e.message);return false}})()};window.savePro=wrapped;try{savePro=wrapped}catch(e){}}
+ const legacyTogglePro=window.togglePro||((typeof togglePro==='function')?togglePro:null);
+ if(legacyTogglePro){let wrapped=function(id){if(!centralConfigAvailable('professionals.manage'))return legacyTogglePro.apply(this,arguments);return (async()=>{let p=db.pros.find(x=>x.id===id);if(!p)return;try{await centralApi.setConfigProfessionalActive(id,!p.active);await refreshCentralProfessionalConfig();legacyRenderPros();toast(!p.active?'Profissional ativada':'Profissional desativada')}catch(e){toast('Status da profissional não alterado: '+e.message)}})()};window.togglePro=wrapped;try{togglePro=wrapped}catch(e){}}
  const legacyRenderClients=window.renderClients||((typeof renderClients==='function')?renderClients:null);
  if(legacyRenderClients){let wrapped=function(){let out=legacyRenderClients.apply(this,arguments);if(centralEnabled())refreshCentralClients(document.getElementById('clientSearch')?.value||'').then(()=>{if(typeof renderClientRows==='function')renderClientRows()}).catch(e=>toast('Clientes centrais indisponíveis: '+e.message));return out};window.renderClients=wrapped;try{renderClients=wrapped}catch(e){}}
  const legacyRenderAgenda=window.renderAgenda||((typeof renderAgenda==='function')?renderAgenda:null);

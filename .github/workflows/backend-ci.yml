@@ -88,6 +88,8 @@ jobs:
         run: npm run test:integration
       - name: V98b security integration tests
         run: npm run test:security-integration
+      - name: Central catalog and professional configuration
+        run: npm run test:catalog-config
       - name: Multi-unit operational write tests
         run: npm run test:operational-writes
       - name: Multi-unit cash command payment flow

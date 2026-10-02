@@ -3,5 +3,6 @@ import { CoreReadController } from './core-read.controller';
 import { CoreWriteController } from './core-write.controller';
 import { FinanceWriteController } from './finance-write.controller';
 import { PublicBookingController } from './public-booking.controller';
-@Module({controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController]})
+import { CatalogConfigController } from './catalog-config.controller';
+@Module({controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController]})
 export class CoreModule {}
