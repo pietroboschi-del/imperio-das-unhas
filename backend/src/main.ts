@@ -9,11 +9,22 @@ import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 import { ensureCanonicalUnits } from './core/canonical-units';
 import { ClientBatchService } from './migration/client-batch.service';
+import { operationalWriteStatus } from './common/operational-write-gate';
 
 async function bootstrap(){
   const app=await NestFactory.create(AppModule,{cors:false});
   const canonicalUnits=await ensureCanonicalUnits(app.get(PrismaService));
   console.log('canonical units reconciled '+JSON.stringify(canonicalUnits));
+  console.log('operational write gate '+JSON.stringify({
+    global:operationalWriteStatus(),
+    centro:operationalWriteStatus('centro'),
+    big:operationalWriteStatus('big'),
+    shoppingContagem:operationalWriteStatus('shopping-contagem'),
+    migrationImportEnabled:String(process.env.MIGRATION_IMPORT_ENABLED||'false')==='true',
+    clientBatchCommitEnabled:String(process.env.CLIENT_BATCH_COMMIT_ENABLED||'false')==='true',
+    schemaMigrationEnabled:String(process.env.SCHEMA_MIGRATION_ENABLED||'false')==='true',
+    clientBatchFinalizeEnabled:String(process.env.CLIENT_BATCH_FINALIZE_ENABLED||'false')==='true',
+  }));
   const finalizeEnabled=String(process.env.CLIENT_BATCH_FINALIZE_ENABLED||'false')==='true';
   if(finalizeEnabled){
     if(String(process.env.MIGRATION_IMPORT_ENABLED||'false')==='true'||String(process.env.CLIENT_BATCH_COMMIT_ENABLED||'false')==='true')throw new Error('CLIENT_BATCH_FINALIZE_ENABLED exige gates de import/commit fechados');

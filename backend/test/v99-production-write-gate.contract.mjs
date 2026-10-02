@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const main=fs.readFileSync(new URL('../src/main.ts',import.meta.url),'utf8');
+const gate=fs.readFileSync(new URL('../src/common/operational-write-gate.ts',import.meta.url),'utf8');
+let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+ok(main.includes("operationalWriteStatus('centro')"),'startup verifica Centro');
+ok(main.includes("operationalWriteStatus('big')"),'startup verifica Big');
+ok(main.includes("operationalWriteStatus('shopping-contagem')"),'startup verifica Shopping Contagem');
+ok(main.includes("migrationImportEnabled")&&main.includes("clientBatchCommitEnabled")&&main.includes("schemaMigrationEnabled"),'startup registra gates críticos');
+ok(gate.includes("allow.includes(unitId)"),'allowlist restringe escrita por unidade');
+ok(gate.includes("OPERATIONAL_WRITES_ENABLED")&&gate.includes("OPERATIONAL_WRITES_UNITS"),'gate depende das duas variáveis de produção');
+console.log(JSON.stringify({ok:true,tests,feature:'production_operational_write_gate_diagnostic'}));
