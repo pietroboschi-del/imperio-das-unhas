@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { ImportStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -80,7 +81,7 @@ export class ClientBatchService {
   }
 
   async finalizeStaging(batchId:string,input:FinalizeStagingInput,actorUserId?:string) {
-    const id=clean(batchId),approval=clean(input?.approvalReportHash);
+    const id=asText(batchId),approval=asText(input?.approvalReportHash);
     if(!id||!/^sha256:[0-9a-f]{64}$/i.test(approval))throw new BadRequestException('batchId e approvalReportHash são obrigatórios');
     const transition=await this.prisma.$transaction(async tx=>{
       const all=await this.batchEnvelopes(id,tx);
@@ -88,7 +89,7 @@ export class ClientBatchService {
       if(all.some(e=>e.status===ImportStatus.IMPORTED))throw new ConflictException('Batch já possui envelope importado e não pode mudar de fase');
       const set=await this.loadBatchSet(id,tx,true);
       const current=await this.analyzeSet(set,tx);
-      const finalizedHashes=all.map(e=>clean((obj(e.summary) as StoredSummary).finalizedFromReportHash)).filter(Boolean);
+      const finalizedHashes=all.map(e=>asText((obj(e.summary) as StoredSummary).finalizedFromReportHash)).filter(Boolean);
       if(set.phase==='FINAL'){
         if(finalizedHashes.length===all.length&&finalizedHashes.every(h=>h===approval)){
           return {duplicate:true,fromPhase:'FINAL',previousReportHash:approval,currentReportHash:current.reportHash};
@@ -104,7 +105,7 @@ export class ClientBatchService {
       }
       await tx.auditEvent.create({data:{
         id:`audit:client-batch-finalize:${randomUUID()}`,
-        userId:clean(actorUserId)||null,
+        userId:asText(actorUserId)||null,
         action:'CLIENT_BATCH_STAGING_FINALIZED',
         entityType:'MigrationEnvelope',
         entityId:id,
