@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const doc=fs.readFileSync(new URL('../PRODUCTION_BACKUP_ROLLBACK.md',import.meta.url),'utf8');
+let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+ok(doc.includes('No Backups'),'runbook registra ausência de backups Railway');
+ok(doc.includes('PITR não está habilitado'),'runbook não presume PITR');
+ok(!doc.includes('Backup automático: diário, retenção esperada de 6 dias.'),'alegação antiga de backup automático foi removida');
+ok(doc.includes('PROTECTED_BY_CONFIRMED_LOGICAL_BACKUP_2026_10_02'),'gate atual usa backup lógico confirmado');
+ok(doc.includes('imperio-postgres-2026-10-02T20-06-42-410Z.dump'),'arquivo pré-migração está registrado');
+ok(doc.includes('pg_restore --list'),'integridade do dump deve ser validada antes de restaurar');
+ok(doc.includes('PostgreSQL 18 separado'),'restore deve ocorrer primeiro em banco separado');
+ok(doc.includes('NUNCA restaure o dump diretamente por cima do PostgreSQL de produção'),'restore in-place é proibido como primeira ação');
+ok(doc.includes('MIGRATION_IMPORT_ENABLED=false')&&doc.includes('CLIENT_BATCH_COMMIT_ENABLED=false'),'gates de importação permanecem fechados');
+ok(doc.includes('OPERATIONAL_WRITES_UNITS=centro'),'Centro continua sendo única unidade operacional autorizada');
+ok(doc.includes('No pending migrations to apply.'),'resultado real da migration está registrado');
+ok(doc.includes('ec9009bb074fa52dea9f9352b3b1f9f1e1111fa6'),'SHA atual de rollback está documentado');
+console.log(JSON.stringify({ok:true,tests,feature:'production_backup_rollback_runbook'}));
