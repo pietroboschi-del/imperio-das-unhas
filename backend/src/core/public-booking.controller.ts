@@ -3,7 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { Public } from '../common/public.decorator';
-import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
+import { assertOperationalWriteEnabled, operationalWriteStatus } from '../common/operational-write-gate';
 import { PublicBookingDto, PublicBookingItemDto } from './public-booking.dto';
 
 const TERMINAL=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
@@ -19,6 +19,43 @@ export class PublicBookingController {
  private profile(row:any){const legacy=row?.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload:{};return legacy?.operationalProfile&&typeof legacy.operationalProfile==='object'?legacy.operationalProfile:legacy}
  private publicProfile(b:PublicBookingDto){return Object.fromEntries(Object.entries({birthDate:b.birthDate,cpf:b.cpf,cep:b.cep,neighborhood:b.neighborhood,city:b.city,source:b.source}).filter(([,v])=>v!==undefined&&v!==''))}
  private rawItems(b:PublicBookingDto):PublicBookingItemDto[]{if(b.items?.length)return b.items;if(b.serviceId&&b.professionalId&&b.startAt)return [{serviceId:b.serviceId,professionalId:b.professionalId,startAt:b.startAt}];throw new ConflictException('Informe pelo menos um serviço do agendamento')}
+
+ private obj(value:any){return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}
+
+ @Public() @Get('catalog')
+ async catalog(@Query('unitId') unitId=''){
+  const requested=String(unitId||'').trim();if(!requested)throw new ConflictException('Unidade é obrigatória');
+  const unit=await this.prisma.unit.findFirst({where:{id:requested,active:true},select:{id:true,name:true,timezone:true}});if(!unit)throw new NotFoundException('Unidade indisponível');
+  const [serviceRows,links]=await Promise.all([
+   this.prisma.service.findMany({where:{active:true},select:{id:true,name:true,price:true,durationMin:true,categoryId:true,legacyPayload:true,category:{select:{id:true,name:true,active:true}}},orderBy:{name:'asc'}}),
+   this.prisma.professionalUnit.findMany({where:{unitId:requested,active:true,professional:{active:true}},select:{professional:{select:{id:true,name:true,publicName:true,legacyPayload:true}}},orderBy:{professionalId:'asc'}}),
+  ]);
+  const services=serviceRows.map(s=>({row:s,config:this.obj(s.legacyPayload)}))
+   .filter(x=>x.config.show!==false&&x.config.online!==false)
+   .sort((a,b)=>(Number(a.config.websiteOrder||0)-Number(b.config.websiteOrder||0))||a.row.name.localeCompare(b.row.name))
+   .map(({row:s,config})=>({
+    id:s.id,name:s.name,categoryId:s.categoryId||null,category:s.category&&s.category.active?{id:s.category.id,name:s.category.name}:null,
+    price:config.showPrice===false?null:Number(s.price),durationMin:s.durationMin,showPrice:config.showPrice!==false,
+    priceMode:String(config.priceMode||'fixed'),publicDescription:String(config.publicDescription||config.description||''),
+    coverImage:String(config.coverImage||''),gallery:Array.isArray(config.gallery)?config.gallery.filter((x:any)=>typeof x==='string'):[],
+    websiteOrder:Number(config.websiteOrder||0),clientArea:String(config.clientArea||'none'),
+   }));
+  const publicServiceIds=new Set(services.map(s=>s.id));
+  const professionals=links.map(({professional:p})=>{
+   const config=this.obj(p.legacyPayload);if(config.show===false||config.online===false)return null;
+   const ownServices=Array.isArray(config.services)?config.services.map(String):[],schedule=Object.fromEntries(Object.entries(this.obj(config.schedule)).filter(([key])=>key.startsWith(requested+'-')));
+   const serviceRules:Record<string,{durationMin:number;price:number|null}>={};
+   for(const service of serviceRows){
+    if(!publicServiceIds.has(service.id))continue;
+    const serviceConfig=this.obj(service.legacyPayload),rules=this.obj(serviceConfig.proRules),r=this.obj(rules[p.id]);
+    const enabled=r.enabled===true||(r.enabled!==false&&(!ownServices.length||ownServices.includes(service.id)));if(!enabled||r.online===false)continue;
+    serviceRules[service.id]={durationMin:Math.max(1,Number(r.duration??service.durationMin)),price:serviceConfig.showPrice===false?null:Number(r.price??service.price)};
+   }
+   const serviceIds=Object.keys(serviceRules);if(!serviceIds.length)return null;
+   return {id:p.id,name:p.publicName||p.name,publicName:p.publicName||p.name,specialty:String(config.specialty||''),bio:String(config.bio||''),photo:String(config.photo||''),schedule,serviceIds,serviceRules};
+  }).filter(Boolean).sort((a:any,b:any)=>String(a.publicName).localeCompare(String(b.publicName)));
+  return {unit,bookingEnabled:operationalWriteStatus(requested).unitEnabled,services,professionals};
+ }
 
  @Public() @Get('occupancy')
  async occupancy(@Query('unitId') unitId='',@Query('date') date=''){

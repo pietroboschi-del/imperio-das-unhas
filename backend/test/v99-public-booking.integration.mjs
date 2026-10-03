@@ -10,11 +10,21 @@ async function book(unit,start,phone,key,service='long'){return fetch(base+'/api
 async function main(){
  await prisma.auditEvent.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.serviceCategory.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.unit.deleteMany();
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
- await prisma.service.createMany({data:[{id:'long',name:'Alongamento',price:'120',durationMin:90},{id:'short',name:'Manicure',price:'50',durationMin:30}]});
- await prisma.professional.create({data:{id:'p-all',name:'Profissional Multiunidade',units:{create:['big','centro','shopping-contagem'].map(unitId=>({unitId}))}}});
+ await prisma.service.createMany({data:[
+  {id:'long',name:'Alongamento',price:'120',durationMin:90,legacyPayload:{show:true,online:true,showPrice:true,publicDescription:'Alongamento público',websiteOrder:2,proRules:{'p-all':{enabled:true,duration:90,commission:55,price:125,online:true}}}},
+  {id:'short',name:'Manicure',price:'50',durationMin:30,legacyPayload:{show:true,online:true,showPrice:false,websiteOrder:1,proRules:{'p-all':{enabled:true,duration:30,commission:50,price:50,online:true}}}},
+  {id:'hidden',name:'Oculto',price:'1',durationMin:15,legacyPayload:{show:false,online:true,showPrice:true,websiteOrder:0}}
+ ]});
+ await prisma.professional.create({data:{id:'p-all',name:'Profissional Multiunidade',publicName:'Profissional Pública',legacyPayload:{show:true,online:true,specialty:'Unhas',bio:'Perfil público',photo:'https://example.invalid/photo.jpg',bank:'DADO_PRIVADO',cpf:'00000000000',services:['long','short','hidden'],schedule:{'centro-1':{work:true,start:'09:00',end:'18:00'},'big-1':{work:true,start:'10:00',end:'19:00'}}},units:{create:['big','centro','shopping-contagem'].map(unitId=>({unitId}))}}});
  const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
  server.stdout.on('data',d=>{childStdout+=String(d)});server.stderr.on('data',d=>{childStderr+=String(d)});server.on('error',e=>{childError=e});server.on('exit',(code,signal)=>{childExit={code,signal}});
  try{await health();
+  const catalogResponse=await fetch(base+'/api/v1/public/catalog?unitId=centro');ok(catalogResponse.ok,'catálogo público central do Centro');const catalog=await catalogResponse.json(),catalogJson=JSON.stringify(catalog);
+  ok(catalog.unit?.id==='centro'&&catalog.bookingEnabled===true,'catálogo público informa unidade e gate operacional');
+  ok(catalog.services?.map(x=>x.id).join(',')==='short,long'&&!catalog.services.some(x=>x.id==='hidden'),'catálogo filtra e ordena serviços públicos');
+  ok(catalog.services.find(x=>x.id==='short')?.price===null&&catalog.services.find(x=>x.id==='long')?.price===120,'catálogo respeita visibilidade de preço');
+  ok(catalog.professionals?.length===1&&catalog.professionals[0].serviceIds.includes('long')&&catalog.professionals[0].schedule['centro-1']&&!catalog.professionals[0].schedule['big-1'],'profissional pública é filtrada por unidade e serviço');
+  ok(!catalogJson.includes('commission')&&!catalogJson.includes('DADO_PRIVADO')&&!catalogJson.includes('00000000000'),'catálogo público não vaza comissão nem dados privados');
   const units=[['centro','10'],['big','11'],['shopping-contagem','12']];
   for(let i=0;i<units.length;i++){const [u,h]=units[i];const r=await book(u,`2026-10-06T${h}:00`,`3199999000${i}`,`site-${u}`);ok(r.ok,'site booking '+u);ok(await prisma.booking.count({where:{unitId:u}})===1,'central booking '+u)}
   let r=await book('centro','2026-10-06T10:30','3199999010','overlap','short');ok(r.status===409,'duration overlap blocked');
