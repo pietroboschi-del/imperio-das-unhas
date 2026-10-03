@@ -7045,8 +7045,8 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(!uid)throw new Error('Selecione uma unidade');return uid
  }
  async function centralRequest(path,opt={}){
-  let uid=await ensureCentralUnitId();
-  let hasBody=opt.body!==undefined,headers={Accept:'application/json','X-Unit-Id':uid,...(hasBody?{'Content-Type':'application/json'}:{}),...(opt.key?{'Idempotency-Key':opt.key}:{}),...(opt.headers||{})},token=centralCsrf();
+  let uid=opt.unitRequired===false?'':await ensureCentralUnitId();
+  let hasBody=opt.body!==undefined,headers={Accept:'application/json',...(uid?{'X-Unit-Id':uid}:{}),...(hasBody?{'Content-Type':'application/json'}:{}),...(opt.key?{'Idempotency-Key':opt.key}:{}),...(opt.headers||{})},token=centralCsrf();
   if(token)headers['X-CSRF-Token']=token;
   let res=await fetch(endpoint()+path,{credentials:'include',method:opt.method||'GET',headers,body:hasBody?JSON.stringify(opt.body):undefined}),txt=await res.text(),data=null;
   try{data=txt?JSON.parse(txt):null}catch(e){data={message:txt}}
@@ -7092,15 +7092,15 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  const centralApi=Object.freeze({
   status(){return {enabled:centralEnabled(),unitId:centralUnitId(),localUnitId:centralLocalUnitId(),endpoint:endpoint(),scope:'controlled_three_unit_rollout',operationalWriteUnits:centralWriteUnits(),sourceOfTruth:centralEnabled()?'postgresql_central':'blocked_or_legacy_local',financeMode:'postgresql_central'}},
   enable(){return setCentralEnabled(true)},disable(){return setCentralEnabled(false)},
-  units(){return centralRequest('/api/v1/units')},services(){return centralRequest('/api/v1/services')},professionals(){return centralRequest('/api/v1/professionals')},
-  configServices(){return centralRequest('/api/v1/config/services')},
-  createConfigService(body){return centralRequest('/api/v1/config/services',{method:'POST',body})},
-  updateConfigService(id,body){return centralRequest('/api/v1/config/services/'+encodeURIComponent(id),{method:'PATCH',body})},
-  setConfigServiceActive(id,active){return centralRequest('/api/v1/config/services/'+encodeURIComponent(id)+'/active',{method:'PATCH',body:{active}})},
-  configProfessionals(){return centralRequest('/api/v1/config/professionals')},
-  createConfigProfessional(body){return centralRequest('/api/v1/config/professionals',{method:'POST',body})},
-  updateConfigProfessional(id,body){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id),{method:'PATCH',body})},
-  setConfigProfessionalActive(id,active){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id)+'/active',{method:'PATCH',body:{active}})},
+  units(){return centralRequest('/api/v1/units',{unitRequired:false})},services(){return centralRequest('/api/v1/services')},professionals(){return centralRequest('/api/v1/professionals')},
+  configServices(){return centralRequest('/api/v1/config/services',{unitRequired:false})},
+  createConfigService(body){return centralRequest('/api/v1/config/services',{method:'POST',body,unitRequired:false})},
+  updateConfigService(id,body){return centralRequest('/api/v1/config/services/'+encodeURIComponent(id),{method:'PATCH',body,unitRequired:false})},
+  setConfigServiceActive(id,active){return centralRequest('/api/v1/config/services/'+encodeURIComponent(id)+'/active',{method:'PATCH',body:{active},unitRequired:false})},
+  configProfessionals(){return centralRequest('/api/v1/config/professionals',{unitRequired:false})},
+  createConfigProfessional(body){return centralRequest('/api/v1/config/professionals',{method:'POST',body,unitRequired:false})},
+  updateConfigProfessional(id,body){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id),{method:'PATCH',body,unitRequired:false})},
+  setConfigProfessionalActive(id,active){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id)+'/active',{method:'PATCH',body:{active},unitRequired:false})},
   clients(q=''){return centralRequest('/api/v1/clients'+(q?'?q='+encodeURIComponent(q):''))},
   bookings(date=''){return centralRequest('/api/v1/bookings'+(date?'?date='+encodeURIComponent(date):''))},
   createClient(body,key=operationKey('client')){return centralRequest('/api/v1/clients',{method:'POST',body,key})},
