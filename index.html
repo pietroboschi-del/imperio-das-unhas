@@ -7251,7 +7251,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  function catalogs(){return CANONICAL_UNITS.map(id=>cache.get(id)?.data).filter(Boolean)}
  async function refreshAll(){
   if(homeRefresh)return homeRefresh;
-  homeRefresh=Promise.all(CANONICAL_UNITS.map(async id=>{try{return await catalog(id,true)}catch(e){return {unit:{id,name:(db.units||[]).find(u=>UNIT_TO_CENTRAL[u.id]===id)?.name||id},bookingEnabled:false,services:[],professionals:[],error:e.message}})).finally(()=>homeRefresh=null);
+  homeRefresh=Promise.all(CANONICAL_UNITS.map(async id=>{try{return await catalog(id,true)}catch(e){return {unit:{id,name:(db.units||[]).find(u=>UNIT_TO_CENTRAL[u.id]===id)?.name||id},bookingEnabled:false,services:[],professionals:[],error:e.message}}})).finally(()=>homeRefresh=null);
   return homeRefresh
  }
  function renderUnavailable(){
