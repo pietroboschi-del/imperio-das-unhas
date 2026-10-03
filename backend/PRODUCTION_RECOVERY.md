@@ -47,7 +47,7 @@ Depois da validação:
 - `SCHEMA_MIGRATION_ENABLED=false`;
 - `MIGRATION_IMPORT_ENABLED=false`;
 - `CLIENT_BATCH_COMMIT_ENABLED=false`;
-- `OPERATIONAL_WRITES_UNITS=centro`.
+- `OPERATIONAL_WRITES_UNITS=centro,big,shopping-contagem`.
 
 ## Regra antes de importar dados reais
 
@@ -57,7 +57,7 @@ NÃO iniciar promoção/importação real sem:
 2. validar o arquivo com `pg_restore --list`;
 3. manter `MIGRATION_IMPORT_ENABLED=false` até o bloco explicitamente autorizado;
 4. manter `CLIENT_BATCH_COMMIT_ENABLED=false` até aprovação do batch/reportHash;
-5. manter escrita operacional restrita à unidade autorizada;
+5. manter escrita operacional restrita às unidades explicitamente autorizadas;
 6. possuir SHA exato de aplicação para rollback.
 
 Não versionar credenciais ou `DATABASE_URL`.

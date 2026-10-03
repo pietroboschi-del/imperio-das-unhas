@@ -1,6 +1,6 @@
-# Deploy do backend — corte controlado do Centro
+# Deploy do backend — operação oficial das três unidades
 
-Este diretório contém o backend central NestJS/PostgreSQL. O primeiro ambiente operacional deve iniciar com escrita limitada à unidade `centro`.
+Este diretório contém o backend central NestJS/PostgreSQL. O estado operacional atual autoriza escrita nas três unidades canônicas: `centro`, `big` e `shopping-contagem`.
 
 ## Release oficial fixada
 
@@ -10,8 +10,9 @@ Regras obrigatórias:
 - deploy somente pelo **SHA exato do commit de release**; não usar `main` nem uma branch flutuante como referência de produção;
 - baseline funcional validada: `ec56984e190a7b3cb4cdee4d79369853b2f25621`;
 - CI validada: workflow `V98 Backend CI`, run `36866440047`, conclusão `success`;
-- durante a primeira quinzena, somente `centro` pode receber escrita operacional;
-- `big` e `shopping-contagem` devem permanecer tecnicamente prontas, porém bloqueadas para escrita até autorização explícita.
+- o plano inicial restringia escrita ao `centro`;
+- em 2026-10-03 houve autorização explícita do proprietário para liberar `centro`, `big` e `shopping-contagem` para escrita operacional;
+- profissionais sem escala/horários configurados não geram disponibilidade de agendamento, mesmo com a unidade operacionalmente habilitada.
 
 O commit que contém `OFFICIAL_RELEASE.json` passa a ser o SHA da release oficial deste bloco.
 
@@ -35,7 +36,7 @@ Obrigatórias para o ambiente:
 - `CORS_ORIGINS`: origem HTTPS exata do frontend.
 - `COOKIE_SECURE=true`.
 - `OPERATIONAL_WRITES_ENABLED=true`.
-- `OPERATIONAL_WRITES_UNITS=centro` durante o primeiro corte.
+- `OPERATIONAL_WRITES_UNITS=centro,big,shopping-contagem` no estado operacional atual.
 
 Mantenha `MIGRATION_IMPORT_ENABLED=false` e `OPENAPI_ENABLED=false` em operação normal.
 
@@ -45,10 +46,10 @@ Mantenha `MIGRATION_IMPORT_ENABLED=false` e `OPENAPI_ENABLED=false` em operaçã
 2. Confirme `GET /api/v1/health`.
 3. Depois de confirmar backup lógico, backup de volume ou PITR, faça um deployment controlado com `SCHEMA_MIGRATION_ENABLED=true` para aplicar `prisma migrate deploy`; valide o resultado e retorne a variável para `false`.
 4. Crie o administrador por comando one-off usando `ADMIN_USERNAME`, `ADMIN_PASSWORD` e `ADMIN_NAME`; remova esses segredos do ambiente após a criação.
-5. Reconcile/import os dados reais e confira o estado vigente do Centro.
-6. Ative `OPERATIONAL_WRITES_ENABLED=true` com `OPERATIONAL_WRITES_UNITS=centro`.
-7. Confirme no health que `operationalWriteUnits` contém somente `centro`.
-8. Só amplie a allowlist depois da validação operacional da unidade anterior.
+5. Reconcile/import os dados reais e confira o estado vigente das unidades.
+6. Ative `OPERATIONAL_WRITES_ENABLED=true` com `OPERATIONAL_WRITES_UNITS=centro,big,shopping-contagem`.
+7. Confirme no health que `operationalWriteUnits` contém as três unidades canônicas.
+8. Mantenha os gates de migração/importação fechados durante a operação normal.
 
 O frontend não deve usar fallback de escrita legado quando o modo central estiver ativo.
 

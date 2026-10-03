@@ -12,33 +12,44 @@
   "deploymentRefPolicy": "exact_commit_sha_only",
   "mainMutationAllowed": false,
   "rollout": {
-    "firstFortnight": {
+    "initialPlan": {
       "operationalWriteUnits": [
         "centro"
       ],
       "blockedWriteUnits": [
         "big",
         "shopping-contagem"
-      ]
+      ],
+      "note": "Historical initial rollout before owner authorization on 2026-10-03."
+    },
+    "current": {
+      "authorizedAt": "2026-10-03",
+      "operationalWriteUnits": [
+        "centro",
+        "big",
+        "shopping-contagem"
+      ],
+      "blockedWriteUnits": [],
+      "note": "Owner explicitly authorized all three canonical units for operational writes. Units without professional schedules remain unavailable for time-slot booking."
     },
     "units": [
       {
         "id": "centro",
         "name": "Centro de Contagem",
         "technicalState": "ready",
-        "operationalState": "enabled_first"
+        "operationalState": "enabled"
       },
       {
         "id": "big",
         "name": "Big Shopping",
         "technicalState": "ready",
-        "operationalState": "write_blocked"
+        "operationalState": "enabled"
       },
       {
         "id": "shopping-contagem",
         "name": "Shopping Contagem",
         "technicalState": "ready",
-        "operationalState": "write_blocked"
+        "operationalState": "enabled"
       }
     ]
   },

@@ -59,9 +59,9 @@ Resultado confirmado:
 - após a validação, `SCHEMA_MIGRATION_ENABLED=false`;
 - `MIGRATION_IMPORT_ENABLED=false`;
 - `CLIENT_BATCH_COMMIT_ENABLED=false`;
-- `OPERATIONAL_WRITES_UNITS=centro`.
+- `OPERATIONAL_WRITES_UNITS=centro,big,shopping-contagem`.
 
-Isso confirma que o schema de produção estava alinhado ao repositório e que nenhum import/commit de clientes foi liberado neste bloco.
+Isso confirma que o schema de produção estava alinhado ao repositório e que nenhum import/commit de clientes foi liberado neste bloco. Em 2026-10-03 a allowlist operacional foi ampliada, por autorização explícita do proprietário, para as três unidades canônicas.
 
 ## Verificação do arquivo de backup
 
@@ -125,6 +125,6 @@ O backup lógico confirmado permite seguir para validações/importações contr
 
 - `MIGRATION_IMPORT_ENABLED=false` até o bloco que explicitamente autorizar importação;
 - `CLIENT_BATCH_COMMIT_ENABLED=false` até aprovação explícita do batch/reportHash;
-- `OPERATIONAL_WRITES_UNITS=centro`.
+- `OPERATIONAL_WRITES_UNITS=centro,big,shopping-contagem`.
 
 Nenhum passo de restauração deve ser executado sem uma decisão explícita de incidente.
