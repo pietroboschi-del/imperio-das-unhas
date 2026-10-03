@@ -26,7 +26,7 @@ ok(docker.indexOf('apt-get install -y --no-install-recommends ca-certificates op
 ok(docker.includes('HEALTHCHECK')&&docker.includes('/api/v1/health'),'container possui healthcheck');
 ok(env.includes('COOKIE_SECURE=true'),'cookie seguro em produção');
 ok(env.includes('SCHEMA_MIGRATION_ENABLED=false'),'template mantém migration de schema desligada por padrão');
-ok(env.includes('OPERATIONAL_WRITES_ENABLED=true')&&env.includes('OPERATIONAL_WRITES_UNITS=centro'),'template inicial limita escrita ao Centro');
+ok(env.includes('OPERATIONAL_WRITES_ENABLED=true')&&env.includes('OPERATIONAL_WRITES_UNITS=centro,big,shopping-contagem'),'template atual habilita as três unidades canônicas');
 ok(env.includes('MIGRATION_IMPORT_ENABLED=false')&&env.includes('OPENAPI_ENABLED=false'),'recursos sensíveis desligados no template');
 ok(gate.includes('OPERATIONAL_WRITES_UNITS')&&gate.includes('allow.length&&unitId&&!allow.includes(unitId)'),'gate implementa allowlist opcional');
 ok(core.includes('assertOperationalWriteEnabled(req.unitId!)'),'core write usa gate por unidade');
@@ -38,8 +38,9 @@ ok(release.repository==='pietroboschi-del/imperio-das-unhas'&&release.branch==='
 ok(release.validatedBaselineSha==='ec56984e190a7b3cb4cdee4d79369853b2f25621','baseline verde da release está fixada por SHA');
 ok(release.validatedWorkflow?.runId===36866440047&&release.validatedWorkflow?.conclusion==='success','release referencia a CI verde validada');
 ok(release.deploymentRefPolicy==='exact_commit_sha_only'&&release.mainMutationAllowed===false,'deploy exige SHA exato sem alterar main');
-ok(JSON.stringify(release.rollout?.firstFortnight?.operationalWriteUnits)===JSON.stringify(['centro']),'primeira quinzena libera escrita somente no Centro');
-ok(new Set(release.rollout?.firstFortnight?.blockedWriteUnits||[]).size===2&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('big')&&(release.rollout.firstFortnight.blockedWriteUnits||[]).includes('shopping-contagem'),'Big e Shopping Contagem permanecem bloqueados para escrita');
+ok(JSON.stringify(release.rollout?.initialPlan?.operationalWriteUnits)===JSON.stringify(['centro'])&&new Set(release.rollout?.initialPlan?.blockedWriteUnits||[]).size===2,'manifesto preserva o plano inicial como histórico');
+ok(JSON.stringify(release.rollout?.current?.operationalWriteUnits)===JSON.stringify(['centro','big','shopping-contagem'])&&Array.isArray(release.rollout?.current?.blockedWriteUnits)&&release.rollout.current.blockedWriteUnits.length===0,'estado atual autoriza escrita nas três unidades');
+ok((release.rollout?.units||[]).every(x=>x.operationalState==='enabled'),'todas as unidades estão marcadas como operacionais no manifesto');
 ok(release.infrastructure?.backupRollback?.dailyVolumeBackupConfigured===false&&release.infrastructure?.backupRollback?.logicalBackupConfirmed===true,'release registra ausência de backup Railway e backup lógico confirmado');
 ok(release.infrastructure?.backupRollback?.migrationGate==='PROTECTED_BY_CONFIRMED_LOGICAL_BACKUP_2026_10_02','migração atual está protegida pelo dump lógico confirmado');
 ok(release.infrastructure?.backupRollback?.schemaMigrationGate?.defaultEnabled===false&&release.infrastructure?.backupRollback?.schemaMigrationGate?.activationRequires==='CONFIRMED_LOGICAL_BACKUP_OR_MANUAL_VOLUME_BACKUP_OR_PITR','schema migration exige proteção de restore confirmada');

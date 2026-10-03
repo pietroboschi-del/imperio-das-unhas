@@ -11,7 +11,7 @@ ok(doc.includes('pg_restore --list'),'integridade do dump deve ser validada ante
 ok(doc.includes('PostgreSQL 18 separado'),'restore deve ocorrer primeiro em banco separado');
 ok(doc.includes('NUNCA restaure o dump diretamente por cima do PostgreSQL de produção'),'restore in-place é proibido como primeira ação');
 ok(doc.includes('MIGRATION_IMPORT_ENABLED=false')&&doc.includes('CLIENT_BATCH_COMMIT_ENABLED=false'),'gates de importação permanecem fechados');
-ok(doc.includes('OPERATIONAL_WRITES_UNITS=centro'),'Centro continua sendo única unidade operacional autorizada');
+ok(doc.includes('OPERATIONAL_WRITES_UNITS=centro,big,shopping-contagem'),'runbook registra as três unidades operacionalmente autorizadas');
 ok(doc.includes('No pending migrations to apply.'),'resultado real da migration está registrado');
 ok(doc.includes('ec9009bb074fa52dea9f9352b3b1f9f1e1111fa6'),'SHA atual de rollback está documentado');
 console.log(JSON.stringify({ok:true,tests,feature:'production_backup_rollback_runbook'}));
