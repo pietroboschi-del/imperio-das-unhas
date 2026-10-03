@@ -4,5 +4,6 @@ import { CoreWriteController } from './core-write.controller';
 import { FinanceWriteController } from './finance-write.controller';
 import { PublicBookingController } from './public-booking.controller';
 import { CatalogConfigController } from './catalog-config.controller';
-@Module({controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController]})
+import { StructuralConfigController } from './structural-config.controller';
+@Module({controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController,StructuralConfigController]})
 export class CoreModule {}
