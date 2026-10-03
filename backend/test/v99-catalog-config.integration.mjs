@@ -12,7 +12,8 @@ async function main(){
   await prisma.session.deleteMany({where:{userId:owner.id}});
   await prisma.session.create({data:{userId:owner.id,tokenHash:sha(sessionToken),csrfHash:sha(csrfToken),status:'ACTIVE',expiresAt:new Date(Date.now()+3600000)}});
   for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.upsert({where:{id},create:{id,name},update:{name,active:true}});
-  await prisma.auditEvent.deleteMany({where:{entityId:{in:['cfg_service_ci','cfg_pro_ci']}}});
+  await prisma.auditEvent.deleteMany({where:{entityId:{in:['cfg_service_ci','cfg_pro_ci','cfg_cat_ci','cfg_ws_ci']}}});
+  await prisma.workstation.deleteMany({where:{id:'cfg_ws_ci'}});
   await prisma.professionalUnit.deleteMany({where:{professionalId:'cfg_pro_ci'}});await prisma.professional.deleteMany({where:{id:'cfg_pro_ci'}});await prisma.service.deleteMany({where:{id:'cfg_service_ci'}});await prisma.serviceCategory.deleteMany({where:{id:'cfg_cat_ci'}});
   const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'false',OPERATIONAL_WRITES_UNITS:'centro'},stdio:['ignore','pipe','pipe']});
   try{
@@ -20,6 +21,11 @@ async function main(){
     let r;const h={'content-type':'application/json','x-csrf-token':csrfToken,'cookie':'imperio_session='+sessionToken,'x-unit-id':'big'};
     r=await fetch(base+'/api/v1/auth/me',{headers:{cookie:'imperio_session='+sessionToken}});ok(r.ok,'owner session');
     r=await fetch(base+'/api/v1/config/services',{method:'POST',headers:h,body:JSON.stringify({id:'cfg_service_ci',name:'Config CI',categoryId:'cfg_cat_ci',categoryName:'Categoria CI',price:77.5,durationMin:45,active:true,config:{show:true,online:true,clientArea:'hands',proRules:{}}})});ok(r.ok,'serviço estrutural é criado com operação global bloqueada');
+    r=await fetch(base+'/api/v1/config/categories',{method:'POST',headers:h,body:JSON.stringify({id:'cfg_cat_ci',name:'Categoria CI',description:'Categoria central',sortOrder:20,active:true,config:{serviceDefaults:{clientArea:'hands'}}})});ok(r.ok,'categoria estrutural é persistida centralmente');
+    let cat=await r.json();ok(cat.description==='Categoria central'&&cat.sortOrder===20,'metadados da categoria persistem');
+    r=await fetch(base+'/api/v1/config/workstations',{method:'POST',headers:h,body:JSON.stringify({id:'cfg_ws_ci',unitId:'big',name:'Mesa CI 01',allowedCategoryIds:['cfg_cat_ci'],active:true,config:{source:'integration'}})});ok(r.ok,'estação estrutural é criada no Big');
+    let ws=await r.json();ok(ws.unitId==='big'&&ws.allowedCategoryIds.includes('cfg_cat_ci'),'estação preserva unidade e categorias');
+    ok(await prisma.workstation.count({where:{id:'cfg_ws_ci',unitId:'big',active:true}})===1,'estação persistida no PostgreSQL');
     r=await fetch(base+'/api/v1/config/professionals',{method:'POST',headers:h,body:JSON.stringify({id:'cfg_pro_ci',name:'Profissional Config CI',publicName:'Config CI',active:true,unitIds:['big','centro','shopping-contagem'],config:{specialty:'Teste',schedule:{'centro-1':{work:true,start:'09:00',end:'18:00'}}},serviceRules:{cfg_service_ci:{enabled:true,duration:40,commission:50,price:80,online:true}}})});ok(r.ok,'profissional estrutural é criada nas três unidades mesmo com Big operacionalmente bloqueado');
     const p=await r.json();assert.deepEqual([...p.unitIds].sort(),['big','centro','shopping-contagem']);tests++;
     ok(await prisma.professionalUnit.count({where:{professionalId:'cfg_pro_ci',active:true}})===3,'três vínculos persistidos');
@@ -32,7 +38,7 @@ async function main(){
     console.log(JSON.stringify({ok:true,tests,feature:'central_catalog_professional_configuration'}));
   }finally{
     server.kill('SIGTERM');
-    await prisma.professionalUnit.deleteMany({where:{professionalId:'cfg_pro_ci'}}).catch(()=>{});await prisma.professional.deleteMany({where:{id:'cfg_pro_ci'}}).catch(()=>{});await prisma.service.deleteMany({where:{id:'cfg_service_ci'}}).catch(()=>{});await prisma.serviceCategory.deleteMany({where:{id:'cfg_cat_ci'}}).catch(()=>{});await prisma.auditEvent.deleteMany({where:{entityId:{in:['cfg_service_ci','cfg_pro_ci']}}}).catch(()=>{});await prisma.session.deleteMany({where:{user:{username:'cfg_owner_ci'}}}).catch(()=>{});await prisma.user.deleteMany({where:{username:'cfg_owner_ci'}}).catch(()=>{});await prisma.$disconnect();
+    await prisma.professionalUnit.deleteMany({where:{professionalId:'cfg_pro_ci'}}).catch(()=>{});await prisma.professional.deleteMany({where:{id:'cfg_pro_ci'}}).catch(()=>{});await prisma.workstation.deleteMany({where:{id:'cfg_ws_ci'}}).catch(()=>{});await prisma.service.deleteMany({where:{id:'cfg_service_ci'}}).catch(()=>{});await prisma.serviceCategory.deleteMany({where:{id:'cfg_cat_ci'}}).catch(()=>{});await prisma.auditEvent.deleteMany({where:{entityId:{in:['cfg_service_ci','cfg_pro_ci','cfg_cat_ci','cfg_ws_ci']}}}).catch(()=>{});await prisma.session.deleteMany({where:{user:{username:'cfg_owner_ci'}}}).catch(()=>{});await prisma.user.deleteMany({where:{username:'cfg_owner_ci'}}).catch(()=>{});await prisma.$disconnect();
   }
 }
 main().catch(async e=>{console.error(e.stack||e);await prisma.$disconnect().catch(()=>{});process.exit(1)});
