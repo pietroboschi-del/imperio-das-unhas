@@ -16,8 +16,8 @@ ok(controller.includes("action:existing?'catalog.service.updated':'catalog.servi
 ok(controller.includes("action:existing?'professional.config.updated':'professional.config.created'"),'alterações de profissional são auditadas');
 ok(html.includes("centralConfigAvailable('catalog.manage')"),'frontend separa configuração de operação');
 ok(html.includes("centralConfigAvailable('professionals.manage')"),'frontend habilita configuração central de profissionais');
-ok(html.includes("configServices(){return centralRequest('/api/v1/config/services')"),'frontend lê catálogo estrutural central');
-ok(html.includes("configProfessionals(){return centralRequest('/api/v1/config/professionals')"),'frontend lê profissionais estruturais centrais');
+ok(html.includes("configServices(){return centralRequest('/api/v1/config/services',{unitRequired:false})"),'frontend lê catálogo estrutural central sem exigir unidade operacional');
+ok(html.includes("configProfessionals(){return centralRequest('/api/v1/config/professionals',{unitRequired:false})"),'frontend lê profissionais estruturais centrais sem exigir unidade operacional');
 ok(html.includes('V99 · CENTRAL STRUCTURAL CONFIG BRIDGE'),'frontend possui ponte central de categorias/estações');
 ok(html.includes("CENTRAL_TO_LOCAL=Object.freeze({big:'u1','shopping-contagem':'u2',centro:'u3'})"),'estações hidratam as três unidades centrais no shape legado');
 ok(html.includes("request('/api/v1/config/categories'"),'frontend sincroniza categorias com PostgreSQL');
