@@ -17,7 +17,7 @@ ok(html.includes("scope:'controlled_three_unit_rollout'"),'status declara rollou
 ok(html.includes("operationalWriteUnits:centralWriteUnits()"),'status expõe unidades operacionalmente liberadas');
 ok(html.includes("health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)"),'login sincroniza allowlist a partir do backend');
 ok(html.includes("if(!officialProductionMode())"),'fallback local fica restrito a desenvolvimento, não à produção oficial');
-ok(html.includes("function applyCentralUnitGate()")&&html.includes("!centralUnitAllowed(id)"),'unidades ainda não liberadas são removidas da operação diária');
+ok(html.includes("function applyCentralUnitGate()")&&html.includes("CENTRAL_UNIT_OPTIONS.filter(x=>centralAuthenticated()&&centralCanUse(x.centralId)&&centralUnitAllowed(x.centralId))"),'seletor operacional contém somente unidades autenticadas, acessíveis e liberadas pelo backend');
 ok(html.includes("updateClient(id,body)"),'edição de cliente usa API central');
 ok(html.includes("updateBooking(id,body)"),'edição de agenda usa API central');
 ok(html.includes("createBlockSeries(body,key=operationKey('block_series'))"),'bloqueios recorrentes usam endpoint central atômico');
