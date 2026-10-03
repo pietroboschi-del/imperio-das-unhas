@@ -11,7 +11,7 @@ ok(html.includes("const UNIT_TO_LOCAL=Object.freeze({big:'u1','shopping-contagem
 ok(html.includes("const CENTRAL_UNIT_OPTIONS=Object.freeze([{localId:'u3',centralId:'centro'"),'seletor central possui as três unidades canônicas');
 ok(html.includes('function centralFallbackCentralUnitId()'),'contexto estrutural possui fallback de unidade autorizado');
 ok(html.includes("fetch(endpoint()+'/api/v1/health'"),'requisição central recupera gate atual quando o seletor está vazio');
-ok(html.includes('let uid=await ensureCentralUnitId()'),'salvamento central resolve unidade antes de enviar a escrita');
+ok(html.includes("let uid=opt.unitRequired===false?'':await ensureCentralUnitId()"),'escritas operacionais resolvem unidade e configuração estrutural pode ser global');
 ok(html.includes("CENTRAL_CSRF_KEY='imperio-v96-shadow-csrf'"),'CSRF central usa armazenamento autenticado');
 ok(html.includes("function centralCsrf(){try{return sessionStorage.getItem(CENTRAL_CSRF_KEY)||''}"),'escritas reutilizam CSRF da sessão backend');
 ok(html.includes("const PRODUCTION_API='https://imperio-backend-production-5086.up.railway.app'"),'API central de produção configurada');
