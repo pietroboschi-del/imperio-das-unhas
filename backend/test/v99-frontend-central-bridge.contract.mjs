@@ -23,4 +23,13 @@ ok(html.includes("updateBooking(id,body)"),'ponte expõe atualização central d
 ok(!html.includes("Edição de cliente ainda não liberada no modo central; nenhuma alteração foi salva."),'edição de cliente não está artificialmente bloqueada');
 ok(!html.includes("Alteração de agendamento existente ainda não liberada no modo central; nenhuma alteração foi salva."),'edição de agenda não está artificialmente bloqueada');
 
+ok(html.includes("V99 · PUBLIC BOOKING CENTRAL CATALOG"),'ponte pública central está instalada');
+ok(html.includes("centralPublicRequest('/api/v1/public/catalog?unitId='+encodeURIComponent(centralId))"),'frontend público lê catálogo central por unidade');
+ok(html.includes("credentials:'omit'"),'rotas públicas não dependem da sessão administrativa');
+ok(html.includes("centralPublicRequest('/api/v1/public/occupancy?unitId='+encodeURIComponent(centralId)+'&date='+encodeURIComponent(date))"),'busca de horário consulta ocupação central antes de calcular disponibilidade');
+ok(html.includes("centralPublicRequest('/api/v1/public/bookings',{method:'POST',body,key:bk.centralOperationKey"),'confirmação pública grava no endpoint central com idempotência');
+ok(html.includes("if(!production())return legacyOpenBooking.apply(this,arguments)"),'desenvolvimento local mantém o fluxo legado');
+ok(html.includes("Agendamento em breve"),'unidades bloqueadas não oferecem escrita pública');
+ok(html.includes("sourceOfTruth:'postgresql_public_catalog_and_occupancy'"),'fonte pública oficial fica declarada como PostgreSQL');
+
 console.log(JSON.stringify({ok:true,tests,feature:'v99_frontend_central_bridge'}));
