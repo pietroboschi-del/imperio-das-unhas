@@ -15,12 +15,16 @@ export class PublicBookingController {
  private startAt(value:string){const iso=value.length===16?value+':00-03:00':value+'-03:00';const date=new Date(iso);if(Number.isNaN(date.getTime()))throw new ConflictException('Horário inválido');return date}
  private normName(v:string){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
  private phone(value:string){const d=String(value||'').replace(/\D/g,'');if(!d)throw new ConflictException('Celular inválido');if(d.startsWith('55')&&d.length>=12)return '+'+d;if(d.length===10||d.length===11)return '+55'+d;return '+'+d}
- private canDo(proLegacy:any,serviceLegacy:any,professionalId:string,serviceId:string){const services=Array.isArray(proLegacy?.services)?proLegacy.services.map(String):[],rule=serviceLegacy?.proRules&&typeof serviceLegacy.proRules==='object'?serviceLegacy.proRules[professionalId]:undefined;if(rule?.enabled===false)return false;if(rule?.enabled===true)return true;return services.length?services.includes(serviceId):true}
+ private canDo(proLegacy:any,serviceLegacy:any,professionalId:string,serviceId:string){const services=Array.isArray(proLegacy?.services)?proLegacy.services.map(String):[],rule=serviceLegacy?.proRules&&typeof serviceLegacy.proRules==='object'?serviceLegacy.proRules[professionalId]:undefined;if(rule&&Object.prototype.hasOwnProperty.call(rule,'enabled'))return rule.enabled===true;return services.includes(serviceId)}
  private profile(row:any){const legacy=row?.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload:{};return legacy?.operationalProfile&&typeof legacy.operationalProfile==='object'?legacy.operationalProfile:legacy}
  private publicProfile(b:PublicBookingDto){return Object.fromEntries(Object.entries({birthDate:b.birthDate,cpf:b.cpf,cep:b.cep,neighborhood:b.neighborhood,city:b.city,source:b.source}).filter(([,v])=>v!==undefined&&v!==''))}
  private rawItems(b:PublicBookingDto):PublicBookingItemDto[]{if(b.items?.length)return b.items;if(b.serviceId&&b.professionalId&&b.startAt)return [{serviceId:b.serviceId,professionalId:b.professionalId,startAt:b.startAt}];throw new ConflictException('Informe pelo menos um serviço do agendamento')}
 
  private obj(value:any){return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}
+ private clockMinute(value:string){const m=String(value||'').match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);if(!m)return Number.NaN;const h=Number(m[1]),min=Number(m[2]),sec=Number(m[3]||0);return h<=23&&min<=59&&sec<=59?h*60+min+sec/60:Number.NaN}
+ private scheduleDay(date:string){const d=new Date(String(date||'')+'T12:00:00.000Z');return Number.isNaN(d.getTime())?-1:d.getUTCDay()}
+ private workingSchedule(schedule:any){return Object.values(this.obj(schedule)).some(v=>{const r=this.obj(v),a=this.clockMinute(String(r.start||'')),z=this.clockMinute(String(r.end||''));return r.work===true&&Number.isFinite(a)&&Number.isFinite(z)&&z>a})}
+ private insideSchedule(proLegacy:any,unitId:string,startText:string,durationMin:number){const day=this.scheduleDay(startText.slice(0,10));if(day<0)return false;const r=this.obj(this.obj(proLegacy?.schedule)[unitId+'-'+day]),a=this.clockMinute(String(r.start||'')),z=this.clockMinute(String(r.end||'')),start=this.clockMinute(startText.slice(11));return r.work===true&&Number.isFinite(a)&&Number.isFinite(z)&&Number.isFinite(start)&&z>a&&start>=a&&start+durationMin<=z}
 
  @Public() @Get('catalog')
  async catalog(@Query('unitId') unitId=''){
@@ -48,13 +52,13 @@ export class PublicBookingController {
    for(const service of serviceRows){
     if(!publicServiceIds.has(service.id))continue;
     const serviceConfig=this.obj(service.legacyPayload),rules=this.obj(serviceConfig.proRules),r=this.obj(rules[p.id]);
-    const enabled=r.enabled===true||(r.enabled!==false&&(!ownServices.length||ownServices.includes(service.id)));if(!enabled||r.online===false)continue;
+    const enabled=Object.prototype.hasOwnProperty.call(r,'enabled')?r.enabled===true:ownServices.includes(service.id);if(!enabled||r.online===false)continue;
     serviceRules[service.id]={durationMin:Math.max(1,Number(r.duration??service.durationMin)),price:serviceConfig.showPrice===false?null:Number(r.price??service.price)};
    }
    const serviceIds=Object.keys(serviceRules);if(!serviceIds.length)return null;
    return {id:p.id,name:p.publicName||p.name,publicName:p.publicName||p.name,specialty:String(config.specialty||''),bio:String(config.bio||''),photo:String(config.photo||''),schedule,serviceIds,serviceRules};
   }).filter(Boolean).sort((a:any,b:any)=>String(a.publicName).localeCompare(String(b.publicName)));
-  return {unit,bookingEnabled:operationalWriteStatus(requested).unitEnabled,services,professionals};
+  const bookingEnabled=operationalWriteStatus(requested).unitEnabled&&professionals.some((p:any)=>this.workingSchedule(p.schedule));return {unit,bookingEnabled,services,professionals};
  }
 
  @Public() @Get('occupancy')
@@ -84,14 +88,20 @@ export class PublicBookingController {
     ]);
     if(!service)throw new NotFoundException('Serviço indisponível');
     if(!pro)throw new NotFoundException('Profissional indisponível nesta unidade');
-    if(!this.canDo(pro.professional.legacyPayload,service.legacyPayload,it.professionalId,it.serviceId))throw new ConflictException('Profissional não executa este serviço');
-    const rule=(service.legacyPayload as any)?.proRules?.[it.professionalId],duration=Math.max(1,Number(rule?.duration??service.durationMin??30)),unitPrice=new Prisma.Decimal(Number(rule?.price??service.price??0).toFixed(2));
+    const serviceLegacy=this.obj(service.legacyPayload),proLegacy=this.obj(pro.professional.legacyPayload);
+    if(serviceLegacy.show===false||serviceLegacy.online===false)throw new NotFoundException('Serviço indisponível para agendamento online');
+    if(proLegacy.show===false||proLegacy.online===false)throw new NotFoundException('Profissional indisponível para agendamento online');
+    if(!this.canDo(proLegacy,serviceLegacy,it.professionalId,it.serviceId))throw new ConflictException('Profissional não executa este serviço');
+    const rule=this.obj(this.obj(serviceLegacy.proRules)[it.professionalId]);if(rule.online===false)throw new ConflictException('Serviço indisponível para agendamento online com esta profissional');
+    const duration=Math.max(1,Number(rule.duration??service.durationMin??30)),unitPrice=new Prisma.Decimal(Number(rule.price??service.price??0).toFixed(2));
+    if(!this.insideSchedule(proLegacy,b.unitId,it.startAt,duration))throw new ConflictException('Horário fora da escala da profissional');
     prepared.push({id:'bi_'+createHash('sha256').update(bookingId+'|'+i).digest('hex').slice(0,40),bookingId,unitId:b.unitId,serviceId:it.serviceId,professionalId:it.professionalId,startAt,durationMin:duration,unitPrice,preference:false,forceFit:false,sortOrder:i,legacyPayload:{source:'website'}});
    }
    const lockKeys=[...new Set(prepared.map(x=>x.professionalId+'|'+firstDate))].sort();for(const lock of lockKeys)await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${b.unitId}), hashtext(${lock}))`;
    for(let i=0;i<prepared.length;i++){
     const item=prepared[i],start=item.startAt.getTime(),end=start+item.durationMin*60000;
     for(let j=0;j<i;j++){const other=prepared[j],os=other.startAt.getTime(),oe=os+other.durationMin*60000;if(other.professionalId===item.professionalId&&os<end&&oe>start)throw new ConflictException('Os serviços selecionados estão sobrepostos para a mesma profissional')}
+    const allDayBlock=await tx.booking.findFirst({where:{unitId:b.unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL},OR:[{professionalId:item.professionalId},{items:{some:{professionalId:item.professionalId}}}]},select:{id:true}});if(allDayBlock)throw new ConflictException('Horário bloqueado para esta profissional');
     const candidates=await tx.bookingItem.findMany({where:{unitId:b.unitId,professionalId:item.professionalId,startAt:{gte:new Date(start-12*60*60*1000),lt:new Date(end)},booking:{status:{notIn:TERMINAL}}},select:{startAt:true,durationMin:true}});
     for(const x of candidates){const xs=x.startAt.getTime(),xe=xs+x.durationMin*60000;if(xs<end&&xe>start)throw new ConflictException('Horário não está mais disponível')}
    }
