@@ -47,6 +47,7 @@ model Unit {
   clientLinks  ClientUnitLink[]
   bookings     Booking[]
   bookingItems BookingItem[]
+  workstations Workstation[]
 
   @@index([active])
 }
@@ -139,6 +140,22 @@ model ServiceCategory {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   services      Service[]
+}
+
+model Workstation {
+  id                 String   @id
+  unitId             String
+  name               String
+  allowedCategoryIds Json
+  active             Boolean  @default(true)
+  legacyPayload      Json?
+  version            Int      @default(1)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  unit               Unit     @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([unitId, name])
+  @@index([unitId, active])
 }
 
 model Service {
