@@ -4,8 +4,12 @@ const controller=fs.readFileSync(new URL('../src/core/catalog-config.controller.
 const html=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8');
 let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
 ok(controller.includes("@Controller('api/v1/config')"),'rotas centrais de configuração existem');
+const structural=fs.readFileSync(new URL('../src/core/structural-config.controller.ts',import.meta.url),'utf8');
 ok(controller.includes("@RequirePermissions('catalog.manage')"),'serviços exigem catalog.manage');
 ok(controller.includes("@RequirePermissions('professionals.manage')"),'profissionais exigem professionals.manage');
+ok(structural.includes("@Get('categories')")&&structural.includes("@Post('categories')"),'categorias possuem CRUD central');
+ok(structural.includes("@Get('workstations')")&&structural.includes("@Post('workstations')"),'estações possuem CRUD central');
+ok(structural.includes("this.prisma.workstation"),'estações usam PostgreSQL central');
 ok(!controller.includes('assertOperationalWriteEnabled'),'configuração estrutural não depende do gate operacional');
 ok(controller.includes('professionalUnit.createMany'),'profissional pode ser vinculada a múltiplas unidades');
 ok(controller.includes("action:existing?'catalog.service.updated':'catalog.service.created'"),'alterações de serviço são auditadas');
@@ -14,6 +18,10 @@ ok(html.includes("centralConfigAvailable('catalog.manage')"),'frontend separa co
 ok(html.includes("centralConfigAvailable('professionals.manage')"),'frontend habilita configuração central de profissionais');
 ok(html.includes("configServices(){return centralRequest('/api/v1/config/services')"),'frontend lê catálogo estrutural central');
 ok(html.includes("configProfessionals(){return centralRequest('/api/v1/config/professionals')"),'frontend lê profissionais estruturais centrais');
+ok(html.includes('V99 · CENTRAL STRUCTURAL CONFIG BRIDGE'),'frontend possui ponte central de categorias/estações');
+ok(html.includes("CENTRAL_TO_LOCAL=Object.freeze({big:'u1','shopping-contagem':'u2',centro:'u3'})"),'estações hidratam as três unidades centrais no shape legado');
+ok(html.includes("request('/api/v1/config/categories'"),'frontend sincroniza categorias com PostgreSQL');
+ok(html.includes("request('/api/v1/config/workstations'"),'frontend sincroniza estações com PostgreSQL');
 ok(html.includes("unitIds=[...document.querySelectorAll('.pfUnit:checked')].map(x=>centralUnitRef(x.value))"),'vínculos das três unidades são convertidos para IDs canônicos');
 ok(html.includes("db.pros=(pros||[]).map"),'agenda central não mantém profissionais demonstrativos');
 ok(html.includes("db.services=(services||[]).map"),'agenda central não mantém serviços demonstrativos');
