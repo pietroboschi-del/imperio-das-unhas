@@ -43,6 +43,20 @@ async function main(){
   const item=await prisma.commandServiceItem.findFirstOrThrow({where:{commandId:cmd.id}});
   assert.equal(String(item.quantity),'2','quantidade do item é persistida no banco central');
   assert.equal(String(item.netServiceAmount),'35','líquido do item respeita quantidade x preço menos desconto');
+
+  const mixedLines={grossAmount:70,discountAmount:7,appliedSignalAmount:0,appliedCreditAmount:0,customerFeeAmount:0,amountDue:63,items:[{serviceId:'finance-s1',professionalId:'finance-p1',quantity:2,unitPrice:20,discountAmount:5}],snapshot:{lines:[{type:'service',serviceId:'finance-s1',professionalId:'finance-p1',qty:2,unitPrice:20,discount:5},{type:'product',productId:'prod-ci',qty:3,unitPrice:10,discount:2}]}};
+  r=await fetch(base+`/api/v1/commands/${cmd.id}/snapshot`,{method:'PUT',headers:h,body:JSON.stringify(mixedLines)});
+  assert.ok(r.ok,'totais aceitam composição mista de serviço e produto');
+  let mixedStored=await prisma.openCommand.findUniqueOrThrow({where:{id:cmd.id}});
+  assert.equal(String(mixedStored.grossAmount),'70');
+  assert.equal(String(mixedStored.discountAmount),'7');
+
+  const mismatchedTotals={...mixedLines,grossAmount:60,amountDue:53};
+  r=await fetch(base+`/api/v1/commands/${cmd.id}/snapshot`,{method:'PUT',headers:h,body:JSON.stringify(mismatchedTotals)});
+  assert.equal(r.status,409,'totais divergentes das linhas do snapshot devem ser rejeitados');
+  mixedStored=await prisma.openCommand.findUniqueOrThrow({where:{id:cmd.id}});
+  assert.equal(String(mixedStored.grossAmount),'70','snapshot inválido não altera bruto previamente consistente');
+  assert.equal(String(mixedStored.discountAmount),'7','snapshot inválido não altera desconto previamente consistente');
   console.log(JSON.stringify({ok:true,feature:'finance_math_consistency'}));
  }finally{
   if(p.exitCode===null&&p.signalCode===null){p.kill('SIGTERM');await Promise.race([once(p,'exit'),sleep(3000)]).catch(()=>{})}
