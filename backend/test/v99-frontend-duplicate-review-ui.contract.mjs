@@ -25,6 +25,8 @@ ok(js.includes("method:'POST'"),'decisões são persistidas');
 ok(js.includes("credentials:'include'")&&js.includes("'X-CSRF-Token'"),'decisão usa cookie e CSRF');
 ok(js.includes("'MERGE'")&&js.includes("'KEEP_SEPARATE'")&&js.includes("'KEEP_CENTRAL'")&&js.includes("'REVIEW_LATER'"),'quatro decisões estão disponíveis');
 ok(js.includes('centralCandidate')&&js.includes('Mesma cliente (central)'),'UI mostra e permite confirmar o cliente central identificado');
+ok(js.includes('hasSourceFieldConflict')&&js.includes('Manter separados não resolve o conflito entre valores deste mesmo grupo'),'UI bloqueia KEEP_SEPARATE quando existe conflito interno entre fontes');
+ok(js.includes("(sourceConflict||state.saving)?'disabled':''"),'botão Manter separados fica desabilitado em SOURCE_FIELD_CONFLICT');
 ok(js.includes('candidateClusters')&&js.includes('state.candidateId'),'comparação mantém candidato selecionado');
 ok(js.includes('v99dup-different'),'diferenças são destacadas');
 ok(js.includes("state.filter==='pending'")&&js.includes("state.filter==='resolved'")&&js.includes("state.filter==='later'"),'filtros operacionais existem');

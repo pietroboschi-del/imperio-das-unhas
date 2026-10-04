@@ -70,6 +70,9 @@ export class ClientDuplicateReviewService {
     if(!plan)throw new NotFoundException('Cluster não encontrado no batch');
     if(plan.action!=='REVIEW_REQUIRED')throw new ConflictException('Apenas clusters REVIEW_REQUIRED entram na fila de duplicidades');
 
+    const sourceFieldConflicts=plan.conflicts.filter(c=>c.type==='SOURCE_FIELD_CONFLICT');
+    if(input.decision==='KEEP_SEPARATE'&&sourceFieldConflicts.length)throw new ConflictException('KEEP_SEPARATE não resolve conflito entre fontes do mesmo cluster; corrija/reexporte os dados ou escolha outra resolução segura');
+
     let targetClusterId:string|null=null;
     if(input.decision==='MERGE'){
       targetClusterId=clean(input.targetClusterId)||null;

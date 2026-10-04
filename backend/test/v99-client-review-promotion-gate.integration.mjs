@@ -87,6 +87,12 @@ async function main(){
   assert.ok(conflictPlan.conflicts.some(x=>x.type==='SOURCE_FIELD_CONFLICT'&&x.field==='phone'),'telefone divergente detectado');
   assert.ok(conflictPlan.conflicts.some(x=>x.type==='SOURCE_FIELD_CONFLICT'&&x.field==='email'),'e-mail divergente detectado');
 
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(conflictBatchId)+'/'+encodeURIComponent(conflictPlan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'KEEP_SEPARATE',note:'tentar separar apesar do conflito interno'})});
+  assert.equal(r.status,409,'KEEP_SEPARATE é recusado quando o próprio cluster possui SOURCE_FIELD_CONFLICT');
+  const separateConflict=await r.json();
+  assert.ok(String(separateConflict.message||'').includes('não resolve conflito entre fontes'),'erro explica por que KEEP_SEPARATE não é promovível');
+  assert.equal(await prisma.clientDuplicateReview.count({where:{batchId:conflictBatchId,clusterId:conflictPlan.clusterId}}),0,'decisão impossível não é persistida nem auditada como resolvida');
+
   r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(conflictBatchId)+'/'+encodeURIComponent(conflictPlan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'KEEP_CENTRAL',note:'mesma cliente; fontes divergem, não preencher campos vazios'})});
   assert.ok(r.ok,'KEEP_CENTRAL salvo para conflito entre fontes');
 
