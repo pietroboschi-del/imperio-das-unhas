@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import {normalizeBatchSet,normalizeEmail,probableSameName,reconcileClientBatch} from '../src/migration/client-batch.logic.ts';
+import {assertClientBatchSet,normalizeBatchSet,normalizeEmail,probableSameName,reconcileClientBatch} from '../src/migration/client-batch.logic.ts';
 let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};const eq=(a,b,m)=>{tests++;assert.deepEqual(a,b,m)};
 const H=n=>'sha256:'+String(n).padStart(64,'0');
 const input={mode:'CLIENTS_ONLY',batchId:'BATCH_2_PRE_CUTOVER',phase:'PRE_CUTOVER',files:[
@@ -31,6 +31,13 @@ const shuffled=reconcileClientBatch(shuffledInput,shuffledPrev,[...central].reve
 eq(shuffled.reportHash,report.reportHash,'reportHash independe da ordem de arquivos, linhas, snapshots e clientes centrais');
 eq(shuffled.plans,report.plans,'planos canônicos permanecem idênticos após embaralhar a entrada');
 ok(report.reportHash.startsWith('sha256:'),'relatório possui hash de aprovação');
+
+const rogueUnit=structuredClone(input);
+rogueUnit.batchId='BATCH_INVALID_UNIT';
+rogueUnit.files=[{...rogueUnit.files[0],unitId:'unidade-fantasma'}];
+let rogueError='';
+try{assertClientBatchSet(rogueUnit)}catch(e){rogueError=String(e?.message||e)}
+ok(rogueError.includes('unitId não canônico'),'CLIENTS_ONLY rejeita unidade fora das três canônicas antes do staging');
 
 const similarInput={mode:'CLIENTS_ONLY',batchId:'BATCH_WEAK_NAME_REVIEW',phase:'REHEARSAL',files:[{unitId:'centro',exportedAt:'2026-10-01T11:00:00-03:00',fileName:'similar.xlsx',fileHash:H(50),rows:[
   {id:'s1',nome:'Aline Pontello',celular:'31984869296',sourceRow:2},

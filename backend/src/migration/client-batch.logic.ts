@@ -127,6 +127,9 @@ export type ClientBatchReport = {
   reportHash: string;
 };
 
+export const CANONICAL_CLIENT_UNIT_IDS=['centro','big','shopping-contagem'] as const;
+const CANONICAL_CLIENT_UNIT_SET=new Set<string>(CANONICAL_CLIENT_UNIT_IDS);
+
 const asText=(v:unknown)=>typeof v==='string'?v.trim():v==null?'':String(v).trim();
 const first=(row:Record<string,unknown>,keys:string[])=>{for(const k of keys){const v=row[k];if(v!==undefined&&v!==null&&asText(v)!=='')return v;}return null;};
 const stable=(v:unknown):unknown=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.entries(v as Record<string,unknown>).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,stable(x)])):v;
@@ -192,7 +195,7 @@ export function assertClientBatchSet(input: unknown): asserts input is ClientBat
   if(!Array.isArray(x.files)||x.files.length<1||x.files.length>3)throw new Error('files deve conter de 1 a 3 exportações');
   const units=new Set<string>();
   for(const file of x.files){
-    const unitId=asText(file?.unitId);if(!unitId)throw new Error('unitId obrigatório');if(units.has(unitId))throw new Error(`unidade duplicada no batch: ${unitId}`);units.add(unitId);
+    const unitId=asText(file?.unitId);if(!unitId)throw new Error('unitId obrigatório');if(!CANONICAL_CLIENT_UNIT_SET.has(unitId))throw new Error(`unitId não canônico para CLIENTS_ONLY: ${unitId}`);if(units.has(unitId))throw new Error(`unidade duplicada no batch: ${unitId}`);units.add(unitId);
     if(!asText(file.fileName))throw new Error(`fileName obrigatório em ${unitId}`);
     if(!/^sha256:[0-9a-f]{64}$/i.test(asText(file.fileHash)))throw new Error(`fileHash SHA-256 inválido em ${unitId}`);
     if(!isoOrNull(file.exportedAt))throw new Error(`exportedAt inválido em ${unitId}`);
