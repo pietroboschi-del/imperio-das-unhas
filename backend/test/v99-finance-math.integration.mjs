@@ -41,6 +41,7 @@ async function main(){
   r=await fetch(base+`/api/v1/commands/${cmd.id}/snapshot`,{method:'PUT',headers:h,body:JSON.stringify(validItem)});
   assert.ok(r.ok,'item com quantidade, preço e desconto coerentes é aceito');
   const item=await prisma.commandServiceItem.findFirstOrThrow({where:{commandId:cmd.id}});
+  assert.equal(String(item.quantity),'2','quantidade do item é persistida no banco central');
   assert.equal(String(item.netServiceAmount),'35','líquido do item respeita quantidade x preço menos desconto');
   console.log(JSON.stringify({ok:true,feature:'finance_math_consistency'}));
  }finally{

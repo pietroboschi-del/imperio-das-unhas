@@ -1,0 +1,2 @@
+ALTER TABLE "CommandServiceItem"
+ADD COLUMN "quantity" DECIMAL(14,4) NOT NULL DEFAULT 1;

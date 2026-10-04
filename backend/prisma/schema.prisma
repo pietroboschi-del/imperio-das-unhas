@@ -556,6 +556,7 @@ model CommandServiceItem {
   unitId                 String
   serviceId              String
   professionalId         String
+  quantity               Decimal  @default(1) @db.Decimal(14,4)
   unitPrice              Decimal  @db.Decimal(14,2)
   discountAmount         Decimal  @default(0) @db.Decimal(14,2)
   netServiceAmount       Decimal  @db.Decimal(14,2)
