@@ -4,18 +4,19 @@ import {once} from 'node:events';
 import {PrismaClient} from '@prisma/client';
 
 const prisma=new PrismaClient(),port=Number(process.env.CLIENT_REVIEW_GATE_TEST_PORT||3106),base='http://127.0.0.1:'+port,sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const batchId='BATCH_REVIEW_GATE_CI',centralId='client-review-gate-ci';
+const batchId='BATCH_REVIEW_GATE_CI',centralId='client-review-gate-ci',conflictBatchId='BATCH_REVIEW_SOURCE_CONFLICT_CI',conflictCentralId='client-review-source-conflict-ci';
 const H=n=>'sha256:'+String(n).padStart(64,'0');
 async function wait(){for(let i=0;i<80;i++){try{if((await fetch(base+'/api/v1/health')).ok)return}catch{}await sleep(400)}throw Error('backend não iniciou')}
 const cookie=r=>(r.headers.get('set-cookie')||'').split(';')[0];
 
 async function cleanup(){
- const envs=await prisma.migrationEnvelope.findMany({where:{reconciliationId:batchId},select:{id:true}});
+ const batchIds=[batchId,conflictBatchId];
+ const envs=await prisma.migrationEnvelope.findMany({where:{reconciliationId:{in:batchIds}},select:{id:true}});
  if(envs.length)await prisma.migrationEntity.deleteMany({where:{envelopeId:{in:envs.map(x=>x.id)}}});
- await prisma.clientDuplicateReview.deleteMany({where:{batchId}});
- await prisma.migrationEnvelope.deleteMany({where:{reconciliationId:batchId}});
- const imported=await prisma.client.findMany({where:{id:{startsWith:'client:import:'},legacyPayload:{path:['clientsOnly','sources'],array_contains:[{batchId}]}}}).catch(()=>[]);
- const ids=[centralId,...imported.map(x=>x.id)];
+ await prisma.clientDuplicateReview.deleteMany({where:{batchId:{in:batchIds}}});
+ await prisma.migrationEnvelope.deleteMany({where:{reconciliationId:{in:batchIds}}});
+ const imported=await prisma.client.findMany({where:{id:{startsWith:'client:import:'}}}).then(rows=>rows.filter(x=>Array.isArray(x.legacyPayload?.clientsOnly?.sources)&&x.legacyPayload.clientsOnly.sources.some(s=>batchIds.includes(s.batchId)))).catch(()=>[]);
+ const ids=[centralId,conflictCentralId,...imported.map(x=>x.id)];
  await prisma.clientUnitLink.deleteMany({where:{clientId:{in:ids}}});
  await prisma.client.deleteMany({where:{id:{in:ids}}});
 }
@@ -73,6 +74,32 @@ async function main(){
   assert.equal(await prisma.client.count({where:{id:importedId}}),0,'KEEP_CENTRAL não cria cliente duplicado');
   env=await prisma.migrationEnvelope.findFirstOrThrow({where:{reconciliationId:batchId}});
   assert.equal(env.status,'IMPORTED','batch só é importado após decisão humana resolvida');
+
+  await prisma.client.create({data:{id:conflictCentralId,name:'Beatriz Conflito',phone:null,email:null,legacyPayload:{clientsOnly:{cpf:'98765432100',sources:[]}}}});
+  const conflictPayload={mode:'CLIENTS_ONLY',batchId:conflictBatchId,phase:'FINAL',files:[{unitId:'centro',exportedAt:'2026-10-04T10:00:00-03:00',fileName:'source-conflict.xlsx',fileHash:H(902),rows:[
+   {sourceRow:2,id:'legacy-source-conflict-a',nome:'Beatriz Conflito',celular:'31911112222',email:'beatriz.a@example.com',cpf:'987.654.321-00'},
+   {sourceRow:3,id:'legacy-source-conflict-b',nome:'Beatriz Conflito',celular:'31933334444',email:'beatriz.b@example.com',cpf:'987.654.321-00'}
+  ]}]};
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers:h,body:JSON.stringify(conflictPayload)});
+  assert.ok(r.ok,'dry-run com conflito entre fontes');
+  const conflictDry=await r.json(),conflictPlan=conflictDry.report.plans.find(x=>x.targetClientId===conflictCentralId);
+  assert.ok(conflictPlan&&conflictPlan.action==='REVIEW_REQUIRED','conflito entre fontes exige revisão');
+  assert.ok(conflictPlan.conflicts.some(x=>x.type==='SOURCE_FIELD_CONFLICT'&&x.field==='phone'),'telefone divergente detectado');
+  assert.ok(conflictPlan.conflicts.some(x=>x.type==='SOURCE_FIELD_CONFLICT'&&x.field==='email'),'e-mail divergente detectado');
+
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(conflictBatchId)+'/'+encodeURIComponent(conflictPlan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'KEEP_CENTRAL',note:'mesma cliente; fontes divergem, não preencher campos vazios'})});
+  assert.ok(r.ok,'KEEP_CENTRAL salvo para conflito entre fontes');
+
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId:conflictBatchId,approvalReportHash:conflictDry.report.reportHash})});
+  assert.ok(r.ok,'KEEP_CENTRAL promove sem escolher valor ambíguo');
+  const conflictCentral=await prisma.client.findUniqueOrThrow({where:{id:conflictCentralId}});
+  assert.equal(conflictCentral.phone,null,'telefone central vazio permanece vazio diante de SOURCE_FIELD_CONFLICT');
+  assert.equal(conflictCentral.email,null,'e-mail central vazio permanece vazio diante de SOURCE_FIELD_CONFLICT');
+  assert.equal(conflictCentral.legacyPayload?.clientsOnly?.cpf,'98765432100','CPF não conflitante preserva identidade central');
+  assert.equal(await prisma.clientUnitLink.count({where:{clientId:conflictCentralId,unitId:'centro'}}),1,'vínculo da unidade ainda é criado com segurança');
+  assert.ok(Array.isArray(conflictCentral.legacyPayload?.clientsOnly?.sources)&&conflictCentral.legacyPayload.clientsOnly.sources.filter(x=>x.batchId===conflictBatchId).length===2,'proveniência mantém as duas linhas conflitantes');
+  const conflictImportedId='client:import:'+conflictPlan.clusterId.replace('cluster:','');
+  assert.equal(await prisma.client.count({where:{id:conflictImportedId}}),0,'conflito entre fontes não cria cliente duplicado sob KEEP_CENTRAL');
   console.log(JSON.stringify({ok:true,feature:'client_review_promotion_gate'}));
  }finally{
   if(p.exitCode===null&&p.signalCode===null){p.kill('SIGTERM');await Promise.race([once(p,'exit'),sleep(3000)]).catch(()=>{})}

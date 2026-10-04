@@ -328,7 +328,7 @@ export class ClientBatchService {
     const use=new Set(resolution?.useSourceFields||[]);for(const field of use)if(sourceConflictFields.has(field))throw new ConflictException(`Campo ${field} tem conflito entre fontes e não pode ser escolhido automaticamente: ${plan.clusterId}`);
     if(use.has('registrationUnitId')&&!plan.source.registrationUnitProven)throw new ConflictException(`registrationUnitId não comprovado na origem: ${plan.clusterId}`);
     const data:Prisma.ClientUpdateInput={};
-    const choose=(field:ClientField,current:string|null,source:string|null)=>{if(!source)return current;if(!current)return source;if(use.has(field))return source;return current;};
+    const choose=(field:ClientField,current:string|null,source:string|null)=>{if(sourceConflictFields.has(field))return current;if(!source)return current;if(!current)return source;if(use.has(field))return source;return current;};
     const name=choose('name',normalizeName(existing.name),plan.source.name);if(name&&name!==existing.name)data.name=name;
     const phone=choose('phone',normalizePhone(existing.phone),plan.source.phone);if(phone!==normalizePhone(existing.phone))data.phone=phone;
     const email=choose('email',normalizeEmail(existing.email),plan.source.email);if(email!==normalizeEmail(existing.email))data.email=email;
