@@ -13,8 +13,16 @@ export class FinanceWriteController {
  constructor(private readonly prisma:PrismaService){}
  private id(scope:string,key?:string){if(!key)return randomUUID();const k=String(key).trim();if(!k||k.length>200)throw new ConflictException('Idempotency-Key inválida');return 'op_'+createHash('sha256').update(scope+'|'+k).digest('hex').slice(0,40)}
  private money(n:number){return new Prisma.Decimal(n.toFixed(2))}
+ private stableJson(value:any):any{
+  if(Array.isArray(value))return value.map(x=>this.stableJson(x));
+  if(value&&typeof value==='object')return Object.fromEntries(Object.keys(value).sort().map(k=>[k,this.stableJson(value[k])]));
+  return value;
+ }
  private cashOpenRequestHash(unitId:string,b:OpenCashDto){
   return createHash('sha256').update(JSON.stringify({unitId,businessDate:b.businessDate,openingAmount:Number(b.openingAmount).toFixed(2)})).digest('hex');
+ }
+ private cashAdjustmentRequestHash(unitId:string,cashSessionId:string,b:CashAdjustmentDto){
+  return createHash('sha256').update(JSON.stringify(this.stableJson({unitId,cashSessionId,kind:b.kind,amount:Number(b.amount).toFixed(2),payload:b.payload||{}}))).digest('hex');
  }
  private paymentRequestHash(unitId:string,commandId:string,b:ReceivePaymentDto,cashSessionId:string|null){
   const canonical={
@@ -60,7 +68,7 @@ export class FinanceWriteController {
 
  @Post('cash-sessions/:id/adjustments')
  @UnitScoped() @RequirePermissions('cash.adjust')
- async cashAdjustment(@Req() req:ImperioRequest,@Param('id') id:string,@Body() b:CashAdjustmentDto,@Headers('idempotency-key') key?:string){assertOperationalWriteEnabled(req.unitId!);const adjustmentId=this.id(req.unitId!+'|cash-adjustment|'+id,key);return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${'cash-adjustment|'+id}))`;const row=await tx.cashSession.findFirst({where:{id,unitId:req.unitId!,status:'OPEN'}});if(!row)throw new ConflictException('Caixa aberto da unidade é obrigatório');const legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload as any:{};const adjustments=Array.isArray(legacy.adjustments)?legacy.adjustments:[];if(adjustments.some((x:any)=>x?.id===adjustmentId))return row;const next={...legacy,adjustments:[...adjustments,{id:adjustmentId,kind:b.kind,amount:b.amount,payload:b.payload||{},createdAt:new Date().toISOString(),userId:req.principal!.userId}]};const updated=await tx.cashSession.update({where:{id},data:{legacyPayload:next as Prisma.InputJsonValue,version:{increment:1}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'cash.adjusted',entityType:'CashSession',entityId:id,legacyPayload:{adjustmentId,kind:b.kind,amount:b.amount},occurredAt:new Date()}});return updated;});}
+ async cashAdjustment(@Req() req:ImperioRequest,@Param('id') id:string,@Body() b:CashAdjustmentDto,@Headers('idempotency-key') key?:string){assertOperationalWriteEnabled(req.unitId!);const adjustmentId=this.id(req.unitId!+'|cash-adjustment|'+id,key),idempotencyHash=this.cashAdjustmentRequestHash(req.unitId!,id,b);return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${'cash-adjustment|'+id}))`;const row=await tx.cashSession.findFirst({where:{id,unitId:req.unitId!,status:'OPEN'}});if(!row)throw new ConflictException('Caixa aberto da unidade é obrigatório');const legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload as any:{};const adjustments=Array.isArray(legacy.adjustments)?legacy.adjustments:[];const prior=adjustments.find((x:any)=>x?.id===adjustmentId);if(prior){const legacyMatches=String(prior.kind||'')===String(b.kind)&&Number(prior.amount||0).toFixed(2)===Number(b.amount).toFixed(2)&&JSON.stringify(this.stableJson(prior.payload||{}))===JSON.stringify(this.stableJson(b.payload||{}));if((prior.idempotencyHash&&prior.idempotencyHash!==idempotencyHash)||(!prior.idempotencyHash&&!legacyMatches))throw new ConflictException('Idempotency-Key já utilizada para outro ajuste deste caixa');return row}const next={...legacy,adjustments:[...adjustments,{id:adjustmentId,kind:b.kind,amount:b.amount,payload:b.payload||{},idempotencyHash,createdAt:new Date().toISOString(),userId:req.principal!.userId}]};const updated=await tx.cashSession.update({where:{id},data:{legacyPayload:next as Prisma.InputJsonValue,version:{increment:1}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'cash.adjusted',entityType:'CashSession',entityId:id,legacyPayload:{adjustmentId,kind:b.kind,amount:b.amount},occurredAt:new Date()}});return updated;});}
 
  @Post('cash-sessions/:id/reopen')
  @UnitScoped() @RequirePermissions('cash.reopen')
