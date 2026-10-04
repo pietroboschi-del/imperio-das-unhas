@@ -165,9 +165,8 @@ export class ClientBatchService {
           if(!decision)throw new ConflictException(`Revisão humana pendente antes da promoção: ${plan.clusterId}`);
           if(decision.reportHash!==report.reportHash)throw new ConflictException(`Revisão humana desatualizada; revise novamente o relatório atual: ${plan.clusterId}`);
           if(decision.decision==='REVIEW_LATER')throw new ConflictException(`Caso marcado para revisar depois ainda bloqueia a promoção: ${plan.clusterId}`);
-          const useSourceFields=manualResolutions[plan.clusterId]?.useSourceFields;
           if(decision.decision==='KEEP_SEPARATE'){
-            effectiveResolutions[plan.clusterId]={mode:'CREATE_NEW',...(useSourceFields?{useSourceFields}:{})};
+            effectiveResolutions[plan.clusterId]={mode:'CREATE_NEW'};
             continue;
           }
           if(decision.decision!=='MERGE')throw new ConflictException(`Decisão de revisão inválida para promoção: ${plan.clusterId}`);
@@ -194,8 +193,7 @@ export class ClientBatchService {
           const rootResolution=effectiveResolutions[rootId];
           const clientId=rootResolution?.mode==='CREATE_NEW'?importedId(rootId):(rootPlan.targetClientId||((rootPlan.action==='CREATE')?importedId(rootId):null));
           if(!clientId)throw new ConflictException(`Destino final da mesclagem ainda não possui resolução promovível: ${clusterId}`);
-          const useSourceFields=manualResolutions[clusterId]?.useSourceFields;
-          effectiveResolutions[clusterId]={mode:'MATCH_CLIENT',clientId,...(useSourceFields?{useSourceFields}:{})};
+          effectiveResolutions[clusterId]={mode:'MATCH_CLIENT',clientId};
         }
       }
       const orderedPlans=[...report.plans.filter(plan=>!mergeTargets.has(plan.clusterId)),...report.plans.filter(plan=>mergeTargets.has(plan.clusterId))];

@@ -14,8 +14,10 @@ async function cleanup(){
  if(envs.length)await prisma.migrationEntity.deleteMany({where:{envelopeId:{in:envs.map(x=>x.id)}}});
  await prisma.clientDuplicateReview.deleteMany({where:{batchId}});
  await prisma.migrationEnvelope.deleteMany({where:{reconciliationId:batchId}});
- await prisma.clientUnitLink.deleteMany({where:{clientId:centralId}});
- await prisma.client.deleteMany({where:{id:centralId}});
+ const imported=await prisma.client.findMany({where:{id:{startsWith:'client:import:'},legacyPayload:{path:['clientsOnly','sources'],array_contains:[{batchId}]}}}).catch(()=>[]);
+ const ids=[centralId,...imported.map(x=>x.id)];
+ await prisma.clientUnitLink.deleteMany({where:{clientId:{in:ids}}});
+ await prisma.client.deleteMany({where:{id:{in:ids}}});
 }
 
 async function main(){
@@ -46,8 +48,26 @@ async function main(){
 
   assert.equal(await prisma.client.count({where:{id:centralId}}),1,'cliente central permanece único');
   assert.equal(await prisma.clientUnitLink.count({where:{clientId:centralId}}),0,'promoção bloqueada não cria vínculo');
-  const env=await prisma.migrationEnvelope.findFirstOrThrow({where:{reconciliationId:batchId}});
+  let env=await prisma.migrationEnvelope.findFirstOrThrow({where:{reconciliationId:batchId}});
   assert.notEqual(env.status,'IMPORTED','batch não é marcado importado');
+
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchId)+'/'+encodeURIComponent(plan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'KEEP_SEPARATE',note:'cadastros distintos'})});
+  assert.ok(r.ok,'KEEP_SEPARATE salvo');
+
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId,approvalReportHash:dry.report.reportHash,resolutions:{[plan.clusterId]:{mode:'KEEP_CENTRAL',useSourceFields:['email','phone','cpf']}}})});
+  assert.ok(r.ok,'decisão humana governa commit mesmo com override manual malicioso');
+  const committed=await r.json();
+  assert.equal(committed.conflictsResolved,1,'revisão humana resolvida');
+  const central=await prisma.client.findUniqueOrThrow({where:{id:centralId}});
+  assert.equal(central.email,'central@example.com','e-mail central não é sobrescrito silenciosamente');
+  assert.equal(central.phone,'+5531999991000','telefone central não é sobrescrito silenciosamente');
+  assert.equal(central.legacyPayload?.clientsOnly?.cpf,'12345678901','CPF central não é sobrescrito silenciosamente');
+  const importedId='client:import:'+plan.clusterId.replace('cluster:','');
+  const separate=await prisma.client.findUniqueOrThrow({where:{id:importedId}});
+  assert.equal(separate.email,'legado@example.com','KEEP_SEPARATE cria cadastro distinto com dado legado');
+  assert.equal(await prisma.clientUnitLink.count({where:{clientId:importedId,unitId:'centro'}}),1,'cadastro separado recebe vínculo da unidade');
+  env=await prisma.migrationEnvelope.findFirstOrThrow({where:{reconciliationId:batchId}});
+  assert.equal(env.status,'IMPORTED','batch só é importado após decisão humana resolvida');
   console.log(JSON.stringify({ok:true,feature:'client_review_promotion_gate'}));
  }finally{
   if(p.exitCode===null&&p.signalCode===null){p.kill('SIGTERM');await Promise.race([once(p,'exit'),sleep(3000)]).catch(()=>{})}
