@@ -225,6 +225,10 @@ export class ClientBatchService {
     const sameBatch=await db.migrationEnvelope.findFirst({where:{instanceId,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId,status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},orderBy:{createdAt:'desc'}});
     if(importedCount===batchState.length&&batchState.length>0&&!sameBatch)throw new ConflictException(`Batch ${set.batchId} já foi importado; use novo batchId para adicionar outra unidade ou nova onda de exportação`);
     if(sameBatch&&sameBatch.dataHash!==fileHash)throw new ConflictException(`Batch ${set.batchId} já possui outro arquivo para ${file.unitId}; use novo batchId para uma nova exportação`);
+    if(importedCount===batchState.length&&batchState.length>0&&sameBatch&&sameBatch.dataHash===fileHash&&parserVersion){
+      const previousParserVersion=asText((obj(sameBatch.summary) as StoredSummary).parserVersion);
+      if(previousParserVersion!==parserVersion)throw new ConflictException(`Batch ${set.batchId} já foi importado; parserVersion não pode ser supersedido no mesmo batchId. Use novo batchId com nova exportação`);
+    }
     if(sameBatch&&sameBatch.dataHash===fileHash&&parserVersion){
       const previousParserVersion=asText((obj(sameBatch.summary) as StoredSummary).parserVersion);
       if(previousParserVersion!==parserVersion){

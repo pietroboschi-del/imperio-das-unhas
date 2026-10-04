@@ -60,6 +60,14 @@ async function main(){
   r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId,approvalReportHash:H(999)})});
   assert.equal(r.status,409,'batch já importado rejeita outro hash');
 
+  const reparsed={...payload,files:[{...payload.files[0],parserVersion:'parser-v2'}]};
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers:h,body:JSON.stringify(reparsed)});
+  assert.equal(r.status,409,'batch importado não pode ser reaberto por parserVersion diferente');
+  const parserErr=await r.json();assert.ok(String(parserErr.message||'').includes('parserVersion'),'erro identifica tentativa de superseder parser em batch importado');
+  const afterParserAttempt=await prisma.migrationEnvelope.findMany({where:{reconciliationId:batchId},orderBy:{instanceId:'asc'}});
+  assert.equal(afterParserAttempt.length,2,'reparse rejeitado não cria nova revisão');
+  assert.ok(afterParserAttempt.every(e=>e.status===ImportStatus.IMPORTED),'reparse rejeitado preserva envelopes IMPORTED');
+
   const extraWave={mode:'CLIENTS_ONLY',batchId,phase:'FINAL',files:[{unitId:'shopping-contagem',exportedAt:'2026-10-04T15:00:00-03:00',fileName:'shopping-extra-wave.xlsx',fileHash:H(923),rows:[{sourceRow:2,id:'shopping-extra',nome:'Cliente Onda Nova',celular:'31911110003'}]}]};
   r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers:h,body:JSON.stringify(extraWave)});
   assert.equal(r.status,409,'batch já importado não aceita nova unidade/onda');
