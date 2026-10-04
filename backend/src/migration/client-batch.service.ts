@@ -146,7 +146,7 @@ export class ClientBatchService {
     const previewSet=await this.loadBatchSet(body.batchId,this.prisma,true);
     if(previewSet.phase!=='FINAL')throw new ConflictException('Somente batch FINAL pode ser promovido para clientes centrais');
 
-    const resolutions=body.resolutions||{};
+    const manualResolutions=body.resolutions||{};
     const result=await this.prisma.$transaction(async tx=>{
       const active=(await this.batchEnvelopes(body.batchId,tx)).filter(e=>e.status!==ImportStatus.IMPORTED);
       if(!active.length)throw new ConflictException('Nenhuma unidade pendente neste batch');
@@ -154,20 +154,54 @@ export class ClientBatchService {
       const report=await this.analyzeSet(set,tx);
       if(report.reportHash!==body.approvalReportHash)throw new ConflictException('Relatório ficou desatualizado em relação ao PostgreSQL; execute novo dry-run e aprove o novo hash');
       const reviewPlans=report.plans.filter(plan=>plan.action==='REVIEW_REQUIRED');
+      const effectiveResolutions:Record<string,Resolution>={...manualResolutions};
+      const mergeTargets=new Map<string,string>();
       if(reviewPlans.length){
         const saved=await tx.clientDuplicateReview.findMany({where:{batchId:body.batchId,clusterId:{in:reviewPlans.map(x=>x.clusterId)}}});
         const byCluster=new Map(saved.map(x=>[x.clusterId,x]));
+        const plansById=new Map(report.plans.map(x=>[x.clusterId,x]));
         for(const plan of reviewPlans){
           const decision=byCluster.get(plan.clusterId);
           if(!decision)throw new ConflictException(`Revisão humana pendente antes da promoção: ${plan.clusterId}`);
           if(decision.reportHash!==report.reportHash)throw new ConflictException(`Revisão humana desatualizada; revise novamente o relatório atual: ${plan.clusterId}`);
           if(decision.decision==='REVIEW_LATER')throw new ConflictException(`Caso marcado para revisar depois ainda bloqueia a promoção: ${plan.clusterId}`);
+          const useSourceFields=manualResolutions[plan.clusterId]?.useSourceFields;
+          if(decision.decision==='KEEP_SEPARATE'){
+            effectiveResolutions[plan.clusterId]={mode:'CREATE_NEW',...(useSourceFields?{useSourceFields}:{})};
+            continue;
+          }
+          if(decision.decision!=='MERGE')throw new ConflictException(`Decisão de revisão inválida para promoção: ${plan.clusterId}`);
+          const target=asText(decision.mergeTargetClusterId);
+          if(!target||target===plan.clusterId||!plansById.has(target))throw new ConflictException(`Destino de mesclagem inválido no relatório atual: ${plan.clusterId}`);
+          mergeTargets.set(plan.clusterId,target);
+        }
+        const state=new Map<string,0|1|2>();
+        const visit=(clusterId:string)=>{
+          const s=state.get(clusterId)||0;
+          if(s===1)throw new ConflictException(`Ciclo de mesclagem detectado na revisão: ${clusterId}`);
+          if(s===2)return;
+          state.set(clusterId,1);
+          const next=mergeTargets.get(clusterId);if(next&&mergeTargets.has(next))visit(next);
+          state.set(clusterId,2);
+        };
+        for(const clusterId of mergeTargets.keys())visit(clusterId);
+        const importedId=(clusterId:string)=>`client:import:${clusterId.replace('cluster:','')}`;
+        for(const [clusterId] of mergeTargets){
+          let rootId=clusterId;
+          while(mergeTargets.has(rootId))rootId=mergeTargets.get(rootId)!;
+          const rootPlan=plansById.get(rootId);
+          if(!rootPlan)throw new ConflictException(`Destino final da mesclagem não existe no relatório: ${clusterId}`);
+          const rootResolution=effectiveResolutions[rootId];
+          const clientId=rootResolution?.mode==='CREATE_NEW'?importedId(rootId):(rootPlan.targetClientId||((rootPlan.action==='CREATE')?importedId(rootId):null));
+          if(!clientId)throw new ConflictException(`Destino final da mesclagem ainda não possui resolução promovível: ${clusterId}`);
+          const useSourceFields=manualResolutions[clusterId]?.useSourceFields;
+          effectiveResolutions[clusterId]={mode:'MATCH_CLIENT',clientId,...(useSourceFields?{useSourceFields}:{})};
         }
       }
-      for(const plan of reviewPlans)if(!resolutions[plan.clusterId])throw new ConflictException(`Conflito sem resolução aprovada: ${plan.clusterId}`);
+      const orderedPlans=[...report.plans.filter(plan=>!mergeTargets.has(plan.clusterId)),...report.plans.filter(plan=>mergeTargets.has(plan.clusterId))];
       let created=0,updated=0,linksAdded=0;
-      for(const plan of report.plans){
-        const applied=await this.applyPlan(tx,plan,resolutions[plan.clusterId]);
+      for(const plan of orderedPlans){
+        const applied=await this.applyPlan(tx,plan,effectiveResolutions[plan.clusterId]);
         created+=applied.created;updated+=applied.updated;linksAdded+=applied.linksAdded;
       }
       const now=new Date();
@@ -177,7 +211,7 @@ export class ClientBatchService {
       }
       return {report,created,updated,linksAdded};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable,timeout:180000,maxWait:30000});
-    return {ok:true,mode:'commit',duplicate:false,batchId:body.batchId,reportHash:result.report.reportHash,created:result.created,updated:result.updated,linksAdded:result.linksAdded,conflictsResolved:Object.keys(resolutions).length};
+    return {ok:true,mode:'commit',duplicate:false,batchId:body.batchId,reportHash:result.report.reportHash,created:result.created,updated:result.updated,linksAdded:result.linksAdded,conflictsResolved:result.report.plans.filter(x=>x.action==='REVIEW_REQUIRED').length};
   }
 
   private commitEnabled(){return String(process.env.MIGRATION_IMPORT_ENABLED||'false')==='true'&&String(process.env.CLIENT_BATCH_COMMIT_ENABLED||'false')==='true';}
