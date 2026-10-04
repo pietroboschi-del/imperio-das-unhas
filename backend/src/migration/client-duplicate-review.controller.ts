@@ -5,8 +5,8 @@ import type { ImperioRequest } from '../common/request-context';
 import { ClientDuplicateReviewService } from './client-duplicate-review.service';
 
 class DuplicateReviewDecisionDto {
-  @IsIn(['MERGE','KEEP_SEPARATE','REVIEW_LATER'])
-  decision!: 'MERGE'|'KEEP_SEPARATE'|'REVIEW_LATER';
+  @IsIn(['MERGE','KEEP_SEPARATE','KEEP_CENTRAL','REVIEW_LATER'])
+  decision!: 'MERGE'|'KEEP_SEPARATE'|'KEEP_CENTRAL'|'REVIEW_LATER';
 
   @IsOptional()
   @IsString()

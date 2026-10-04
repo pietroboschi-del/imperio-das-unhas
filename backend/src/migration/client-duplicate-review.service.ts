@@ -3,11 +3,14 @@ import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClientBatchService } from './client-batch.service';
+import { normalizeCpf } from './client-batch.logic';
 
-type ReviewDecision = 'MERGE'|'KEEP_SEPARATE'|'REVIEW_LATER';
+type ReviewDecision = 'MERGE'|'KEEP_SEPARATE'|'KEEP_CENTRAL'|'REVIEW_LATER';
 type ReviewDecisionInput = { decision:ReviewDecision; targetClusterId?:string; note?:string };
 const json=(value:unknown)=>value as Prisma.InputJsonValue;
 const clean=(value:unknown)=>String(value??'').trim();
+const obj=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
+const legacyCpf=(value:unknown)=>{const root=obj(value),clientsOnly=obj(root.clientsOnly);return normalizeCpf(clientsOnly.cpf??root.cpf);};
 
 @Injectable()
 export class ClientDuplicateReviewService {
@@ -16,6 +19,9 @@ export class ClientDuplicateReviewService {
   async queue(batchId:string) {
     const id=clean(batchId);if(!id)throw new BadRequestException('batchId obrigatório');
     const {report}=await this.clientBatches.report(id);
+    const targetClientIds=[...new Set(report.plans.map(x=>x.targetClientId).filter((x):x is string=>!!x))];
+    const centralClients=targetClientIds.length?await this.prisma.client.findMany({where:{id:{in:targetClientIds}},select:{id:true,name:true,phone:true,email:true,registrationUnitId:true,legacyPayload:true}}):[];
+    const centralById=new Map(centralClients.map(x=>[x.id,x]));
     const decisions=await this.prisma.clientDuplicateReview.findMany({where:{batchId:id},orderBy:{updatedAt:'desc'}});
     const byCluster=new Map(decisions.map(x=>[x.clusterId,x]));
     const plansById=new Map(report.plans.map(x=>[x.clusterId,x]));
@@ -27,12 +33,14 @@ export class ClientDuplicateReviewService {
       }).filter(Boolean);
       const saved=byCluster.get(plan.clusterId);
       const current=saved&&saved.reportHash===report.reportHash?saved:null;
+      const central=plan.targetClientId?centralById.get(plan.targetClientId):null;
       return {
         clusterId:plan.clusterId,
         source:plan.source,
         sourceRows:plan.sourceRows,
         conflicts:plan.conflicts,
         candidateClusters:candidates,
+        centralCandidate:central?{clientId:central.id,name:central.name,phone:central.phone,email:central.email,cpf:legacyCpf(central.legacyPayload),registrationUnitId:central.registrationUnitId}:null,
         decision:current?{
           decision:current.decision,
           targetClusterId:current.mergeTargetClusterId,
@@ -56,7 +64,7 @@ export class ClientDuplicateReviewService {
   async decide(batchId:string,clusterId:string,input:ReviewDecisionInput,reviewedByUserId:string) {
     const id=clean(batchId),cid=clean(clusterId),actor=clean(reviewedByUserId);
     if(!id||!cid||!actor)throw new BadRequestException('batchId, clusterId e usuário são obrigatórios');
-    if(!['MERGE','KEEP_SEPARATE','REVIEW_LATER'].includes(input?.decision))throw new BadRequestException('Decisão inválida');
+    if(!['MERGE','KEEP_SEPARATE','KEEP_CENTRAL','REVIEW_LATER'].includes(input?.decision))throw new BadRequestException('Decisão inválida');
     const {report}=await this.clientBatches.report(id);
     const plan=report.plans.find(x=>x.clusterId===cid);
     if(!plan)throw new NotFoundException('Cluster não encontrado no batch');
@@ -69,6 +77,9 @@ export class ClientDuplicateReviewService {
       const candidates=new Set(plan.conflicts.flatMap(c=>c.candidateClusterIds||[]));
       if(!candidates.has(targetClusterId))throw new ConflictException('Mesclagem permitida somente com candidato relacionado pelo relatório atual');
       if(!report.plans.some(x=>x.clusterId===targetClusterId))throw new NotFoundException('Cluster de destino não existe no relatório atual');
+    } else if(input.decision==='KEEP_CENTRAL') {
+      if(!plan.targetClientId)throw new ConflictException('KEEP_CENTRAL exige cliente central identificado pelo relatório atual');
+      if(clean(input.targetClusterId))throw new BadRequestException('targetClusterId só é aceito em MERGE');
     } else if(clean(input.targetClusterId)) {
       throw new BadRequestException('targetClusterId só é aceito em MERGE');
     }

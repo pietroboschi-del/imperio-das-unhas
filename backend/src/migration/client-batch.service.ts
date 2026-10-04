@@ -166,6 +166,11 @@ export class ClientBatchService {
           if(!decision)throw new ConflictException(`Revisão humana pendente antes da promoção: ${plan.clusterId}`);
           if(decision.reportHash!==report.reportHash)throw new ConflictException(`Revisão humana desatualizada; revise novamente o relatório atual: ${plan.clusterId}`);
           if(decision.decision==='REVIEW_LATER')throw new ConflictException(`Caso marcado para revisar depois ainda bloqueia a promoção: ${plan.clusterId}`);
+          if(decision.decision==='KEEP_CENTRAL'){
+            if(!plan.targetClientId)throw new ConflictException(`KEEP_CENTRAL exige cliente central identificado pelo relatório atual: ${plan.clusterId}`);
+            effectiveResolutions[plan.clusterId]={mode:'KEEP_CENTRAL'};
+            continue;
+          }
           if(decision.decision==='KEEP_SEPARATE'){
             effectiveResolutions[plan.clusterId]={mode:'CREATE_NEW'};
             continue;

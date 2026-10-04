@@ -37,6 +37,11 @@ async function main(){
   assert.ok(r.ok,'dry-run FINAL');
   const dry=await r.json(),plan=dry.report.plans.find(x=>x.targetClientId===centralId);
   assert.ok(plan&&plan.action==='REVIEW_REQUIRED','conflito exige revisão humana');
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchId),{headers:{'cookie':c}});
+  assert.ok(r.ok,'fila de revisão carregada');
+  const queue=await r.json(),queueItem=queue.items.find(x=>x.clusterId===plan.clusterId);
+  assert.equal(queueItem?.centralCandidate?.clientId,centralId,'fila expõe cliente central identificado para comparação humana');
+  assert.equal(queueItem?.centralCandidate?.email,'central@example.com','fila exibe dado central atual');
 
   r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchId)+'/'+encodeURIComponent(plan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'REVIEW_LATER',note:'aguardar conferência'})});
   assert.ok(r.ok,'REVIEW_LATER salvo');
@@ -51,21 +56,21 @@ async function main(){
   let env=await prisma.migrationEnvelope.findFirstOrThrow({where:{reconciliationId:batchId}});
   assert.notEqual(env.status,'IMPORTED','batch não é marcado importado');
 
-  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchId)+'/'+encodeURIComponent(plan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'KEEP_SEPARATE',note:'cadastros distintos'})});
-  assert.ok(r.ok,'KEEP_SEPARATE salvo');
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchId)+'/'+encodeURIComponent(plan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'KEEP_CENTRAL',note:'mesma cliente; preservar cadastro central'})});
+  assert.ok(r.ok,'KEEP_CENTRAL salvo');
 
-  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId,approvalReportHash:dry.report.reportHash,resolutions:{[plan.clusterId]:{mode:'KEEP_CENTRAL',useSourceFields:['email','phone','cpf']}}})});
-  assert.ok(r.ok,'decisão humana governa commit mesmo com override manual malicioso');
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId,approvalReportHash:dry.report.reportHash,resolutions:{[plan.clusterId]:{mode:'CREATE_NEW',useSourceFields:['email','phone','cpf']}}})});
+  assert.ok(r.ok,'decisão humana KEEP_CENTRAL governa commit mesmo com override manual malicioso');
   const committed=await r.json();
   assert.equal(committed.conflictsResolved,1,'revisão humana resolvida');
   const central=await prisma.client.findUniqueOrThrow({where:{id:centralId}});
   assert.equal(central.email,'central@example.com','e-mail central não é sobrescrito silenciosamente');
   assert.equal(central.phone,'+5531999991000','telefone central não é sobrescrito silenciosamente');
   assert.equal(central.legacyPayload?.clientsOnly?.cpf,'12345678901','CPF central não é sobrescrito silenciosamente');
+  assert.equal(await prisma.clientUnitLink.count({where:{clientId:centralId,unitId:'centro'}}),1,'KEEP_CENTRAL vincula a unidade ao cliente central');
+  assert.ok(Array.isArray(central.legacyPayload?.clientsOnly?.sources)&&central.legacyPayload.clientsOnly.sources.some(x=>x.batchId===batchId),'KEEP_CENTRAL preserva proveniência da importação');
   const importedId='client:import:'+plan.clusterId.replace('cluster:','');
-  const separate=await prisma.client.findUniqueOrThrow({where:{id:importedId}});
-  assert.equal(separate.email,'legado@example.com','KEEP_SEPARATE cria cadastro distinto com dado legado');
-  assert.equal(await prisma.clientUnitLink.count({where:{clientId:importedId,unitId:'centro'}}),1,'cadastro separado recebe vínculo da unidade');
+  assert.equal(await prisma.client.count({where:{id:importedId}}),0,'KEEP_CENTRAL não cria cliente duplicado');
   env=await prisma.migrationEnvelope.findFirstOrThrow({where:{reconciliationId:batchId}});
   assert.equal(env.status,'IMPORTED','batch só é importado após decisão humana resolvida');
   console.log(JSON.stringify({ok:true,feature:'client_review_promotion_gate'}));

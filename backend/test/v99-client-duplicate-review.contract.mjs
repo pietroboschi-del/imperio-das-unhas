@@ -17,6 +17,9 @@ ok(service.includes("clientBatches.report(id)"),'fila usa o relatório persistid
 ok(service.includes("x.action==='REVIEW_REQUIRED'"),'somente casos de review entram na fila');
 ok(service.includes("saved.reportHash===report.reportHash"),'decisão antiga fica stale quando relatório muda');
 ok(service.includes("c.candidateClusterIds||[]"),'MERGE usa candidatos relacionados do relatório');
+ok(controller.includes("'KEEP_CENTRAL'"),'API aceita decisão explícita de manter o cliente central');
+ok(service.includes('centralCandidate:central?'),'fila expõe o cliente central identificado para comparação');
+ok(service.includes("KEEP_CENTRAL exige cliente central identificado"),'KEEP_CENTRAL só é permitido quando o relatório identificou destino central');
 ok(service.includes("Mesclagem permitida somente com candidato relacionado"),'merge arbitrário é bloqueado');
 ok(service.includes("CLIENT_DUPLICATE_REVIEW_DECISION"),'toda decisão gera auditoria');
 ok(service.includes("clientRowsMutated:false")&&!service.includes('.client.update(')&&!service.includes('.client.create(')&&!service.includes('.client.delete'),'revisão não altera clientes');

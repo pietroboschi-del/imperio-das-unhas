@@ -23,7 +23,8 @@ ok(js.includes("window.v99DupOpenPage=renderPage"),'handler inline persiste mesm
 ok(js.includes("/api/v1/client-duplicate-reviews/"),'UI usa API de revisão');
 ok(js.includes("method:'POST'"),'decisões são persistidas');
 ok(js.includes("credentials:'include'")&&js.includes("'X-CSRF-Token'"),'decisão usa cookie e CSRF');
-ok(js.includes("'MERGE'")&&js.includes("'KEEP_SEPARATE'")&&js.includes("'REVIEW_LATER'"),'três decisões estão disponíveis');
+ok(js.includes("'MERGE'")&&js.includes("'KEEP_SEPARATE'")&&js.includes("'KEEP_CENTRAL'")&&js.includes("'REVIEW_LATER'"),'quatro decisões estão disponíveis');
+ok(js.includes('centralCandidate')&&js.includes('Mesma cliente (central)'),'UI mostra e permite confirmar o cliente central identificado');
 ok(js.includes('candidateClusters')&&js.includes('state.candidateId'),'comparação mantém candidato selecionado');
 ok(js.includes('v99dup-different'),'diferenças são destacadas');
 ok(js.includes("state.filter==='pending'")&&js.includes("state.filter==='resolved'")&&js.includes("state.filter==='later'"),'filtros operacionais existem');
@@ -33,6 +34,7 @@ ok(js.includes('Nenhum cadastro real é mesclado')&&js.includes('clientMutation:
 ok(!js.includes('/clients/batches/commit'),'UI não promove batch');
 ok(!js.includes('db.clients.push')&&!js.includes('db.clients='),'UI não altera clientes locais');
 ok(js.includes("confirm('Registrar que estes dois cadastros devem ser mesclados?"),'MERGE exige confirmação humana adicional');
+ok(js.includes("confirm('Confirmar que este cadastro corresponde ao cliente central identificado?"),'KEEP_CENTRAL exige confirmação humana adicional');
 ok(js.includes("if(state.saving)return")&&js.includes("state.saving?'disabled':''"),'decisão bloqueia cliques repetidos enquanto salva');
 ok(js.includes('v99dupActionStatus')&&js.includes("actionMessage='Salvando decisão...'"),'feedback da ação fica visível junto aos botões');
 ok(js.includes("decision==='REVIEW_LATER'")&&js.includes("refreshed.findIndex")&&js.includes("state.index=at<refreshed.length-1?at+1"),'Revisar depois avança para outro caso após persistir');
