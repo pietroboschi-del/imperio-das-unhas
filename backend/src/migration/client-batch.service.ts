@@ -139,9 +139,9 @@ export class ClientBatchService {
     if(all.length===0)throw new ConflictException('Batch não encontrado');
     const pending=all.filter(e=>e.status!==ImportStatus.IMPORTED);
     if(!pending.length){
-      const hashes=all.map(e=>asText((obj(e.summary) as StoredSummary).committedReportHash)).filter(Boolean);
-      if(hashes.includes(body.approvalReportHash))return {ok:true,mode:'commit',duplicate:true,batchId:body.batchId,reportHash:body.approvalReportHash};
-      throw new ConflictException('Batch já importado; o hash de aprovação não corresponde a uma onda de commit registrada');
+      const hashes=all.map(e=>asText((obj(e.summary) as StoredSummary).committedReportHash));
+      if(hashes.length===all.length&&hashes.every(h=>h===body.approvalReportHash))return {ok:true,mode:'commit',duplicate:true,batchId:body.batchId,reportHash:body.approvalReportHash};
+      throw new ConflictException('Batch já importado; os envelopes não confirmam unanimemente o hash de aprovação informado');
     }
     const previewSet=await this.loadBatchSet(body.batchId,this.prisma,true);
     if(previewSet.phase!=='FINAL')throw new ConflictException('Somente batch FINAL pode ser promovido para clientes centrais');

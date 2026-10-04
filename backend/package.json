@@ -39,7 +39,7 @@
     "start:prod": "node dist/main.js",
     "test:deployment-cutover": "node test/v99-deployment-cutover.contract.mjs",
     "test:client-batches": "node --experimental-strip-types test/v99-client-batches.contract.mjs && node test/v99-client-duplicate-review.contract.mjs",
-    "test:client-batch-rehearsal": "node test/v99-client-batch-rehearsal.integration.mjs && node test/v99-client-review-promotion-gate.integration.mjs && node test/v99-client-review-auto-resolution.integration.mjs",
+    "test:client-batch-rehearsal": "node test/v99-client-batch-rehearsal.integration.mjs && node test/v99-client-review-promotion-gate.integration.mjs && node test/v99-client-review-auto-resolution.integration.mjs && node test/v99-client-commit-idempotency.integration.mjs",
     "test:client-excel": "node test/v99-client-excel.integration.mjs",
     "test:frontend-client-migration-ui": "node test/v99-frontend-client-migration-ui.contract.mjs && node test/v99-frontend-duplicate-review-ui.contract.mjs",
     "admin:recover": "node dist/admin-recovery.js",
