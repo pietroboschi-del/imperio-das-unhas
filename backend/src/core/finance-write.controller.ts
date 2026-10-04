@@ -24,6 +24,12 @@ export class FinanceWriteController {
  private cashAdjustmentRequestHash(unitId:string,cashSessionId:string,b:CashAdjustmentDto){
   return createHash('sha256').update(JSON.stringify(this.stableJson({unitId,cashSessionId,kind:b.kind,amount:Number(b.amount).toFixed(2),payload:b.payload||{}}))).digest('hex');
  }
+ private commandRequestHash(unitId:string,b:CreateCommandDto){
+  return createHash('sha256').update(JSON.stringify({
+   unitId,clientId:b.clientId||null,serviceDate:b.serviceDate,
+   grossAmount:Number(b.grossAmount).toFixed(2),discountAmount:Number(b.discountAmount||0).toFixed(2),
+  })).digest('hex');
+ }
  private paymentRequestHash(unitId:string,commandId:string,b:ReceivePaymentDto,cashSessionId:string|null){
   const canonical={
    unitId,commandId,cashSessionId,method:b.method,
@@ -83,8 +89,8 @@ export class FinanceWriteController {
  @UnitScoped() @RequirePermissions('finance.manage')
  async command(@Req() req:ImperioRequest,@Body() b:CreateCommandDto,@Headers('idempotency-key') key?:string){
   assertOperationalWriteEnabled(req.unitId!);if(b.clientId&&!await this.prisma.client.findFirst({where:{id:b.clientId,active:true}}))throw new NotFoundException('Cliente não encontrado');
-  const id=this.id(req.unitId!+'|command',key),gross=this.money(b.grossAmount),discount=this.money(b.discountAmount||0);if(discount.gt(gross))throw new ConflictException('Desconto não pode superar valor bruto');const remaining=gross.minus(discount);
-  return this.prisma.$transaction(async tx=>{const prior=await tx.openCommand.findUnique({where:{id}});if(prior)return prior;const row=await tx.openCommand.create({data:{id,unitId:req.unitId!,clientId:b.clientId||null,serviceDate:new Date(b.serviceDate+'T00:00:00.000Z'),status:'OPEN',grossAmount:gross,discountAmount:discount,appliedSignalAmount:0,appliedCreditAmount:0,customerFeeAmount:0,remainingAmount:remaining,legacyPayload:{source:'central_api'}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'command.opened',entityType:'OpenCommand',entityId:id,legacyPayload:{grossAmount:String(gross)},occurredAt:new Date()}});return row;});
+  const id=this.id(req.unitId!+'|command',key),gross=this.money(b.grossAmount),discount=this.money(b.discountAmount||0),serviceDate=new Date(b.serviceDate+'T00:00:00.000Z'),idempotencyHash=this.commandRequestHash(req.unitId!,b);if(discount.gt(gross))throw new ConflictException('Desconto não pode superar valor bruto');const remaining=gross.minus(discount);
+  return this.prisma.$transaction(async tx=>{const prior=await tx.openCommand.findUnique({where:{id}});if(prior){const legacy=prior.legacyPayload&&typeof prior.legacyPayload==='object'&&!Array.isArray(prior.legacyPayload)?prior.legacyPayload as any:{};const persistedMatches=prior.unitId===req.unitId!&&(prior.clientId||null)===(b.clientId||null)&&prior.serviceDate.getTime()===serviceDate.getTime()&&new Prisma.Decimal(prior.grossAmount).eq(gross)&&new Prisma.Decimal(prior.discountAmount).eq(discount);if((legacy.idempotencyHash&&legacy.idempotencyHash!==idempotencyHash)||(!legacy.idempotencyHash&&!persistedMatches))throw new ConflictException('Idempotency-Key já utilizada para outra comanda nesta unidade');return prior}const row=await tx.openCommand.create({data:{id,unitId:req.unitId!,clientId:b.clientId||null,serviceDate,status:'OPEN',grossAmount:gross,discountAmount:discount,appliedSignalAmount:0,appliedCreditAmount:0,customerFeeAmount:0,remainingAmount:remaining,legacyPayload:{source:'central_api',idempotencyHash}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'command.opened',entityType:'OpenCommand',entityId:id,legacyPayload:{grossAmount:String(gross)},occurredAt:new Date()}});return row;});
  }
 
  @Put('commands/:id/snapshot')
