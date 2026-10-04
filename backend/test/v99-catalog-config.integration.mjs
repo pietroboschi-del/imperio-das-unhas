@@ -31,7 +31,12 @@ async function main(){
     ok(await prisma.professionalUnit.count({where:{professionalId:'cfg_pro_ci',active:true}})===3,'três vínculos persistidos');
     const service=await prisma.service.findUnique({where:{id:'cfg_service_ci'}}),legacy=service?.legacyPayload||{};
     ok(legacy?.proRules?.cfg_pro_ci?.enabled===true,'regra profissional-serviço persistida');
+    r=await fetch(base+'/api/v1/config/services/cfg_service_ci',{method:'PATCH',headers:h,body:JSON.stringify({id:'cfg_service_ci',name:'Config CI sem profissional',categoryId:'cfg_cat_ci',categoryName:'Categoria CI',price:77.5,durationMin:45,active:true,config:{show:true,online:true,clientArea:'hands',proRules:{}}})});ok(r.ok,'serviço permite remover todas as regras profissionais');
+    let proAfterRemoval=await prisma.professional.findUnique({where:{id:'cfg_pro_ci'}});
+    ok(!Array.isArray(proAfterRemoval?.legacyPayload?.services)||!proAfterRemoval.legacyPayload.services.includes('cfg_service_ci'),'remoção da regra limpa vínculo reverso da profissional');
     r=await fetch(base+'/api/v1/config/services/cfg_service_ci',{method:'PATCH',headers:h,body:JSON.stringify({id:'cfg_service_ci',name:'Config CI Atualizado',categoryId:'cfg_cat_ci',categoryName:'Categoria CI',price:88,durationMin:50,active:true,config:{show:true,online:false,clientArea:'hands',proRules:{cfg_pro_ci:{enabled:true,duration:50,commission:55,price:90,online:false}}}})});ok(r.ok,'serviço estrutural atualiza');
+    proAfterRemoval=await prisma.professional.findUnique({where:{id:'cfg_pro_ci'}});
+    ok(Array.isArray(proAfterRemoval?.legacyPayload?.services)&&proAfterRemoval.legacyPayload.services.includes('cfg_service_ci'),'reativar regra restaura vínculo reverso da profissional');
     r=await fetch(base+'/api/v1/config/professionals/cfg_pro_ci/active',{method:'PATCH',headers:h,body:JSON.stringify({active:false})});ok(r.ok,'status profissional atualiza');
     ok(await prisma.auditEvent.count({where:{entityId:{in:['cfg_service_ci','cfg_pro_ci']}}})>=4,'configurações ficam auditadas');
     r=await fetch(base+'/api/v1/public/bookings',{method:'POST',headers:{'content-type':'application/json','idempotency-key':'cfg-blocked-booking'},body:JSON.stringify({unitId:'big',serviceId:'cfg_service_ci',professionalId:'cfg_pro_ci',startAt:'2026-10-08T10:00',clientName:'Teste Gate',clientPhone:'31999999991'})});ok(r.status===503,'configurar Big não libera operação no Big');

@@ -76,14 +76,19 @@ export class CatalogConfigController{
       update:{...(categoryName?{name:categoryName}:{}),active:true},
     });
   }
-  private async syncServiceProfessionalLinks(tx:Prisma.TransactionClient,serviceId:string,proRules:Record<string,unknown>){
-    const ids=Object.keys(proRules);
-    if(!ids.length)return;
-    const found=await tx.professional.findMany({where:{id:{in:ids}},select:{id:true,legacyPayload:true}});
-    if(found.length!==ids.length)throw new ConflictException('Uma ou mais profissionais informadas no serviço não existem');
-    for(const pro of found){
+  private async syncServiceProfessionalLinks(tx:Prisma.TransactionClient,serviceId:string,proRules:Record<string,unknown>,previousProRules:Record<string,unknown>={}){
+    const incomingIds=Object.keys(proRules);
+    if(incomingIds.length){
+      const count=await tx.professional.count({where:{id:{in:incomingIds}}});
+      if(count!==incomingIds.length)throw new ConflictException('Uma ou mais profissionais informadas no serviço não existem');
+    }
+    const professionals=await tx.professional.findMany({select:{id:true,legacyPayload:true}});
+    for(const pro of professionals){
       const legacy=obj(pro.legacyPayload),services=new Set(Array.isArray(legacy.services)?legacy.services.map(String):[]);
-      if(rule(proRules[pro.id]).enabled)services.add(serviceId);else services.delete(serviceId);
+      const hasIncomingRule=Object.prototype.hasOwnProperty.call(proRules,pro.id);
+      const hadPreviousRule=Object.prototype.hasOwnProperty.call(previousProRules,pro.id);
+      if(!hasIncomingRule&&!hadPreviousRule&&!services.has(serviceId))continue;
+      if(hasIncomingRule&&rule(proRules[pro.id]).enabled)services.add(serviceId);else services.delete(serviceId);
       await tx.professional.update({where:{id:pro.id},data:{legacyPayload:{...legacy,services:[...services].sort()} as Prisma.InputJsonValue,version:{increment:1}}});
     }
   }
@@ -99,7 +104,7 @@ export class CatalogConfigController{
       const legacy={...old,...incoming,...(incoming.proRules!==undefined?{proRules}:{})};
       const data={name:dto.name.trim(),categoryId:dto.categoryId||null,price:new Prisma.Decimal(Number(dto.price).toFixed(2)),durationMin:dto.durationMin,active:dto.active,legacyPayload:legacy as Prisma.InputJsonValue};
       const row=existing?await tx.service.update({where:{id:serviceId},data:{...data,version:{increment:1}},include:{category:true}}):await tx.service.create({data:{id:serviceId,...data},include:{category:true}});
-      if(incoming.proRules!==undefined)await this.syncServiceProfessionalLinks(tx,serviceId,proRulesRaw);
+      if(incoming.proRules!==undefined)await this.syncServiceProfessionalLinks(tx,serviceId,proRulesRaw,obj(old.proRules));
       await tx.auditEvent.create({data:{id:randomUUID(),userId:userId||null,action:existing?'catalog.service.updated':'catalog.service.created',entityType:'Service',entityId:serviceId,legacyPayload:{structuralConfiguration:true,active:dto.active,categoryId:dto.categoryId||null},occurredAt:new Date()}});
       return this.serviceView(row);
     });
