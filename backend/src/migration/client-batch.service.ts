@@ -153,7 +153,18 @@ export class ClientBatchService {
       const set=await this.loadBatchSet(body.batchId,tx,true);
       const report=await this.analyzeSet(set,tx);
       if(report.reportHash!==body.approvalReportHash)throw new ConflictException('Relatório ficou desatualizado em relação ao PostgreSQL; execute novo dry-run e aprove o novo hash');
-      for(const plan of report.plans)if(plan.action==='REVIEW_REQUIRED'&&!resolutions[plan.clusterId])throw new ConflictException(`Conflito sem resolução aprovada: ${plan.clusterId}`);
+      const reviewPlans=report.plans.filter(plan=>plan.action==='REVIEW_REQUIRED');
+      if(reviewPlans.length){
+        const saved=await tx.clientDuplicateReview.findMany({where:{batchId:body.batchId,clusterId:{in:reviewPlans.map(x=>x.clusterId)}}});
+        const byCluster=new Map(saved.map(x=>[x.clusterId,x]));
+        for(const plan of reviewPlans){
+          const decision=byCluster.get(plan.clusterId);
+          if(!decision)throw new ConflictException(`Revisão humana pendente antes da promoção: ${plan.clusterId}`);
+          if(decision.reportHash!==report.reportHash)throw new ConflictException(`Revisão humana desatualizada; revise novamente o relatório atual: ${plan.clusterId}`);
+          if(decision.decision==='REVIEW_LATER')throw new ConflictException(`Caso marcado para revisar depois ainda bloqueia a promoção: ${plan.clusterId}`);
+        }
+      }
+      for(const plan of reviewPlans)if(!resolutions[plan.clusterId])throw new ConflictException(`Conflito sem resolução aprovada: ${plan.clusterId}`);
       let created=0,updated=0,linksAdded=0;
       for(const plan of report.plans){
         const applied=await this.applyPlan(tx,plan,resolutions[plan.clusterId]);
