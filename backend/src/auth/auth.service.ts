@@ -12,25 +12,26 @@ export class AuthService {
   private loginKeys(username:string, ip?:string) {
     const normalized=username.trim().toLowerCase();
     const ipPart=String(ip||'unknown');
-    return [sha256(`ip:${ipPart}`), sha256(`user-ip:${normalized}|${ipPart}`)];
+    return {ip:sha256(`ip:${ipPart}`),userIp:sha256(`user-ip:${normalized}|${ipPart}`)};
   }
 
   private async assertLoginAllowed(username:string,ip?:string){
-    const now=new Date();
-    const rows=await this.prisma.loginRateLimit.findMany({where:{keyHash:{in:this.loginKeys(username,ip)}}});
+    const now=new Date(),keys=this.loginKeys(username,ip);
+    const rows=await this.prisma.loginRateLimit.findMany({where:{keyHash:{in:[keys.ip,keys.userIp]}}});
     if(rows.some(x=>x.blockedUntil&&x.blockedUntil>now)) throw new HttpException('Muitas tentativas. Tente novamente mais tarde.', HttpStatus.TOO_MANY_REQUESTS);
   }
 
   private async registerLoginFailure(username:string,ip?:string){
     const max=Math.max(3,Number(process.env.LOGIN_RATE_LIMIT_MAX||5));
+    const ipMax=Math.max(max*5,Number(process.env.LOGIN_RATE_LIMIT_IP_MAX||max*10));
     const windowMs=Math.max(60_000,Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS||900_000));
     const blockMs=Math.max(60_000,Number(process.env.LOGIN_RATE_LIMIT_BLOCK_MS||900_000));
-    const now=new Date();
-    for(const keyHash of this.loginKeys(username,ip)){
+    const now=new Date(),keys=this.loginKeys(username,ip);
+    for(const [scope,keyHash] of Object.entries(keys)){
       const current=await this.prisma.loginRateLimit.findUnique({where:{keyHash}});
       const expired=!current||now.getTime()-current.windowStartedAt.getTime()>windowMs;
-      const attempts=expired?1:(current.failedAttempts+1);
-      const blockedUntil=attempts>=max?new Date(now.getTime()+blockMs):null;
+      const attempts=expired?1:(current.failedAttempts+1),threshold=scope==='ip'?ipMax:max;
+      const blockedUntil=attempts>=threshold?new Date(now.getTime()+blockMs):null;
       await this.prisma.loginRateLimit.upsert({
         where:{keyHash},
         create:{keyHash,failedAttempts:attempts,windowStartedAt:now,blockedUntil},
@@ -40,7 +41,10 @@ export class AuthService {
   }
 
   private async clearLoginFailures(username:string,ip?:string){
-    await this.prisma.loginRateLimit.deleteMany({where:{keyHash:{in:this.loginKeys(username,ip)}}});
+    const keys=this.loginKeys(username,ip);
+    // Um login válido limpa apenas o contador daquela conta. O contador agregado do IP
+    // permanece na janela para impedir que um atacante o zere usando outra conta válida.
+    await this.prisma.loginRateLimit.deleteMany({where:{keyHash:keys.userIp}});
   }
 
   async login(username: string, password: string, meta: { ip?: string; userAgent?: string }) {

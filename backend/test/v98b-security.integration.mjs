@@ -26,7 +26,8 @@ async function main(){
     r=await fetch(base+'/api/v1/migrations/v94/import?mode=dry-run',{method:'POST',headers:{'content-type':'application/json','x-csrf-token':refreshed.csrfToken,'cookie':userCookie},body:'{}'});ok(r.status===403,'operador não acessa importação');
     r=await fetch(base+'/api/openapi.json');ok(r.ok,'OpenAPI habilitado em homologação');const spec=await r.json();ok(spec.info?.version==='0.98.1','OpenAPI versão V98b');
     for(let i=0;i<Number(process.env.LOGIN_RATE_LIMIT_MAX||5);i++)await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'inexistente',password:'senha-errada-123'})});
-    r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'inexistente',password:'senha-errada-123'})});ok(r.status===429,'rate limit persiste tentativas');
+    r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'inexistente',password:'senha-errada-123'})});ok(r.status===429,'rate limit persiste tentativas da mesma conta/IP');
+    r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'erros de outra conta no mesmo IP não bloqueiam toda a loja');
     console.log(JSON.stringify({ok:true,tests,feature:'v98b_security_integration'}));
   }finally{server.kill('SIGTERM');await prisma.$disconnect();}
 }
