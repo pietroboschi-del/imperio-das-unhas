@@ -13,6 +13,9 @@ export class FinanceWriteController {
  constructor(private readonly prisma:PrismaService){}
  private id(scope:string,key?:string){if(!key)return randomUUID();const k=String(key).trim();if(!k||k.length>200)throw new ConflictException('Idempotency-Key inválida');return 'op_'+createHash('sha256').update(scope+'|'+k).digest('hex').slice(0,40)}
  private money(n:number){return new Prisma.Decimal(n.toFixed(2))}
+ private cashOpenRequestHash(unitId:string,b:OpenCashDto){
+  return createHash('sha256').update(JSON.stringify({unitId,businessDate:b.businessDate,openingAmount:Number(b.openingAmount).toFixed(2)})).digest('hex');
+ }
  private paymentRequestHash(unitId:string,commandId:string,b:ReceivePaymentDto,cashSessionId:string|null){
   const canonical={
    unitId,commandId,cashSessionId,method:b.method,
@@ -39,11 +42,11 @@ export class FinanceWriteController {
  @Post('cash-sessions')
  @UnitScoped() @RequirePermissions('cash.open')
  async openCash(@Req() req:ImperioRequest,@Body() b:OpenCashDto,@Headers('idempotency-key') key?:string){
-  assertOperationalWriteEnabled(req.unitId!);const id=this.id(req.unitId!+'|cash|'+b.businessDate,key);
-  return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${'cash|'+b.businessDate}))`;const prior=await tx.cashSession.findUnique({where:{id}});if(prior)return prior;
-   const open=await tx.cashSession.findFirst({where:{unitId:req.unitId!,businessDate:new Date(b.businessDate+'T00:00:00.000Z'),status:'OPEN'}});
+  assertOperationalWriteEnabled(req.unitId!);const id=this.id(req.unitId!+'|cash|'+b.businessDate,key),openingAmount=this.money(b.openingAmount),idempotencyHash=this.cashOpenRequestHash(req.unitId!,b),businessDate=new Date(b.businessDate+'T00:00:00.000Z');
+  return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${'cash|'+b.businessDate}))`;const prior=await tx.cashSession.findUnique({where:{id}});if(prior){const legacy=prior.legacyPayload&&typeof prior.legacyPayload==='object'&&!Array.isArray(prior.legacyPayload)?prior.legacyPayload as any:{};const persistedMatches=prior.unitId===req.unitId!&&prior.businessDate.getTime()===businessDate.getTime()&&new Prisma.Decimal(prior.openingAmount).eq(openingAmount);if((legacy.idempotencyHash&&legacy.idempotencyHash!==idempotencyHash)||(!legacy.idempotencyHash&&!persistedMatches))throw new ConflictException('Idempotency-Key já utilizada para outra abertura de caixa nesta unidade e data');return prior}
+   const open=await tx.cashSession.findFirst({where:{unitId:req.unitId!,businessDate,status:'OPEN'}});
    if(open)throw new ConflictException('Já existe caixa aberto para esta unidade e data');
-   const row=await tx.cashSession.create({data:{id,unitId:req.unitId!,businessDate:new Date(b.businessDate+'T00:00:00.000Z'),status:'OPEN',openingAmount:this.money(b.openingAmount),openedByUserId:req.principal!.userId}});
+   const row=await tx.cashSession.create({data:{id,unitId:req.unitId!,businessDate,status:'OPEN',openingAmount,openedByUserId:req.principal!.userId,legacyPayload:{source:'central_api',idempotencyHash}}});
    await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'cash.opened',entityType:'CashSession',entityId:id,legacyPayload:{openingAmount:b.openingAmount},occurredAt:new Date()}});return row;});
  }
 
