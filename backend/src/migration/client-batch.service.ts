@@ -25,6 +25,7 @@ type Resolution = {
   mode: 'KEEP_CENTRAL' | 'CREATE_NEW' | 'MATCH_CLIENT';
   clientId?: string;
   useSourceFields?: ClientField[];
+  preserveCentralFields?: ClientField[];
 };
 type CommitInput = {
   batchId: string;
@@ -193,13 +194,19 @@ export class ClientBatchService {
         const importedId=(clusterId:string)=>`client:import:${clusterId.replace('cluster:','')}`;
         for(const [clusterId] of mergeTargets){
           let rootId=clusterId;
-          while(mergeTargets.has(rootId))rootId=mergeTargets.get(rootId)!;
+          const preserveCentralFields=new Set<ClientField>();
+          while(mergeTargets.has(rootId)){
+            rootId=mergeTargets.get(rootId)!;
+            const targetPlan=plansById.get(rootId);
+            if(!targetPlan)throw new ConflictException(`Destino da mesclagem não existe no relatório: ${clusterId}`);
+            for(const conflict of targetPlan.conflicts)if(conflict.type==='SOURCE_FIELD_CONFLICT'&&conflict.field)preserveCentralFields.add(conflict.field);
+          }
           const rootPlan=plansById.get(rootId);
           if(!rootPlan)throw new ConflictException(`Destino final da mesclagem não existe no relatório: ${clusterId}`);
           const rootResolution=effectiveResolutions[rootId];
           const clientId=rootResolution?.mode==='CREATE_NEW'?importedId(rootId):(rootPlan.targetClientId||((rootPlan.action==='CREATE')?importedId(rootId):null));
           if(!clientId)throw new ConflictException(`Destino final da mesclagem ainda não possui resolução promovível: ${clusterId}`);
-          effectiveResolutions[clusterId]={mode:'MATCH_CLIENT',clientId};
+          effectiveResolutions[clusterId]={mode:'MATCH_CLIENT',clientId,...(preserveCentralFields.size?{preserveCentralFields:[...preserveCentralFields].sort()}: {})};
         }
       }
       const orderedPlans=[...report.plans.filter(plan=>!mergeTargets.has(plan.clusterId)),...report.plans.filter(plan=>mergeTargets.has(plan.clusterId))];
@@ -326,9 +333,10 @@ export class ClientBatchService {
     if(!targetId)throw new ConflictException(`Plano sem destino: ${plan.clusterId}`);
     const existing=await tx.client.findUnique({where:{id:targetId},select:{id:true,name:true,phone:true,email:true,registrationUnitId:true,legacyPayload:true}});if(!existing)throw new ConflictException(`Cliente central não existe: ${targetId}`);
     const use=new Set(resolution?.useSourceFields||[]);for(const field of use)if(sourceConflictFields.has(field))throw new ConflictException(`Campo ${field} tem conflito entre fontes e não pode ser escolhido automaticamente: ${plan.clusterId}`);
+    const preserveCentralFields=new Set(resolution?.preserveCentralFields||[]);
     if(use.has('registrationUnitId')&&!plan.source.registrationUnitProven)throw new ConflictException(`registrationUnitId não comprovado na origem: ${plan.clusterId}`);
     const data:Prisma.ClientUpdateInput={};
-    const choose=(field:ClientField,current:string|null,source:string|null)=>{if(sourceConflictFields.has(field))return current;if(!source)return current;if(!current)return source;if(use.has(field))return source;return current;};
+    const choose=(field:ClientField,current:string|null,source:string|null)=>{if(sourceConflictFields.has(field)||preserveCentralFields.has(field))return current;if(!source)return current;if(!current)return source;if(use.has(field))return source;return current;};
     const name=choose('name',normalizeName(existing.name),plan.source.name);if(name&&name!==existing.name)data.name=name;
     const phone=choose('phone',normalizePhone(existing.phone),plan.source.phone);if(phone!==normalizePhone(existing.phone))data.phone=phone;
     const email=choose('email',normalizeEmail(existing.email),plan.source.email);if(email!==normalizeEmail(existing.email))data.email=email;

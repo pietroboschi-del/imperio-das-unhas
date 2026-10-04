@@ -65,6 +65,39 @@ async function main(){
   const sources=Array.isArray(root.legacyPayload?.clientsOnly?.sources)?root.legacyPayload.clientsOnly.sources:[];
   assert.equal(sources.length,2,'mesclagem incorpora proveniência dos dois clusters');
 
+  const batchCentralMerge='BATCH_REVIEW_MERGE_KEEP_CENTRAL_CI',centralMergeId='client-review-merge-central-ci';
+  await cleanup(batchCentralMerge,[centralMergeId]);
+  await prisma.client.create({data:{id:centralMergeId,name:'Carla Souza',phone:null,email:null,legacyPayload:{clientsOnly:{cpf:'55566677788',sources:[]}}}});
+  const mergePayload={mode:'CLIENTS_ONLY',batchId:batchCentralMerge,phase:'FINAL',files:[{unitId:'centro',exportedAt:'2026-10-04T09:45:00-03:00',fileName:batchCentralMerge+'.xlsx',fileHash:H(913),rows:[
+   {sourceRow:2,id:'root-a',nome:'Carla Souza',celular:'31966667777',cpf:'555.666.777-88'},
+   {sourceRow:3,id:'root-b',nome:'Carla Souza',celular:'31988889999',cpf:'555.666.777-88'},
+   {sourceRow:4,id:'leaf',nome:'Carla Souza Silva',celular:'31966667777'}
+  ]}]};
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers:h,body:JSON.stringify(mergePayload)});
+  assert.ok(r.ok,'dry-run merge para destino central em revisão');
+  const mergeDry=await r.json(),mergePlans=mergeDry.report.plans.filter(x=>x.action==='REVIEW_REQUIRED');
+  const rootPlan=mergePlans.find(x=>x.targetClientId===centralMergeId),leafPlan=mergePlans.find(x=>x.targetClientId!==centralMergeId);
+  assert.ok(rootPlan&&leafPlan,'raiz central e folha de merge exigem revisão');
+  assert.ok(rootPlan.conflicts.some(x=>x.type==='SOURCE_FIELD_CONFLICT'&&x.field==='phone'),'raiz possui telefone conflitante');
+  assert.ok(leafPlan.conflicts.some(x=>(x.candidateClusterIds||[]).includes(rootPlan.clusterId)),'folha pode apontar para a raiz pelo relatório');
+  const centralMergeIds=[centralMergeId,importedId(rootPlan.clusterId),importedId(leafPlan.clusterId)];cleanupJobs.push([batchCentralMerge,centralMergeIds]);
+
+  await decide(h,batchCentralMerge,leafPlan.clusterId,'MERGE',rootPlan.clusterId);
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId:batchCentralMerge,approvalReportHash:mergeDry.report.reportHash})});
+  assert.equal(r.status,409,'destino REVIEW_REQUIRED pendente bloqueia cadeia de merge');
+  const pendingRoot=await r.json();assert.ok(String(pendingRoot.message||'').includes('Revisão humana pendente'),'erro identifica revisão pendente da raiz');
+  assert.equal((await prisma.client.findUniqueOrThrow({where:{id:centralMergeId}})).phone,null,'cadeia bloqueada não altera cliente central');
+
+  await decide(h,batchCentralMerge,rootPlan.clusterId,'KEEP_CENTRAL');
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId:batchCentralMerge,approvalReportHash:mergeDry.report.reportHash})});
+  assert.ok(r.ok,'merge para raiz KEEP_CENTRAL é promovido');
+  const centralMerged=await prisma.client.findUniqueOrThrow({where:{id:centralMergeId}});
+  assert.equal(centralMerged.phone,null,'merge não reintroduz valor de campo conflitante protegido pela raiz');
+  assert.equal(await prisma.clientUnitLink.count({where:{clientId:centralMergeId,unitId:'centro'}}),1,'cadeia merge mantém vínculo da unidade na raiz central');
+  const mergedSources=Array.isArray(centralMerged.legacyPayload?.clientsOnly?.sources)?centralMerged.legacyPayload.clientsOnly.sources:[];
+  assert.equal(mergedSources.filter(x=>x.batchId===batchCentralMerge).length,3,'cadeia merge preserva proveniência das três linhas');
+  assert.equal(await prisma.client.count({where:{id:{in:[importedId(rootPlan.clusterId),importedId(leafPlan.clusterId)]}}}),0,'cadeia para KEEP_CENTRAL não cria clientes duplicados');
+
   const batchCycle='BATCH_REVIEW_CYCLE_CI';
   await cleanup(batchCycle);
   const two=await stageAndReport(h,batchCycle,912),[x,y]=two.plans;
