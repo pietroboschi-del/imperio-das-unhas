@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
-import {PrismaClient} from '@prisma/client';
+import {ImportStatus,PrismaClient} from '@prisma/client';
 
 const prisma=new PrismaClient(),port=Number(process.env.CLIENT_COMMIT_IDEMPOTENCY_TEST_PORT||3108),base='http://127.0.0.1:'+port,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const batchId='BATCH_COMMIT_IDEMPOTENCY_CI',H=n=>'sha256:'+String(n).padStart(64,'0');
@@ -20,7 +20,7 @@ async function cleanup(){
 }
 async function main(){
  await cleanup();
- for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping']])await prisma.unit.upsert({where:{id},create:{id,name},update:{active:true}});
+ for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']])await prisma.unit.upsert({where:{id},create:{id,name},update:{active:true}});
  const p=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),MIGRATION_IMPORT_ENABLED:'true',CLIENT_BATCH_COMMIT_ENABLED:'true',OPERATIONAL_WRITES_ENABLED:'false'},stdio:['ignore','pipe','pipe']});
  try{
   await wait();
@@ -60,7 +60,20 @@ async function main(){
   r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId,approvalReportHash:H(999)})});
   assert.equal(r.status,409,'batch já importado rejeita outro hash');
 
+  const extraWave={mode:'CLIENTS_ONLY',batchId,phase:'FINAL',files:[{unitId:'shopping-contagem',exportedAt:'2026-10-04T15:00:00-03:00',fileName:'shopping-extra-wave.xlsx',fileHash:H(923),rows:[{sourceRow:2,id:'shopping-extra',nome:'Cliente Onda Nova',celular:'31911110003'}]}]};
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers:h,body:JSON.stringify(extraWave)});
+  assert.equal(r.status,409,'batch já importado não aceita nova unidade/onda');
+  let extraErr=await r.json();assert.ok(String(extraErr.message||'').includes('use novo batchId'),'erro orienta novo batchId para nova onda');
+  assert.equal(await prisma.migrationEnvelope.count({where:{reconciliationId:batchId}}),2,'nova onda rejeitada não cria terceiro envelope');
+
   const envs=await prisma.migrationEnvelope.findMany({where:{reconciliationId:batchId},orderBy:{instanceId:'asc'}});
+  await prisma.migrationEnvelope.update({where:{id:envs[1].id},data:{status:ImportStatus.VALIDATED}});
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId,approvalReportHash:dry.report.reportHash})});
+  assert.equal(r.status,409,'estado parcialmente importado bloqueia promoção da parte pendente');
+  const partialErr=await r.json();assert.ok(String(partialErr.message||'').includes('parcialmente importado'),'erro identifica estado parcial inconsistente');
+  assert.equal(await prisma.client.count({where:{id:{in:clientIds}}}),2,'estado parcial não cria clientes adicionais');
+  assert.equal(await prisma.clientUnitLink.count({where:{clientId:{in:clientIds}}}),2,'estado parcial não cria vínculos adicionais');
+  await prisma.migrationEnvelope.update({where:{id:envs[1].id},data:{status:ImportStatus.IMPORTED}});
   assert.equal(envs.length,2,'dois envelopes importados');
   const corrupted={...(envs[1].summary&&typeof envs[1].summary==='object'&&!Array.isArray(envs[1].summary)?envs[1].summary:{}),committedReportHash:H(998)};
   await prisma.migrationEnvelope.update({where:{id:envs[1].id},data:{summary:corrupted}});

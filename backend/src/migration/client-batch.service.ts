@@ -143,6 +143,7 @@ export class ClientBatchService {
       if(hashes.length===all.length&&hashes.every(h=>h===body.approvalReportHash))return {ok:true,mode:'commit',duplicate:true,batchId:body.batchId,reportHash:body.approvalReportHash};
       throw new ConflictException('Batch já importado; os envelopes não confirmam unanimemente o hash de aprovação informado');
     }
+    if(pending.length!==all.length)throw new ConflictException('Batch parcialmente importado é estado inconsistente; não reutilize o batchId nem promova apenas a parte pendente');
     const previewSet=await this.loadBatchSet(body.batchId,this.prisma,true);
     if(previewSet.phase!=='FINAL')throw new ConflictException('Somente batch FINAL pode ser promovido para clientes centrais');
 
@@ -218,7 +219,11 @@ export class ClientBatchService {
     const instanceId=`clients:${file.unitId}`;
     const fileHash=file.fileHash.toLowerCase();
     const parserVersion=asText(file.parserVersion);
+    const batchState=await db.migrationEnvelope.findMany({where:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId,status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},select:{id:true,instanceId:true,dataHash:true,status:true}});
+    const importedCount=batchState.filter(e=>e.status===ImportStatus.IMPORTED).length;
+    if(importedCount>0&&importedCount<batchState.length)throw new ConflictException(`Batch ${set.batchId} está parcialmente importado e não pode receber novos arquivos`);
     const sameBatch=await db.migrationEnvelope.findFirst({where:{instanceId,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId,status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},orderBy:{createdAt:'desc'}});
+    if(importedCount===batchState.length&&batchState.length>0&&!sameBatch)throw new ConflictException(`Batch ${set.batchId} já foi importado; use novo batchId para adicionar outra unidade ou nova onda de exportação`);
     if(sameBatch&&sameBatch.dataHash!==fileHash)throw new ConflictException(`Batch ${set.batchId} já possui outro arquivo para ${file.unitId}; use novo batchId para uma nova exportação`);
     if(sameBatch&&sameBatch.dataHash===fileHash&&parserVersion){
       const previousParserVersion=asText((obj(sameBatch.summary) as StoredSummary).parserVersion);
