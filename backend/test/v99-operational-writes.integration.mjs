@@ -10,15 +10,15 @@ async function main(){
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
  await prisma.service.create({data:{id:'s1',name:'Manicure',price:'50.00',durationMin:60}});
  await prisma.professional.create({data:{id:'p1',name:'Profissional 1',units:{create:[{unitId:'centro'},{unitId:'big'}]}}});
- const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro'},stdio:['ignore','pipe','pipe']});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big'},stdio:['ignore','pipe','pipe']});
  try{
   await waitHealth();
-  let r=await fetch(base+'/api/v1/health');const health=await r.json();ok(health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)&&health.operationalWriteUnits.length===1&&health.operationalWriteUnits[0]==='centro','health expõe cutover somente Centro');
+  let r=await fetch(base+'/api/v1/health');const health=await r.json();ok(health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)&&health.operationalWriteUnits.length===2&&health.operationalWriteUnits.includes('centro')&&health.operationalWriteUnits.includes('big'),'health expõe allowlist Centro + Big');
   r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});ok(r.ok,'owner login');
   const oc=cookieOf(r),oa=await r.json(),oh={'content-type':'application/json','x-csrf-token':oa.csrfToken,'cookie':oc};
-  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...oh,'x-unit-id':'big','idempotency-key':'owner-big-client'},body:JSON.stringify({name:'Bloqueado Big',phone:'+5531999990099'})});ok(r.status===503,'allowlist bloqueia cliente no Big até para owner');
-  r=await fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...oh,'x-unit-id':'big','idempotency-key':'owner-big-cash'},body:JSON.stringify({businessDate:'2026-10-06',openingAmount:100})});ok(r.status===503,'allowlist bloqueia financeiro no Big até para owner');
-  r=await fetch(base+'/api/v1/public/bookings',{method:'POST',headers:{'content-type':'application/json','idempotency-key':'public-big-blocked'},body:JSON.stringify({unitId:'big',serviceId:'s1',professionalId:'p1',startAt:'2026-10-06T11:00',clientName:'Cliente Site Bloqueado',clientPhone:'31999999999'})});ok(r.status===503,'allowlist bloqueia agendamento público no Big');
+  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...oh,'x-unit-id':'shopping-contagem','idempotency-key':'owner-shopping-client'},body:JSON.stringify({name:'Bloqueado Shopping',phone:'+5531999990099'})});ok(r.status===503,'allowlist bloqueia cliente no Shopping até para owner');
+  r=await fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...oh,'x-unit-id':'shopping-contagem','idempotency-key':'owner-shopping-cash'},body:JSON.stringify({businessDate:'2026-10-06',openingAmount:100})});ok(r.status===503,'allowlist bloqueia financeiro no Shopping até para owner');
+  r=await fetch(base+'/api/v1/public/bookings',{method:'POST',headers:{'content-type':'application/json','idempotency-key':'public-shopping-blocked'},body:JSON.stringify({unitId:'shopping-contagem',serviceId:'s1',professionalId:'p1',startAt:'2026-10-06T11:00',clientName:'Cliente Site Bloqueado',clientPhone:'31999999999'})});ok(r.status===503,'allowlist bloqueia agendamento público no Shopping');
   r=await fetch(base+'/api/v1/admin/users',{method:'POST',headers:oh,body:JSON.stringify({username:'recepcao_centro_ci',displayName:'Recepção Centro CI',systemRole:'OPERATOR',permissions:[],units:[{unitId:'centro',role:'reception',permissions:['clients.read','clients.manage','agenda.read','agenda.manage']}]})});ok(r.ok,'cria recepção Centro');const user=await r.json();
   r=await fetch(base+`/api/v1/auth/users/${user.id}/activation-token`,{method:'POST',headers:oh,body:'{}'});const invite=await r.json();
   r=await fetch(base+'/api/v1/auth/activate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:invite.token,newPassword:'centro-password-123'})});ok(r.ok,'ativa recepção');
@@ -31,6 +31,11 @@ async function main(){
   for(const unitId of ['big','shopping-contagem']){r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{...bh,'x-unit-id':unitId,'idempotency-key':'cross-'+unitId},body:JSON.stringify({clientId:client.id,serviceId:'s1',professionalId:'p1',serviceDate:'2026-10-06',startAt:'2026-10-06T13:00:00.000Z'})});ok(r.status===403,`Centro não escreve em ${unitId}`)}
   ok(await prisma.booking.count({where:{unitId:{not:'centro'}}})===0,'outras unidades permanecem intactas');
   ok(await prisma.auditEvent.count({where:{unitId:'centro'}})===2,'cliente e agendamento auditados');
+  const sharedKey='owner-shared-client-key';
+  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...oh,'x-unit-id':'centro','idempotency-key':sharedKey},body:JSON.stringify({name:'Cliente Owner Centro',phone:'+5531999990081'})});ok(r.ok,'owner cria cliente no Centro com chave compartilhada');const ownerCentro=await r.json();
+  r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...oh,'x-unit-id':'big','idempotency-key':sharedKey},body:JSON.stringify({name:'Cliente Owner Big',phone:'+5531999990082'})});ok(r.ok,'mesma Idempotency-Key pode ser usada em outra unidade sem colisão');const ownerBig=await r.json();
+  ok(ownerCentro.id!==ownerBig.id,'idempotência de cliente é escopada por unidade');
+  ok(await prisma.clientUnitLink.count({where:{clientId:ownerCentro.id,unitId:'centro',active:true}})===1&&await prisma.clientUnitLink.count({where:{clientId:ownerBig.id,unitId:'big',active:true}})===1,'cada cliente preserva vínculo com sua unidade');
   console.log(JSON.stringify({ok:true,tests,feature:'multi_unit_operational_writes'}));
  }finally{server.kill('SIGTERM');await prisma.$disconnect()}
 }
