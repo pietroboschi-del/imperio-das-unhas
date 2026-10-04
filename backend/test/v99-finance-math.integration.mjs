@@ -31,6 +31,17 @@ async function main(){
   assert.equal(String(stored.appliedSignalAmount),'10');
   assert.equal(String(stored.appliedCreditAmount),'5');
   assert.equal(String(stored.customerFeeAmount),'2');
+
+  const excessiveItemDiscount={grossAmount:100,discountAmount:10,appliedSignalAmount:0,appliedCreditAmount:0,customerFeeAmount:0,amountDue:90,items:[{serviceId:'finance-s1',professionalId:'finance-p1',quantity:2,unitPrice:20,discountAmount:45}],snapshot:{}};
+  r=await fetch(base+`/api/v1/commands/${cmd.id}/snapshot`,{method:'PUT',headers:h,body:JSON.stringify(excessiveItemDiscount)});
+  assert.equal(r.status,409,'desconto do item acima de quantidade x preço deve ser rejeitado');
+  assert.equal(await prisma.commandServiceItem.count({where:{commandId:cmd.id}}),0,'item inválido não deve ser persistido');
+
+  const validItem={...excessiveItemDiscount,items:[{serviceId:'finance-s1',professionalId:'finance-p1',quantity:2,unitPrice:20,discountAmount:5}]};
+  r=await fetch(base+`/api/v1/commands/${cmd.id}/snapshot`,{method:'PUT',headers:h,body:JSON.stringify(validItem)});
+  assert.ok(r.ok,'item com quantidade, preço e desconto coerentes é aceito');
+  const item=await prisma.commandServiceItem.findFirstOrThrow({where:{commandId:cmd.id}});
+  assert.equal(String(item.netServiceAmount),'35','líquido do item respeita quantidade x preço menos desconto');
   console.log(JSON.stringify({ok:true,feature:'finance_math_consistency'}));
  }finally{
   if(p.exitCode===null&&p.signalCode===null){p.kill('SIGTERM');await Promise.race([once(p,'exit'),sleep(3000)]).catch(()=>{})}
