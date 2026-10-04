@@ -17,7 +17,7 @@
     "test:shadow": "node test/v96-shadow-contract.test.mjs",
     "test:readthrough": "node test/v97-read-through-contract.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test:contracts": "node test/v95-contract.test.mjs && node test/v96-shadow-contract.test.mjs && node test/v97-read-through-contract.test.mjs && node test/v99-frontend-cutover.contract.mjs && node test/v99-database-backup.contract.mjs && node test/v99-production-backup-runbook.contract.mjs && node test/v99-client-batch-report-audit.contract.mjs && node test/v99-production-write-gate.contract.mjs && node test/v99-centro-go-live-diagnostic.contract.mjs && node test/v99-catalog-config.contract.mjs && node test/v99-three-unit-readiness.contract.mjs",
+    "test:contracts": "node test/v95-contract.test.mjs && node test/v96-shadow-contract.test.mjs && node test/v97-read-through-contract.test.mjs && node test/v99-frontend-cutover.contract.mjs && node test/v99-database-backup.contract.mjs && node test/v99-production-backup-runbook.contract.mjs && node test/v99-group1-final-checkpoint.contract.mjs && node test/v99-client-batch-report-audit.contract.mjs && node test/v99-production-write-gate.contract.mjs && node test/v99-centro-go-live-diagnostic.contract.mjs && node test/v99-catalog-config.contract.mjs && node test/v99-three-unit-readiness.contract.mjs",
     "test:reconciliation": "node test/v98a-reconciliation.test.mjs",
     "test:integration": "node test/v98a-postgres.integration.mjs && node test/v99-canonical-units.integration.mjs",
     "test:import-contract": "node test/v98a-import-integrity.contract.mjs",

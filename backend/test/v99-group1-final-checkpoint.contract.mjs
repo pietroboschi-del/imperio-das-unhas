@@ -1,0 +1,14 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const doc=fs.readFileSync(new URL('../GROUP1_FINAL_CHECKPOINT.md',import.meta.url),'utf8');
+let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
+ok(doc.includes('Grupo 1 — checkpoint final'),'checkpoint final existe');
+ok(doc.includes('V98 Backend CI')&&doc.includes('run 265 — SUCCESS'),'CI verde está registrada');
+ok(doc.includes('a5e43d114dd34cac2231a96cbc3d5d46f0d44f59'),'frontend de produção está registrado');
+ok(doc.includes('920d74cbb5856ab3bdb1c63c1c0c762c82346cba'),'backend de produção está registrado');
+ok(doc.includes('20261004_v99_command_service_quantity'),'migration pendente está registrada');
+ok(doc.includes('NEXT_PRODUCTION_CHANGE_BLOCKED_PENDING_FRESH_LOGICAL_BACKUP_2026_10_04'),'gate de backup novo está explícito');
+ok(doc.includes('Nenhum cliente real foi promovido'),'checkpoint não autoriza promoção de cliente');
+ok(doc.includes('INICIAR GRUPO 2'),'Grupo 2 exige autorização explícita');
+ok(doc.includes('não autoriza deploy, migration, importação, promoção de clientes, restore'),'checkpoint não se confunde com autorização de produção');
+console.log(JSON.stringify({ok:true,tests,feature:'group1_final_checkpoint'}));
