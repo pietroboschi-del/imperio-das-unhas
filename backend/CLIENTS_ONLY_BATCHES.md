@@ -10,7 +10,11 @@ Cada arquivo exportado da origem é um snapshot independente de uma unidade. Um 
 - `PRE_CUTOVER`: nova fotografia para medir mudanças desde o ensaio;
 - `FINAL`: único tipo elegível para promoção, sempre após dry-run e aprovação pelo hash do relatório.
 
-O mesmo `BATCH_FINAL` pode ser concluído em ondas: Centro primeiro; Big Shopping e Shopping Contagem depois. Quando uma unidade já foi promovida, seus envelopes ficam como auditoria e deixam de participar da próxima onda pendente. Assim, uma exportação final posterior de Big/Shopping é comparada com o PostgreSQL já em operação sem reaplicar o snapshot final do Centro.
+`batchId` identifica uma única onda imutável de exportação. Antes da primeira promoção, o batch pode reunir de 1 a 3 unidades da mesma onda. Depois que o batch é importado, ele **não pode receber outra unidade, outro arquivo, outra revisão de parser nem uma nova exportação**.
+
+Se Centro for promovido em um batch próprio e Big/Shopping forem exportados depois, Big/Shopping devem usar **outro `batchId`**. O novo batch será comparado com o PostgreSQL já atualizado pelo batch anterior. Estado parcialmente importado dentro do mesmo `batchId` é tratado como inconsistência e nunca como continuação normal.
+
+Retry idêntico do batch já importado continua idempotente: o mesmo `batchId` completo, com os mesmos envelopes e o mesmo `approvalReportHash`, pode ser reenviado sem reaplicar clientes.
 
 ## Proveniência obrigatória
 
@@ -32,7 +36,7 @@ O dry-run:
 6. compara com os clientes centrais atuais;
 7. gera plano, conflitos e `reportHash`.
 
-Reprocessar o mesmo arquivo no mesmo batch reutiliza o staging existente. O mesmo `batchId + unitId` não aceita outro hash de arquivo.
+Reprocessar o mesmo arquivo no mesmo batch reutiliza o staging existente enquanto isso representar o mesmo snapshot. O mesmo `batchId + unitId` não aceita outro hash de arquivo. Uma nova exportação, mesmo da mesma unidade, exige novo `batchId`. Depois de qualquer importação do batch, nenhuma nova unidade pode ser anexada a ele.
 
 ## Deduplicação
 
@@ -67,7 +71,7 @@ Para cliente já existente:
 
 ## Aprovação e commit
 
-`GET /api/v1/migrations/v94/clients/batches/:batchId/report` recalcula o relatório contra o estado atual do PostgreSQL. Se houver unidades ainda pendentes em um `FINAL` escalonado, o relatório considera apenas essa onda pendente; unidades já promovidas permanecem como auditoria.
+`GET /api/v1/migrations/v94/clients/batches/:batchId/report` recalcula o relatório contra o estado atual do PostgreSQL para o conjunto daquele batch. O conjunto promovível deve estar integralmente pendente ou integralmente importado. Misturar envelopes `IMPORTED` com envelopes pendentes no mesmo `batchId` é estado inconsistente e bloqueia a promoção.
 
 `POST /api/v1/migrations/v94/clients/batches/commit` exige simultaneamente:
 
@@ -80,6 +84,18 @@ Para cliente já existente:
 O commit roda em transação `Serializable`. Se o PostgreSQL mudar depois da aprovação, o hash muda e a promoção é recusada, exigindo novo dry-run.
 
 Em produção normal, `CLIENT_BATCH_COMMIT_ENABLED=false`. Este bloco não importa clientes reais.
+
+### Regra operacional de ondas
+
+Exemplo correto:
+
+- `CENTRO_FINAL_01`: Centro exportado, aprovado e importado;
+- nova exportação posterior de Big/Shopping: `BIG_SHOPPING_FINAL_01` (ou outro novo `batchId`);
+- nova fotografia posterior do Centro: `CENTRO_FINAL_02`.
+
+Exemplo proibido: importar `CENTRO_FINAL_01` e depois tentar adicionar Big ou Shopping Contagem ao mesmo `CENTRO_FINAL_01`.
+
+Antes de importar um batch ainda totalmente pendente, é permitido incluir outras unidades que pertençam à **mesma onda**, desde que não exista outro arquivo para a mesma `unitId` e o relatório seja recalculado/aprovado novamente.
 
 
 ## Entrada direta de Excel (.xlsx)
