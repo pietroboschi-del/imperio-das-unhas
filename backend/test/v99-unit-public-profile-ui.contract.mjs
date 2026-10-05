@@ -27,7 +27,11 @@ ok(publicBlock.includes("p.fullAddress"),'endereço público vem do perfil centr
 ok(publicBlock.includes("p.locationHint"),'orientação pública vem do perfil central');
 const unitRender=publicBlock.slice(publicBlock.indexOf("let uh=document.getElementById('publicUnits')"),publicBlock.indexOf("async function refreshHome"));
 ok(!unitRender.includes("(db.units||[])"),'cartões públicos não usam db.units/seed');
-ok(!unitRender.includes('Agendar nesta unidade'),'microbloco A não adiciona agendamento ao cartão');
-ok(!unitRender.includes('directionsUrl')&&!unitRender.includes('whatsappUrl'),'microbloco A não antecipa mapa ou WhatsApp');
+ok(unitRender.includes("directionsUrl=typeof p.directionsUrl==='string'?p.directionsUrl.trim():''"),'Como chegar usa directionsUrl vindo do perfil público do backend');
+ok(unitRender.includes("whatsappUrl=typeof p.whatsappUrl==='string'?p.whatsappUrl.trim():''"),'WhatsApp usa whatsappUrl vindo do perfil público do backend');
+ok(unitRender.includes("bookingEnabled=bookingCatalog?.bookingEnabled===true"),'estado de agendamento do cartão respeita bookingEnabled do catálogo central');
+ok(unitRender.includes("bookingAction=bookingEnabled?")&&unitRender.includes('Agendar nesta unidade')&&unitRender.includes('Agendamento indisponível'),'ação Agendar nesta unidade só aparece quando bookingEnabled está ativo');
+ok(unitRender.includes('v99-public-unit-directions')&&unitRender.includes('Como chegar'),'cartão público renderiza Como chegar somente com URL válida');
+ok(unitRender.includes('v99-public-unit-whatsapp')&&unitRender.includes('WhatsApp'),'cartão público renderiza WhatsApp somente com URL válida');
 
 console.log(JSON.stringify({ok:true,tests,feature:'unit_public_profile_admin_ui_contract'}));
