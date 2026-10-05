@@ -19,3 +19,10 @@ backend/tmp/
 # IDE
 .vscode/
 .idea/
+
+# Database logical backups (contain personal data)
+imperio-postgres-*.dump
+imperio-postgres-*.dump.age
+imperio-postgres-*.dump.manifest.json
+imperio-postgres-*.dump.manifest.json.age
+imperio-postgres-*.dump.age.sha256
