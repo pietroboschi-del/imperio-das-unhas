@@ -34,17 +34,19 @@ async function main(){
   r=await fetch(base+'/api/v1/config/units/shopping-contagem/public-profile',{headers:headers('upp-manager','upp-csrf-manager','shopping-contagem')});ok(r.status===403,'gestor não acessa unidade sem vínculo');
   r=await fetch(base+'/api/v1/config/units/big/public-profile',{headers:headers('upp-owner-a','upp-csrf-a','big')});let before=await r.json();ok(before.profile.whatsapp==='5531983514216','perfil administrativo retorna WhatsApp normalizado');
 
-  const changed={...before.profile,fullAddress:'Rua Teste CI, 100, Contagem - MG',mapsQuery:'Rua Teste CI 100 Contagem MG',mapsUrl:'',phone:'(31) 98351-4216',whatsapp:'31983514216',openingHours:{...before.profile.openingHours,monday:{status:'CLOSED',open:'',close:''},tuesday:{status:'OPEN',open:'09:00',close:'19:00'}}};
+  const changed={...before.profile,fullAddress:'Rua Teste CI, 100, Contagem - MG',mapsQuery:'Rua Teste CI 100 Contagem MG',mapsUrl:'https://maps.example.com/big',phone:'(31) 98351-4216',whatsapp:'31983514216',openingHours:{...before.profile.openingHours,monday:{status:'CLOSED',open:'',close:''},tuesday:{status:'OPEN',open:'09:00',close:'19:00'}}};
   r=await fetch(base+'/api/v1/config/units/big/public-profile',{method:'PATCH',headers:headers('upp-owner-a','upp-csrf-a','big'),body:JSON.stringify(changed)});ok(r.ok,'perfil e horários são editados');
-  let saved=await r.json();ok(saved.profile.openingHours.monday.status==='CLOSED','dia pode ser marcado fechado');ok(saved.profile.openingHours.tuesday.close==='19:00','horário editado persiste');ok(saved.profile.whatsapp==='5531983514216','save normaliza WhatsApp');
+  let saved=await r.json();ok(saved.profile.openingHours.monday.status==='CLOSED','dia pode ser marcado fechado');ok(saved.profile.openingHours.tuesday.close==='19:00','horário editado persiste');ok(saved.profile.whatsapp==='5531983514216','save normaliza WhatsApp');ok(saved.profile.fullAddress==='Rua Teste CI, 100, Contagem - MG','primeiro PATCH salva endereço completo');ok(saved.profile.mapsQuery==='Rua Teste CI 100 Contagem MG','primeiro PATCH salva mapsQuery');
   r=await fetch(base+'/api/v1/config/units/big/public-profile',{method:'PATCH',headers:headers('upp-owner-a','upp-csrf-a','big'),body:JSON.stringify({openingHours:{monday:{status:'OPEN',open:'10:00',close:'22:00'}}})});ok(r.ok,'dia fechado pode ser reaberto');
-  saved=await r.json();ok(saved.profile.openingHours.monday.status==='OPEN','reabertura persiste');
+  saved=await r.json();ok(saved.profile.openingHours.monday.status==='OPEN','reabertura persiste');ok(saved.profile.fullAddress==='Rua Teste CI, 100, Contagem - MG','PATCH parcial preserva fullAddress omitido');ok(saved.profile.mapsQuery==='Rua Teste CI 100 Contagem MG','PATCH parcial preserva mapsQuery omitido');ok(saved.profile.mapsUrl==='https://maps.example.com/big','PATCH parcial preserva mapsUrl omitido');const bigAfterPartial=await prisma.unit.findUniqueOrThrow({where:{id:'big'}});ok(bigAfterPartial.legacyPayload?.publicProfile?.fullAddress==='Rua Teste CI, 100, Contagem - MG'&&bigAfterPartial.legacyPayload?.publicProfile?.mapsQuery==='Rua Teste CI 100 Contagem MG','PostgreSQL preserva campos omitidos após PATCH parcial');
 
   r=await fetch(base+'/api/v1/auth/logout',{method:'POST',headers:headers('upp-owner-a','upp-csrf-a','big'),body:JSON.stringify({})});ok(r.ok,'logout da primeira sessão é concluído');
   r=await fetch(base+'/api/v1/config/units/big/public-profile',{headers:headers('upp-owner-b','upp-csrf-b','big')});
   if(!r.ok)throw new Error('segunda sessão não conseguiu ler perfil: HTTP '+r.status+' '+await r.text());
-  saved=await r.json();ok(saved.profile.fullAddress.includes('Rua Teste CI'),'outra sessão lê persistência após logout');
+  saved=await r.json();ok(saved.profile.fullAddress==='Rua Teste CI, 100, Contagem - MG'&&saved.profile.mapsQuery==='Rua Teste CI 100 Contagem MG','outra sessão lê persistência após logout');
   ok(saved.profile.openingHours.tuesday.close==='19:00','reload/outra sessão preserva horário');
+  r=await fetch(base+'/api/v1/config/units/big/public-profile',{method:'PATCH',headers:headers('upp-owner-b','upp-csrf-b','big'),body:JSON.stringify({mapsUrl:''})});ok(r.ok,'string vazia explícita continua aceita para limpar campo');
+  saved=await r.json();ok(saved.profile.mapsUrl==='','string vazia explícita limpa mapsUrl');
 
   r=await fetch(base+'/api/v1/config/units/inexistente/public-profile',{headers:headers('upp-owner-b','upp-csrf-b','big')});ok(r.status===404,'unidade inválida é rejeitada');
   r=await fetch(base+'/api/v1/config/units/big/public-profile',{headers:headers('upp-owner-b','upp-csrf-b','centro')});ok(r.status===409,'path da unidade não pode divergir do contexto autorizado');
