@@ -101,6 +101,19 @@ const useStart=html.indexOf('async function useAlternativeRecommendation('),useE
 ok(useStart>=0&&useEnd>useStart,'orquestrador do clique localizado');
 const useSource=html.slice(useStart,useEnd);
 ok(!useSource.includes('/api/v1/public/bookings')&&!useSource.includes('submitBooking')&&!useSource.includes('bookingStep(4)'),'recomendação não cria booking nem avança para confirmação');
+const renderStart=html.indexOf('function renderAlternativeRecommendations('),renderEnd=html.indexOf('\n async function useAlternativeRecommendation(',renderStart),renderSource=html.slice(renderStart,renderEnd);
+ok(renderSource.includes('v99-public-alt-title')&&renderSource.includes('Não encontramos horário nesta unidade'),'E2C destaca ausência de horário na unidade escolhida');
+ok(renderSource.includes('v99-public-alt-subtitle')&&renderSource.includes('Encontramos estas opções em outras unidades:'),'E2C apresenta introdução clara para alternativas');
+ok(renderSource.includes('v99-public-alt-unit')&&renderSource.includes('v99-public-alt-date')&&renderSource.includes('v99-public-alt-time'),'E2C separa unidade, data e horário por hierarquia visual');
+ok(renderSource.includes('v99-public-alt-note')&&renderSource.includes('Disponível com outra profissional'),'E2C preserva aviso discreto do fallback profissional');
+ok(renderSource.includes('v99-public-alt-action')&&renderSource.includes('Ver este horário'),'E2C usa ação dedicada e fácil de tocar');
+ok(renderSource.includes('v99-public-alt-empty')&&renderSource.includes('Nenhuma alternativa disponível agora.'),'E2C possui estado visual para ausência de alternativa');
+ok(html.includes('v99-public-alt-loading')&&html.includes('Procurando opções em outras unidades...'),'E2C possui estado visual de carregamento das alternativas');
+ok(html.includes('.v99-public-alt-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))'),'E2C usa grid responsivo sem forçar largura mínima');
+ok(html.includes('@media(max-width:560px)')&&html.includes('.v99-public-alt-list{grid-template-columns:1fr}'),'E2C empilha sugestões no celular');
+ok(html.includes('@media(max-width:430px)')&&html.includes('.v99-public-alt-slots{gap:12px;width:100%;max-width:100%;overflow:hidden}'),'E2C protege faixa 320–430 px contra overflow horizontal');
+ok(html.includes('.v99-public-alt-action{width:100%;max-width:100%;min-height:48px;padding:11px 14px}'),'E2C mantém botão com largura e alvo de toque adequados no celular');
+ok(!renderSource.includes('style="'),'E2C remove estilos inline da renderização das sugestões');
 function clickHarness(catalogImpl){
  let dateEl={value:selectedDate},proEl={value:'p1'},searchCalls=0,applyCalls=0,toasts=[],bk={unit:'u1',date:selectedDate,pro:'p1',serviceIds:['s1','s2'],assignments:[{old:true}],publicResults:[{old:true}],time:'17:00'};
  let document={getElementById:id=>id==='bkPublicDate'?dateEl:id==='bkPublicPro'?proEl:null};
