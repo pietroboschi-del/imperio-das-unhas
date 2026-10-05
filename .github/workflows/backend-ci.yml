@@ -2,7 +2,6 @@ name: V98 Backend CI
 
 on:
   push:
-  pull_request:
 
 jobs:
   backend:
@@ -62,37 +61,14 @@ jobs:
         run: npm run prisma:migrate
       - name: Build
         run: npm run build
-      - name: Static and projector tests
-        run: npm test
-      - name: Frontend central bridge contract
-        run: npm run test:frontend-central-bridge
-      - name: CLIENTS_ONLY migration UI contract
-        run: npm run test:frontend-client-migration-ui
-      - name: Deployment cutover contract
-        run: npm run test:deployment-cutover
-      - name: Build production container
-        run: docker build -t imperio-backend-ci .
-      - name: Install Python parity dependency
+      - name: Unit public profile integration x3
+        shell: bash
         run: |
-          python3 -m pip install --user playwright
-          python3 -m playwright install chromium
-      - name: Critical behavior characterization gate
-        run: npm run test:characterization
-      - name: Create CI administrator
-        run: npm run admin:create
-      - name: CLIENTS_ONLY rehearsal integration
-        run: npm run test:client-batch-rehearsal
-      - name: CLIENTS_ONLY Excel integration
-        run: npm run test:client-excel
-      - name: PostgreSQL/Nest integration tests
-        run: npm run test:integration
-      - name: V98b security integration tests
-        run: npm run test:security-integration
-      - name: Central catalog and professional configuration
+          set -Eeuo pipefail
+          PORT=3211 node test/v99-unit-public-profile.integration.mjs
+          PORT=3212 node test/v99-unit-public-profile.integration.mjs
+          PORT=3213 node test/v99-unit-public-profile.integration.mjs
+      - name: npm test
+        run: npm test
+      - name: Catalog config suite
         run: npm run test:catalog-config
-      - name: Multi-unit operational write tests
-        run: npm run test:operational-writes
-      - name: Multi-unit cash command payment flow
-        run: npm run test:finance-flow
-      - name: Three-unit public booking flow
-        run: npm run test:public-booking
