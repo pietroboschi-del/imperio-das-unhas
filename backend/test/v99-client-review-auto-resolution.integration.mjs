@@ -98,6 +98,46 @@ async function main(){
   assert.equal(mergedSources.filter(x=>x.batchId===batchCentralMerge).length,3,'cadeia merge preserva proveniência das três linhas');
   assert.equal(await prisma.client.count({where:{id:{in:[importedId(rootPlan.clusterId),importedId(leafPlan.clusterId)]}}}),0,'cadeia para KEEP_CENTRAL não cria clientes duplicados');
 
+  const batchStrong='BATCH_REVIEW_MULTIPLE_STRONG_CI',strongA='client-review-strong-a-ci',strongB='client-review-strong-b-ci';
+  await cleanup(batchStrong,[strongA,strongB]);
+  await prisma.client.create({data:{id:strongA,name:'Diana Lopes',phone:null,email:null,legacyPayload:{clientsOnly:{cpf:'11122233344',sources:[]}}}});
+  await prisma.client.create({data:{id:strongB,name:'Diana Lopes',phone:null,email:'diana.legacy@example.com',legacyPayload:{clientsOnly:{cpf:'99988877766',sources:[]}}}});
+  const strongPayload={mode:'CLIENTS_ONLY',batchId:batchStrong,phase:'FINAL',files:[{unitId:'centro',exportedAt:'2026-10-04T10:05:00-03:00',fileName:batchStrong+'.xlsx',fileHash:H(914),rows:[
+   {sourceRow:2,id:'strong-source',nome:'Diana Lopes',celular:'31977776666',email:'diana.legacy@example.com',cpf:'111.222.333-44'}
+  ]}]};
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers:h,body:JSON.stringify(strongPayload)});
+  assert.ok(r.ok,'dry-run multiple strong matches');
+  const strongDry=await r.json(),strongPlan=strongDry.report.plans.find(x=>x.conflicts.some(c=>c.type==='MULTIPLE_STRONG_MATCHES'));
+  assert.ok(strongPlan&&strongPlan.action==='REVIEW_REQUIRED'&&!strongPlan.targetClientId,'multiple strong matches não escolhe cliente central automaticamente');
+  const strongConflict=strongPlan.conflicts.find(c=>c.type==='MULTIPLE_STRONG_MATCHES');
+  assert.deepEqual([...strongConflict.candidateClientIds].sort(),[strongA,strongB].sort(),'relatório lista exatamente os dois candidatos centrais');
+
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchStrong),{headers:{'cookie':c}});
+  assert.ok(r.ok,'fila multiple strong carregada');
+  const strongQueue=await r.json(),strongItem=strongQueue.items.find(x=>x.clusterId===strongPlan.clusterId);
+  assert.deepEqual((strongItem?.centralCandidates||[]).map(x=>x.clientId).sort(),[strongA,strongB].sort(),'fila expõe os dois clientes centrais candidatos');
+
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchStrong)+'/'+encodeURIComponent(strongPlan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'MATCH_CENTRAL',targetClientId:'client-fora-do-relatorio'})});
+  assert.equal(r.status,409,'MATCH_CENTRAL rejeita cliente fora dos candidatos do relatório');
+  assert.equal(await prisma.clientDuplicateReview.count({where:{batchId:batchStrong,clusterId:strongPlan.clusterId}}),0,'alvo central inválido não é persistido');
+
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchStrong)+'/'+encodeURIComponent(strongPlan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'MATCH_CENTRAL',targetClientId:strongA,note:'CPF confirma o cliente central correto'})});
+  assert.ok(r.ok,'MATCH_CENTRAL válido salvo');
+  const strongReview=await prisma.clientDuplicateReview.findUniqueOrThrow({where:{batchId_clusterId:{batchId:batchStrong,clusterId:strongPlan.clusterId}}});
+  assert.equal(strongReview.targetClientId,strongA,'decisão persiste cliente central selecionado de forma explícita');
+  cleanupJobs.push([batchStrong,[strongA,strongB,importedId(strongPlan.clusterId)]]);
+
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId:batchStrong,approvalReportHash:strongDry.report.reportHash})});
+  assert.ok(r.ok,'MATCH_CENTRAL promove candidato central escolhido');
+  const selected=await prisma.client.findUniqueOrThrow({where:{id:strongA}}),other=await prisma.client.findUniqueOrThrow({where:{id:strongB}});
+  assert.equal(selected.phone,null,'seleção de identidade não autoriza preencher telefone central vazio');
+  assert.equal(selected.email,null,'seleção de identidade não copia e-mail que também apontava para outro cliente central');
+  assert.equal(selected.legacyPayload?.clientsOnly?.cpf,'11122233344','CPF do cliente selecionado é preservado');
+  assert.equal(other.email,'diana.legacy@example.com','cliente central não selecionado permanece inalterado');
+  assert.equal(await prisma.clientUnitLink.count({where:{clientId:strongA,unitId:'centro'}}),1,'unidade é vinculada ao cliente central escolhido');
+  assert.ok(Array.isArray(selected.legacyPayload?.clientsOnly?.sources)&&selected.legacyPayload.clientsOnly.sources.some(x=>x.batchId===batchStrong),'proveniência do Excel é anexada ao cliente escolhido');
+  assert.equal(await prisma.client.count({where:{id:importedId(strongPlan.clusterId)}}),0,'MATCH_CENTRAL não cria terceira duplicata');
+
   const batchCycle='BATCH_REVIEW_CYCLE_CI';
   await cleanup(batchCycle);
   const two=await stageAndReport(h,batchCycle,912),[x,y]=two.plans;

@@ -7577,7 +7577,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
 /* ===== V99 · CLIENT DUPLICATE REVIEW UI ===== */
 (function(){
  const PAGE='client-duplicate-reviews',PERMISSION='clients.duplicates.review',PRINCIPAL_KEY='imperio-v99-central-principal',CSRF_KEY='imperio-v96-shadow-csrf';
- let state={data:null,filter:'pending',query:'',index:0,candidateId:'',loading:false,error:'',saving:false,actionMessage:'',actionKind:''};
+ let state={data:null,filter:'pending',query:'',index:0,candidateId:'',centralId:'',loading:false,error:'',saving:false,actionMessage:'',actionKind:''};
 
  function esc(v){return typeof escapeHtml==='function'?escapeHtml(String(v==null?'':v)):String(v==null?'':v)}
  function principal(){try{return JSON.parse(sessionStorage.getItem(PRINCIPAL_KEY)||'null')}catch(e){return null}}
@@ -7601,12 +7601,13 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   let values=[item?.source?.name,item?.source?.phone,item?.source?.email,item?.source?.cpf];
   for(const c of item?.candidateClusters||[])values.push(c.name,c.phone,c.email,c.cpf);
   if(item?.centralCandidate)values.push(item.centralCandidate.name,item.centralCandidate.phone,item.centralCandidate.email,item.centralCandidate.cpf);
+  for(const c of item?.centralCandidates||[])values.push(c.name,c.phone,c.email,c.cpf);
   return values.some(v=>normalize(v).includes(q))
  }
  function filtered(){
   let rows=(state.data?.items||[]).filter(matches);
   if(state.filter==='pending')rows=rows.filter(isPending);
-  if(state.filter==='resolved')rows=rows.filter(x=>['MERGE','KEEP_SEPARATE','KEEP_CENTRAL'].includes(decisionOf(x)));
+  if(state.filter==='resolved')rows=rows.filter(x=>['MERGE','KEEP_SEPARATE','KEEP_CENTRAL','MATCH_CENTRAL'].includes(decisionOf(x)));
   if(state.filter==='later')rows=rows.filter(x=>decisionOf(x)==='REVIEW_LATER');
   return rows
  }
@@ -7649,20 +7650,23 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  function renderItem(){
   let host=document.getElementById('v99dupQueue');if(!host)return;
   let rows=filtered();if(!rows.length){host.innerHTML='<div class="v99dup-status good">Nenhum caso neste filtro.</div>';return}
-  state.index=Math.max(0,Math.min(state.index,rows.length-1));let item=rows[state.index],candidates=item.candidateClusters||[];
+  state.index=Math.max(0,Math.min(state.index,rows.length-1));let item=rows[state.index],candidates=item.candidateClusters||[],centralCandidates=item.centralCandidates||[];
   if(!candidates.some(x=>x.clusterId===state.candidateId))state.candidateId=candidates[0]?.clusterId||'';
-  let selected=state.candidateId,candidate=candidates.find(x=>x.clusterId===selected)||null,central=item.centralCandidate||null,comparison=candidate||central,sourceConflict=hasSourceFieldConflict(item);
-  let d=decisionOf(item),status=d==='MERGE'?'Mesclar':d==='KEEP_SEPARATE'?'Manter separados':d==='KEEP_CENTRAL'?'Mesma cliente (central)':d==='REVIEW_LATER'?'Revisar depois':d==='STALE'?'Decisão anterior desatualizada':'Pendente';
+  if(!centralCandidates.some(x=>x.clientId===state.centralId))state.centralId=centralCandidates[0]?.clientId||'';
+  let selected=state.candidateId,candidate=candidates.find(x=>x.clusterId===selected)||null,selectedCentral=centralCandidates.find(x=>x.clientId===state.centralId)||null,central=item.centralCandidate||selectedCentral||null,comparison=candidate||central,sourceConflict=hasSourceFieldConflict(item);
+  let d=decisionOf(item),status=d==='MERGE'?'Mesclar':d==='KEEP_SEPARATE'?'Manter separados':d==='KEEP_CENTRAL'?'Mesma cliente (central)':d==='MATCH_CENTRAL'?'Usar cliente central':d==='REVIEW_LATER'?'Revisar depois':d==='STALE'?'Decisão anterior desatualizada':'Pendente';
   let choices=candidates.length?'<div class="field" style="margin:10px 0"><label>Cadastro candidato</label><select id="v99dupCandidate" class="v99dup-choice" onchange="v99DupCandidateChanged(this.value)">'+candidates.map(x=>'<option value="'+esc(x.clusterId)+'" '+(x.clusterId===selected?'selected':'')+'>'+esc(x.name||x.clusterId)+' · '+esc(x.phone||x.email||'sem contato')+'</option>').join('')+'</select></div>':'';
+  let centralChoices=centralCandidates.length?'<div class="field" style="margin:10px 0"><label>Cliente central candidato</label><select id="v99dupCentralCandidate" class="v99dup-choice" onchange="v99DupCentralChanged(this.value)">'+centralCandidates.map(x=>'<option value="'+esc(x.clientId)+'" '+(x.clientId===state.centralId?'selected':'')+'>'+esc(x.name||x.clientId)+' · '+esc(x.phone||x.email||x.cpf||'sem contato')+'</option>').join('')+'</select></div>':'';
   host.innerHTML='<div class="v99dup-card"><div class="v99dup-head"><b>Caso '+esc(state.index+1)+' de '+esc(rows.length)+'</b><span class="pill">'+esc(status)+'</span><div class="spacer"></div><span class="v99dup-muted">'+esc(item.clusterId)+'</span></div>'+
-   choices+centralSide(item,central)+'<div id="v99dupCompare" class="v99dup-compare">'+sourceSide(item,comparison)+candidateSide(item,candidate)+'</div>'+conflictHtml(item)+
+   choices+centralChoices+centralSide(item,central)+'<div id="v99dupCompare" class="v99dup-compare">'+sourceSide(item,comparison)+candidateSide(item,candidate)+'</div>'+conflictHtml(item)+
    (sourceConflict?'<div class="v99dup-status bad">“Manter separados” não resolve valores conflitantes dentro deste mesmo grupo. Corrija/reexporte os dados, use “Mesma cliente (central)” quando aplicável ou deixe para revisar depois.</div>':'')+
    '<div class="v99dup-note"><label class="v99dup-muted">Observação da conferência (opcional)</label><textarea id="v99dupNote" maxlength="500" placeholder="Ex.: mesma cliente, grafia antiga; telefone familiar; pessoas diferentes...">'+esc(item.decision?.note||'')+'</textarea></div>'+
    '<div class="v99dup-lock">As ações abaixo registram uma decisão auditada. Nenhum cadastro real é mesclado, apagado ou alterado nesta etapa.</div>'+
    '<div id="v99dupActionStatus" class="v99dup-status '+esc(state.actionKind||'')+'">'+esc(state.actionMessage||'')+'</div>'+
    '<div class="v99dup-actions">'+
    '<button class="btn btn-primary" '+((!candidate||state.saving)?'disabled':'')+' onclick="v99DupDecide(\'MERGE\')">Mesclar</button>'+
-   '<button class="btn btn-soft" '+((!central||state.saving)?'disabled':'')+' onclick="v99DupDecide(\'KEEP_CENTRAL\')">Mesma cliente (central)</button>'+
+   '<button class="btn btn-soft" '+((!item.centralCandidate||state.saving)?'disabled':'')+' onclick="v99DupDecide(\'KEEP_CENTRAL\')">Mesma cliente (central)</button>'+
+   '<button class="btn btn-soft" '+((!selectedCentral||state.saving)?'disabled':'')+' onclick="v99DupDecide(\'MATCH_CENTRAL\')">Usar cliente central</button>'+
    '<button class="btn btn-ghost" '+((sourceConflict||state.saving)?'disabled':'')+' onclick="v99DupDecide(\'KEEP_SEPARATE\')">Manter separados</button>'+
    '<button class="btn btn-soft" '+(state.saving?'disabled':'')+' onclick="v99DupDecide(\'REVIEW_LATER\')">Revisar depois</button></div>'+
    '<div class="v99dup-pagination"><button class="btn btn-ghost btn-sm" onclick="v99DupMove(-1)" '+(state.index===0?'disabled':'')+'>← Anterior</button><span class="v99dup-muted">'+esc(state.index+1)+' / '+esc(rows.length)+'</span><button class="btn btn-ghost btn-sm" onclick="v99DupMove(1)" '+(state.index>=rows.length-1?'disabled':'')+'>Próximo →</button></div></div>'
@@ -7692,10 +7696,12 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   let target=state.candidateId,note=document.getElementById('v99dupNote')?.value.trim()||'';
   if(decision==='MERGE'&&!target){state.actionMessage='Escolha um cadastro candidato para mesclar.';state.actionKind='bad';renderItem();return}
   if(decision==='KEEP_CENTRAL'&&!item.centralCandidate){state.actionMessage='O relatório atual não identificou um cliente central seguro para esta decisão.';state.actionKind='bad';renderItem();return}
+  if(decision==='MATCH_CENTRAL'&&!state.centralId){state.actionMessage='Escolha um cliente central candidato antes de confirmar.';state.actionKind='bad';renderItem();return}
   if(decision==='KEEP_SEPARATE'&&hasSourceFieldConflict(item)){state.actionMessage='Manter separados não resolve o conflito entre valores deste mesmo grupo. Corrija/reexporte ou escolha outra resolução segura.';state.actionKind='bad';renderItem();return}
   if(decision==='MERGE'&&!confirm('Registrar que estes dois cadastros devem ser mesclados? A mesclagem real NÃO acontece agora.'))return;
   if(decision==='KEEP_CENTRAL'&&!confirm('Confirmar que este cadastro corresponde ao cliente central identificado? Os dados centrais não vazios serão preservados.'))return;
-  let body={decision:decision,note:note};if(decision==='MERGE')body.targetClusterId=target;
+  if(decision==='MATCH_CENTRAL'&&!confirm('Confirmar este cliente central como o cadastro correto? Os dados centrais serão preservados e apenas vínculo/proveniência serão adicionados.'))return;
+  let body={decision:decision,note:note};if(decision==='MERGE')body.targetClusterId=target;if(decision==='MATCH_CENTRAL')body.targetClientId=state.centralId;
   let clusterId=item.clusterId;
   try{
    state.saving=true;state.actionMessage='Salvando decisão...';state.actionKind='';renderItem();status('Salvando decisão...');
@@ -7724,12 +7730,13 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
 
  window.v99DupOpenPage=renderPage;
  window.v99DupLoad=load;
- window.v99DupSetFilter=function(v){state.filter=v;state.index=0;state.candidateId='';renderLoaded()};
- window.v99DupSearch=function(v){state.query=v;state.index=0;state.candidateId='';renderLoaded()};
- window.v99DupMove=function(d){state.index+=Number(d||0);state.candidateId='';renderItem()};
+ window.v99DupSetFilter=function(v){state.filter=v;state.index=0;state.candidateId='';state.centralId='';renderLoaded()};
+ window.v99DupSearch=function(v){state.query=v;state.index=0;state.candidateId='';state.centralId='';renderLoaded()};
+ window.v99DupMove=function(d){state.index+=Number(d||0);state.candidateId='';state.centralId='';renderItem()};
  window.v99DupCandidateChanged=function(v){state.candidateId=String(v||'');renderItem()};
+ window.v99DupCentralChanged=function(v){state.centralId=String(v||'');renderItem()};
  window.v99DupDecide=decide;
- window.__imperioDuplicateReviewUI={page:PAGE,permission:PERMISSION,canUse:canUse,load:load,renderPage:renderPage,clientMutation:false,decisions:['MERGE','KEEP_SEPARATE','KEEP_CENTRAL','REVIEW_LATER']};
+ window.__imperioDuplicateReviewUI={page:PAGE,permission:PERMISSION,canUse:canUse,load:load,renderPage:renderPage,clientMutation:false,decisions:['MERGE','KEEP_SEPARATE','KEEP_CENTRAL','MATCH_CENTRAL','REVIEW_LATER']};
 })();
 
 /* ===== V99 · CENTRAL USER ACCESS SYNC ===== */

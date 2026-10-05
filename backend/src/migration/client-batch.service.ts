@@ -172,6 +172,13 @@ export class ClientBatchService {
             effectiveResolutions[plan.clusterId]={mode:'KEEP_CENTRAL'};
             continue;
           }
+          if(decision.decision==='MATCH_CENTRAL'){
+            const targetClientId=asText(decision.targetClientId);
+            const candidates=new Set(plan.conflicts.filter(c=>c.type==='MULTIPLE_STRONG_MATCHES').flatMap(c=>c.candidateClientIds||[]));
+            if(!targetClientId||!candidates.has(targetClientId))throw new ConflictException(`MATCH_CENTRAL aponta para cliente fora dos candidatos do relatório atual: ${plan.clusterId}`);
+            effectiveResolutions[plan.clusterId]={mode:'MATCH_CLIENT',clientId:targetClientId,preserveCentralFields:['name','phone','email','cpf','registrationUnitId']};
+            continue;
+          }
           if(decision.decision==='KEEP_SEPARATE'){
             effectiveResolutions[plan.clusterId]={mode:'CREATE_NEW'};
             continue;

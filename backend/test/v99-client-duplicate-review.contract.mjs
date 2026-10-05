@@ -6,9 +6,11 @@ const policy=fs.readFileSync(new URL('../src/auth/permission-policy.ts',import.m
 const controller=fs.readFileSync(new URL('../src/migration/client-duplicate-review.controller.ts',import.meta.url),'utf8');
 const service=fs.readFileSync(new URL('../src/migration/client-duplicate-review.service.ts',import.meta.url),'utf8');
 const migration=fs.readFileSync(new URL('../prisma/migrations/20261002_v99_client_duplicate_review/migration.sql',import.meta.url),'utf8');
+const targetMigration=fs.readFileSync(new URL('../prisma/migrations/20261004_v99_client_duplicate_review_target_client/migration.sql',import.meta.url),'utf8');
 
 ok(schema.includes('model ClientDuplicateReview'),'schema persiste decisões de revisão');
 ok(schema.includes('@@unique([batchId, clusterId])'),'uma decisão vigente por cluster/batch');
+ok(schema.includes('targetClientId        String?'),'schema persiste explicitamente o cliente central escolhido');
 ok(policy.includes("'clients.duplicates.review'"),'permissão específica existe');
 ok(!policy.match(/OWNER_ONLY_PERMISSIONS[^\n]*clients\.duplicates\.review/),'permissão pode ser delegada à funcionária sem networkAdmin');
 ok(controller.includes("@RequirePermissions('clients.duplicates.review')"),'fila exige permissão dedicada');
@@ -17,8 +19,10 @@ ok(service.includes("clientBatches.report(id)"),'fila usa o relatório persistid
 ok(service.includes("x.action==='REVIEW_REQUIRED'"),'somente casos de review entram na fila');
 ok(service.includes("saved.reportHash===report.reportHash"),'decisão antiga fica stale quando relatório muda');
 ok(service.includes("c.candidateClusterIds||[]"),'MERGE usa candidatos relacionados do relatório');
-ok(controller.includes("'KEEP_CENTRAL'"),'API aceita decisão explícita de manter o cliente central');
+ok(controller.includes("'KEEP_CENTRAL'")&&controller.includes("'MATCH_CENTRAL'"),'API aceita cliente central identificado ou seleção entre múltiplos candidatos');
 ok(service.includes('centralCandidate:central?'),'fila expõe o cliente central identificado para comparação');
+ok(service.includes('centralCandidates'),'fila expõe candidatos MULTIPLE_STRONG_MATCHES');
+ok(service.includes("Cliente central permitido somente entre candidatos MULTIPLE_STRONG_MATCHES"),'MATCH_CENTRAL não aceita cliente arbitrário');
 ok(service.includes("KEEP_CENTRAL exige cliente central identificado"),'KEEP_CENTRAL só é permitido quando o relatório identificou destino central');
 ok(service.includes("KEEP_SEPARATE não resolve conflito entre fontes do mesmo cluster"),'KEEP_SEPARATE é recusado antes de persistir quando há conflito interno de fontes');
 ok(service.includes("Mesclagem permitida somente com candidato relacionado"),'merge arbitrário é bloqueado');
@@ -26,4 +30,5 @@ ok(service.includes("CLIENT_DUPLICATE_REVIEW_DECISION"),'toda decisão gera audi
 ok(service.includes("clientRowsMutated:false")&&!service.includes('.client.update(')&&!service.includes('.client.create(')&&!service.includes('.client.delete'),'revisão não altera clientes');
 ok(migration.includes('CREATE TABLE "ClientDuplicateReview"'),'migration cria tabela');
 ok(migration.includes('ClientDuplicateReview_batchId_clusterId_key'),'migration protege unicidade');
+ok(targetMigration.includes('ADD COLUMN "targetClientId" TEXT'),'migration adiciona alvo central explícito sem reutilizar mergeTargetClusterId');
 console.log(JSON.stringify({ok:true,tests,feature:'client_duplicate_review_queue'}));

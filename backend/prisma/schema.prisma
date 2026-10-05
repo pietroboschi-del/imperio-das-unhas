@@ -393,6 +393,7 @@ model ClientDuplicateReview {
   reportHash           String
   decision             String
   mergeTargetClusterId String?
+  targetClientId        String?
   note                 String?
   reviewedByUserId     String
   reviewedAt           DateTime @default(now())

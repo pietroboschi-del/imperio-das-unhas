@@ -5,8 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ClientBatchService } from './client-batch.service';
 import { normalizeCpf } from './client-batch.logic';
 
-type ReviewDecision = 'MERGE'|'KEEP_SEPARATE'|'KEEP_CENTRAL'|'REVIEW_LATER';
-type ReviewDecisionInput = { decision:ReviewDecision; targetClusterId?:string; note?:string };
+type ReviewDecision = 'MERGE'|'KEEP_SEPARATE'|'KEEP_CENTRAL'|'MATCH_CENTRAL'|'REVIEW_LATER';
+type ReviewDecisionInput = { decision:ReviewDecision; targetClusterId?:string; targetClientId?:string; note?:string };
 const json=(value:unknown)=>value as Prisma.InputJsonValue;
 const clean=(value:unknown)=>String(value??'').trim();
 const obj=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
@@ -19,7 +19,7 @@ export class ClientDuplicateReviewService {
   async queue(batchId:string) {
     const id=clean(batchId);if(!id)throw new BadRequestException('batchId obrigatório');
     const {report}=await this.clientBatches.report(id);
-    const targetClientIds=[...new Set(report.plans.map(x=>x.targetClientId).filter((x):x is string=>!!x))];
+    const targetClientIds=[...new Set(report.plans.flatMap(plan=>[...(plan.targetClientId?[plan.targetClientId]:[]),...plan.conflicts.filter(c=>c.type==='MULTIPLE_STRONG_MATCHES').flatMap(c=>c.candidateClientIds||[])]))];
     const centralClients=targetClientIds.length?await this.prisma.client.findMany({where:{id:{in:targetClientIds}},select:{id:true,name:true,phone:true,email:true,registrationUnitId:true,legacyPayload:true}}):[];
     const centralById=new Map(centralClients.map(x=>[x.id,x]));
     const decisions=await this.prisma.clientDuplicateReview.findMany({where:{batchId:id},orderBy:{updatedAt:'desc'}});
@@ -31,6 +31,8 @@ export class ClientDuplicateReviewService {
         const p=plansById.get(clusterId);
         return p?{clusterId,name:p.source.name,phone:p.source.phone,email:p.source.email,cpf:p.source.cpf,sourceRows:p.sourceRows}:null;
       }).filter(Boolean);
+      const strongCentralIds=[...new Set(plan.conflicts.filter(c=>c.type==='MULTIPLE_STRONG_MATCHES').flatMap(c=>c.candidateClientIds||[]))].sort();
+      const centralCandidates=strongCentralIds.map(clientId=>{const c=centralById.get(clientId);return c?{clientId:c.id,name:c.name,phone:c.phone,email:c.email,cpf:legacyCpf(c.legacyPayload),registrationUnitId:c.registrationUnitId}:null;}).filter(Boolean);
       const saved=byCluster.get(plan.clusterId);
       const current=saved&&saved.reportHash===report.reportHash?saved:null;
       const central=plan.targetClientId?centralById.get(plan.targetClientId):null;
@@ -41,9 +43,11 @@ export class ClientDuplicateReviewService {
         conflicts:plan.conflicts,
         candidateClusters:candidates,
         centralCandidate:central?{clientId:central.id,name:central.name,phone:central.phone,email:central.email,cpf:legacyCpf(central.legacyPayload),registrationUnitId:central.registrationUnitId}:null,
+        centralCandidates,
         decision:current?{
           decision:current.decision,
-          targetClusterId:current.mergeTargetClusterId,
+          targetClusterId:current.decision==='MERGE'?current.mergeTargetClusterId:null,
+          targetClientId:current.decision==='MATCH_CENTRAL'?current.targetClientId:null,
           note:current.note,
           reviewedByUserId:current.reviewedByUserId,
           reviewedAt:current.reviewedAt,
@@ -64,7 +68,7 @@ export class ClientDuplicateReviewService {
   async decide(batchId:string,clusterId:string,input:ReviewDecisionInput,reviewedByUserId:string) {
     const id=clean(batchId),cid=clean(clusterId),actor=clean(reviewedByUserId);
     if(!id||!cid||!actor)throw new BadRequestException('batchId, clusterId e usuário são obrigatórios');
-    if(!['MERGE','KEEP_SEPARATE','KEEP_CENTRAL','REVIEW_LATER'].includes(input?.decision))throw new BadRequestException('Decisão inválida');
+    if(!['MERGE','KEEP_SEPARATE','KEEP_CENTRAL','MATCH_CENTRAL','REVIEW_LATER'].includes(input?.decision))throw new BadRequestException('Decisão inválida');
     const {report}=await this.clientBatches.report(id);
     const plan=report.plans.find(x=>x.clusterId===cid);
     if(!plan)throw new NotFoundException('Cluster não encontrado no batch');
@@ -73,26 +77,34 @@ export class ClientDuplicateReviewService {
     const sourceFieldConflicts=plan.conflicts.filter(c=>c.type==='SOURCE_FIELD_CONFLICT');
     if(input.decision==='KEEP_SEPARATE'&&sourceFieldConflicts.length)throw new ConflictException('KEEP_SEPARATE não resolve conflito entre fontes do mesmo cluster; corrija/reexporte os dados ou escolha outra resolução segura');
 
-    let targetClusterId:string|null=null;
+    let targetClusterId:string|null=null,targetClientId:string|null=null;
     if(input.decision==='MERGE'){
       targetClusterId=clean(input.targetClusterId)||null;
       if(!targetClusterId||targetClusterId===cid)throw new BadRequestException('MERGE exige outro targetClusterId');
       const candidates=new Set(plan.conflicts.flatMap(c=>c.candidateClusterIds||[]));
       if(!candidates.has(targetClusterId))throw new ConflictException('Mesclagem permitida somente com candidato relacionado pelo relatório atual');
       if(!report.plans.some(x=>x.clusterId===targetClusterId))throw new NotFoundException('Cluster de destino não existe no relatório atual');
+    } else if(input.decision==='MATCH_CENTRAL') {
+      targetClientId=clean(input.targetClientId)||null;
+      if(!targetClientId)throw new BadRequestException('MATCH_CENTRAL exige targetClientId');
+      const candidates=new Set(plan.conflicts.filter(c=>c.type==='MULTIPLE_STRONG_MATCHES').flatMap(c=>c.candidateClientIds||[]));
+      if(!candidates.has(targetClientId))throw new ConflictException('Cliente central permitido somente entre candidatos MULTIPLE_STRONG_MATCHES do relatório atual');
+      if(clean(input.targetClusterId))throw new BadRequestException('targetClusterId só é aceito em MERGE');
     } else if(input.decision==='KEEP_CENTRAL') {
       if(!plan.targetClientId)throw new ConflictException('KEEP_CENTRAL exige cliente central identificado pelo relatório atual');
       if(clean(input.targetClusterId))throw new BadRequestException('targetClusterId só é aceito em MERGE');
-    } else if(clean(input.targetClusterId)) {
-      throw new BadRequestException('targetClusterId só é aceito em MERGE');
+      if(clean(input.targetClientId))throw new BadRequestException('targetClientId só é aceito em MATCH_CENTRAL');
+    } else {
+      if(clean(input.targetClusterId))throw new BadRequestException('targetClusterId só é aceito em MERGE');
+      if(clean(input.targetClientId))throw new BadRequestException('targetClientId só é aceito em MATCH_CENTRAL');
     }
 
     const note=clean(input.note).slice(0,500)||null,now=new Date();
     const saved=await this.prisma.$transaction(async tx=>{
       const row=await tx.clientDuplicateReview.upsert({
         where:{batchId_clusterId:{batchId:id,clusterId:cid}},
-        create:{batchId:id,clusterId:cid,reportHash:report.reportHash,decision:input.decision,mergeTargetClusterId:targetClusterId,note,reviewedByUserId:actor,reviewedAt:now},
-        update:{reportHash:report.reportHash,decision:input.decision,mergeTargetClusterId:targetClusterId,note,reviewedByUserId:actor,reviewedAt:now},
+        create:{batchId:id,clusterId:cid,reportHash:report.reportHash,decision:input.decision,mergeTargetClusterId:targetClusterId,targetClientId,note,reviewedByUserId:actor,reviewedAt:now},
+        update:{reportHash:report.reportHash,decision:input.decision,mergeTargetClusterId:targetClusterId,targetClientId,note,reviewedByUserId:actor,reviewedAt:now},
       });
       await tx.auditEvent.create({data:{
         id:`audit:client-duplicate-review:${randomUUID()}`,
@@ -101,7 +113,7 @@ export class ClientDuplicateReviewService {
         entityType:'ClientDuplicateReview',
         entityId:row.id,
         occurredAt:now,
-        legacyPayload:json({batchId:id,clusterId:cid,reportHash:report.reportHash,decision:input.decision,targetClusterId,note}),
+        legacyPayload:json({batchId:id,clusterId:cid,reportHash:report.reportHash,decision:input.decision,targetClusterId,targetClientId,note}),
       }});
       return row;
     });
@@ -111,7 +123,8 @@ export class ClientDuplicateReviewService {
       clusterId:cid,
       reportHash:report.reportHash,
       decision:saved.decision,
-      targetClusterId:saved.mergeTargetClusterId,
+      targetClusterId:saved.decision==='MERGE'?saved.mergeTargetClusterId:null,
+      targetClientId:saved.decision==='MATCH_CENTRAL'?saved.targetClientId:null,
       reviewedAt:saved.reviewedAt,
       clientRowsMutated:false,
     };
