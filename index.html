@@ -121,13 +121,27 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:
 <style>
 .v46-rem-label{font-weight:700}.v46-partnership-card b{color:#5d2f69}
 </style>
+
+<style>
+/* Branding oficial · arquivo preservado, enquadramento apenas por CSS */
+.brand-logo-frame{display:inline-flex;align-items:center;justify-content:center;overflow:hidden;flex:0 0 auto;line-height:0}
+.brand-logo-frame .brand-logo{display:block;width:100%;height:100%;max-width:none;margin:0;object-fit:contain;transform:scale(1.84);transform-origin:center}
+.brand-logo-nav{width:75px;height:50px}
+.brand-logo-hero{width:min(315px,74vw);aspect-ratio:1.5/1}
+.brand-logo-login{width:180px;aspect-ratio:1.5/1;margin:0 auto 14px}
+.brand-logo-admin{width:57px;height:38px}
+.visual>.brand-logo-frame{position:relative;filter:drop-shadow(0 18px 28px rgba(47,23,59,.14))}
+.visual .brand-logo,.login-card .brand-logo{position:static;width:100%;height:100%;filter:none;margin:0}
+@media(max-width:800px){.brand-logo-nav{width:66px;height:44px}.brand-logo-hero{width:min(270px,76vw)}.brand-logo-login{width:165px}.brand-logo-admin{width:48px;height:32px}}
+@media(max-width:480px){.brand-logo-nav{width:60px;height:40px}.brand-logo-admin{width:45px;height:30px}}
+</style>
 </head>
 <body>
 <div id="toast" class="toast hidden"></div>
 
 <section id="publicApp">
   <nav class="public-nav"><div class="container inner">
-    <img class="logo" src="assets/logo.png" alt="Império das Unhas" />
+    <span class="brand-logo-frame brand-logo-nav"><img class="brand-logo" data-brand-logo="imperio" src="assets/branding/imperio-logo-colorida.png" alt="Império das Unhas" /></span>
     <div class="nav-links">
       <a class="primary-link" href="#services">Serviços</a><a href="#units">Unidades</a><a href="#team">Equipe</a>
       <button class="btn btn-primary" onclick="openBooking()">Agendar horário</button>
@@ -136,7 +150,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:
   <main>
     <section class="hero"><div class="container hero-grid">
       <div><div class="eyebrow">Império das Unhas</div><h1>Beleza, cuidado e experiência em cada detalhe.</h1><p>Escolha a unidade, o serviço e o melhor horário. A disponibilidade mostrada aqui conversa com a mesma agenda usada pela equipe.</p><div class="hero-actions"><button class="btn btn-primary" onclick="openBooking()">Agendar meu horário</button><button class="btn btn-ghost" onclick="showMyBookings()">Meus agendamentos</button></div></div>
-      <div class="visual"><img src="assets/logo.png" alt="Logo Império" /></div>
+      <div class="visual"><span class="brand-logo-frame brand-logo-hero"><img class="brand-logo" data-brand-logo="imperio" src="assets/branding/imperio-logo-colorida.png" alt="" aria-hidden="true" /></span></div>
     </div></section>
     <section id="services" class="section"><div class="container"><h2>Serviços</h2><p class="section-sub">Serviços publicados pelo sistema de gestão.</p><div id="publicServices" class="grid grid-3"></div></div></section>
     <section id="units" class="section"><div class="container"><h2>Unidades</h2><p class="section-sub">Escolha onde prefere ser atendida.</p><div id="publicUnits" class="grid grid-3"></div></div></section>
@@ -146,7 +160,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:
 </section>
 
 <section id="loginApp" class="login-page hidden">
-  <div class="login-card"><img src="assets/logo.png" alt="Logo"><h1>Área da equipe</h1><p>Entre para acessar agenda e gestão.</p>
+  <div class="login-card"><span class="brand-logo-frame brand-logo-login"><img class="brand-logo" data-brand-logo="imperio" src="assets/branding/imperio-logo-colorida.png" alt="Império das Unhas"></span><h1>Área da equipe</h1><p>Entre para acessar agenda e gestão.</p>
     <div class="field"><label>Usuário</label><input id="loginUser" autocomplete="username"></div><div class="field" style="margin-top:12px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password"></div>
     <button class="btn btn-primary" style="width:100%;margin-top:18px" onclick="doLogin()">Entrar</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:9px" onclick="goPublic()">Voltar ao site</button>
@@ -155,7 +169,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:
 </section>
 
 <section id="adminApp" class="hidden">
-  <div class="topbar"><img class="logo" src="assets/logo.png" alt="Logo"><button class="btn btn-soft btn-sm v871-mobile-menu" type="button" onclick="v871OpenMobileNav()">☰ Menu</button><div id="adminTabs" class="admin-tabs"></div><div class="top-actions"><select id="unitPicker" class="unit-select hide-mobile" onchange="handleUnitChange()"></select><button class="btn btn-soft btn-sm" onclick="toast('Sem tarefas pendentes neste protótipo')">✓</button><button class="btn btn-soft btn-sm" onclick="toast('Notificações atualizadas')">🔔</button><button class="btn btn-ghost btn-sm" onclick="logout()">Sair</button></div></div>
+  <div class="topbar"><span class="brand-logo-frame brand-logo-admin"><img class="brand-logo" data-brand-logo="imperio" src="assets/branding/imperio-logo-colorida.png" alt="Império das Unhas"></span><button class="btn btn-soft btn-sm v871-mobile-menu" type="button" onclick="v871OpenMobileNav()">☰ Menu</button><div id="adminTabs" class="admin-tabs"></div><div class="top-actions"><select id="unitPicker" class="unit-select hide-mobile" onchange="handleUnitChange()"></select><button class="btn btn-soft btn-sm" onclick="toast('Sem tarefas pendentes neste protótipo')">✓</button><button class="btn btn-soft btn-sm" onclick="toast('Notificações atualizadas')">🔔</button><button class="btn btn-ghost btn-sm" onclick="logout()">Sair</button></div></div>
   <div id="subbar" class="subbar">Agenda &nbsp;·&nbsp; Agendamento Online &nbsp;·&nbsp; Bloqueios &nbsp;·&nbsp; Capacidade</div>
   <div id="adminPage" class="page"></div>
 </section>
@@ -6173,7 +6187,7 @@ window.__imperioV76={schema:V76_SCHEMA,migrationId:V76_MIGRATION_ID,migrate,fisc
  function imageFallback(img){
   try{if(!img||img.dataset?.v871Fallback==='1')return;img.dataset.v871Fallback='1';img.style.display='none';let span=document.createElement('span');span.className='v871-brand-fallback';span.textContent='IU';span.title='Império das Unhas · identidade visual pendente';img.insertAdjacentElement?.('afterend',span)}catch(e){}
  }
- function installLogoFallbacks(){try{for(const img of document.querySelectorAll('img[src="assets/logo.png"]')){img.onerror=function(){imageFallback(this)};if(img.complete&&Number(img.naturalWidth||0)===0)imageFallback(img)}}catch(e){}}
+ function installLogoFallbacks(){try{for(const img of document.querySelectorAll('img[data-brand-logo="imperio"]')){img.onerror=function(){imageFallback(this)};if(img.complete&&Number(img.naturalWidth||0)===0)imageFallback(img)}}catch(e){}}
 
  function openMobileNav(){
   let tabs='';try{tabs=document.getElementById('adminTabs')?.innerHTML||''}catch(e){}
