@@ -72,7 +72,8 @@ export class ClientBatchService {
     try { assertClientBatchSet(input); } catch (error:any) { throw new BadRequestException(String(error?.message||error)); }
     const set=input as ClientBatchSetInput;
     const staged=await this.prisma.$transaction(async tx=>{const out=[] as Array<{unitId:string;envelopeId:string;revision:number;reused:boolean;fileHash:string}>;for(const file of set.files)out.push(await this.stageFile(set,file,tx));return out;},{isolationLevel:Prisma.TransactionIsolationLevel.Serializable,timeout:60000,maxWait:30000});
-    const report=await this.analyzeSet(set,this.prisma);
+    const persistedSet=await this.loadBatchSet(set.batchId,this.prisma);
+    const report=await this.analyzeSet(persistedSet,this.prisma);
     return {ok:true,mode:'dry-run',staged,report,commitEnabled:this.commitEnabled(),realClientRowsMutated:false};
   }
 

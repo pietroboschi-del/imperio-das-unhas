@@ -151,6 +151,32 @@ async function main(){
     ok(second.staged.every(x=>x.reused===true),'mesmos arquivos reutilizam staging');
     eq(second.report.reportHash,report.reportHash,'reprocessamento é idempotente');
 
+    const incrementalBatch='BATCH_INCREMENTAL_SAME_WAVE';
+    const incrementalCentro={mode:'CLIENTS_ONLY',batchId:incrementalBatch,phase:'REHEARSAL',files:[{
+      unitId:'centro',exportedAt:'2026-10-05T08:00:00-03:00',fileName:'incremental-centro.xlsx',fileHash:H(130),rows:[
+        {sourceRow:2,id:'inc-centro-lia',nome:'Lia Martins',celular:'31944443333',cpf:'741.852.963-10'}
+      ]
+    }]};
+    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers,body:JSON.stringify(incrementalCentro)});
+    ok(r.ok,'primeira unidade da mesma onda entra no staging');
+    const incrementalFirst=await r.json();
+    eq(incrementalFirst.report.files.map(x=>x.unitId),['centro'],'primeiro dry-run contém somente Centro');
+
+    const incrementalBig={mode:'CLIENTS_ONLY',batchId:incrementalBatch,phase:'REHEARSAL',files:[{
+      unitId:'big',exportedAt:'2026-10-05T08:05:00-03:00',fileName:'incremental-big.xlsx',fileHash:H(131),rows:[
+        {sourceRow:2,id:'inc-big-lia',nome:'Lia Martins',celular:'31944443333',cpf:'74185296310'}
+      ]
+    }]};
+    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers,body:JSON.stringify(incrementalBig)});
+    ok(r.ok,'segunda unidade da mesma onda entra no mesmo batch ainda pendente');
+    const incrementalSecond=await r.json();
+    eq(incrementalSecond.staged.length,1,'resposta de staging identifica apenas o arquivo enviado nesta chamada');
+    eq(incrementalSecond.report.files.map(x=>x.unitId).sort(),['big','centro'],'segundo dry-run recalcula relatório sobre Centro + Big persistidos');
+    eq(incrementalSecond.report.crossUnit.multiUnitClusters,1,'reconciliação cruza as duas unidades staged em chamadas separadas');
+    const lia=incrementalSecond.report.plans.find(p=>p.source.cpf==='74185296310');
+    ok(lia&&lia.sourceRows.length===2,'plano consolida as duas linhas da mesma pessoa no batch completo');
+    eq(await prisma.migrationEnvelope.count({where:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:incrementalBatch}}),2,'batch pendente mantém um envelope por unidade');
+
     r=await fetch(base+'/api/v1/migrations/v94/clients/batches/BATCH_1_REHEARSAL/finalize-staging',{
       method:'POST',headers,body:JSON.stringify({approvalReportHash:report.reportHash})
     });
