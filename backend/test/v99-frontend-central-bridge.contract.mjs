@@ -35,5 +35,11 @@ ok(html.includes("centralPublicRequest('/api/v1/public/bookings',{method:'POST',
 ok(html.includes("if(!production())return legacyOpenBooking.apply(this,arguments)"),'desenvolvimento local mantém o fluxo legado');
 ok(html.includes("Agendamento em breve"),'unidades bloqueadas não oferecem escrita pública');
 ok(html.includes("sourceOfTruth:'postgresql_public_catalog_and_occupancy'"),'fonte pública oficial fica declarada como PostgreSQL');
+ok(html.includes("function v56PublicAvailabilityCalculation(unitId,date,serviceIds,preferredPro=''"),'motor público aceita unidade, data, serviços e preferência explicitamente');
+ok(html.includes("window.__imperioPublicAvailabilityEngine={calculate:v56PublicAvailabilityCalculation}"),'motor público reutilizável é exposto sem duplicar algoritmo');
+ok(html.includes("async function queryAvailability(unitId,date,serviceIds,preferredPro=''"),'consulta silenciosa aceita parâmetros explícitos');
+ok(html.includes('let snapshot=availabilityStateSnapshot();')&&html.includes('finally{restoreAvailabilityState(snapshot)}'),'consulta silenciosa restaura estado temporário de disponibilidade');
+ok(html.includes('generation=++slotSearchGeneration')&&html.includes("JSON.stringify((bk.serviceIds||[]).map(String))===JSON.stringify(serviceIds)")&&html.includes("String(document.getElementById('bkPublicPro')?.value??bk.pro??'')===preferredPro"),'busca pública rejeita resposta obsoleta após mudança de unidade/data/serviços/preferência');
+ok(html.includes('queryAvailability,submitBooking'),'ponte pública expõe helper de disponibilidade para o próximo microbloco');
 
 console.log(JSON.stringify({ok:true,tests,feature:'v99_frontend_central_bridge'}));

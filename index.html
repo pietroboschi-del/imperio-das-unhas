@@ -3893,7 +3893,16 @@ openReportDrilldown=function(type){if(type==='services_margin'){let s=window.v59
  window.v56PublicSelectUnit=function(id){bk.unit=id;bk.serviceIds=[];bk.assignments=[];bookingStep(2)};
  window.v56PublicChooseServices=function(){let ids=[...document.querySelectorAll('.v56-bk-service:checked')].map(x=>x.value);if(!ids.length){toast('Selecione pelo menos um serviço');return}if(ids.length>5){toast('Selecione no máximo 5 serviços por agendamento');return}bk.serviceIds=ids;bk.service=ids[0];bk.assignments=[];bookingStep(3)};
  window.v56PublicRenderProfessionalOptions=function(){let sel=document.getElementById('bkPublicPro');if(!sel)return;let ids=bk.serviceIds||[],date=document.getElementById('bkPublicDate')?.value||bk.date||localDateISO();let ps=(db.pros||[]).filter(p=>p.active!==false&&p.show!==false&&p.online!==false&&(p.units||[]).includes(bk.unit)&&!!availabilityWorkWindow(p.id,date,bk.unit)&&ids.every(sid=>v56PublicEligiblePros(sid,bk.unit,p.id).length));let cur=bk.pro||'';sel.innerHTML=`<option value="">Sem preferência</option>${ps.map(p=>`<option value="${p.id}" ${p.id===cur?'selected':''}>${escapeHtml(p.publicName||p.name)}</option>`).join('')}`};
- window.v56PublicSearchSlots=function(){let date=document.getElementById('bkPublicDate')?.value||localDateISO(),pro=document.getElementById('bkPublicPro')?.value||'',host=document.getElementById('bkPublicSlots');if(!host)return;if(date<localDateISO()){host.innerHTML='<div class="v56-public-empty">Escolha hoje ou uma data futura.</div>';return}bk.date=date;bk.pro=pro;let specs=availabilityOrderedSpecs((bk.serviceIds||[]).map(serviceId=>({serviceId,preferredPro:pro})));for(const sp of specs){if(!v56PublicEligiblePros(sp.serviceId,bk.unit,sp.preferredPro).length){host.innerHTML='<div class="v56-public-empty">Não há profissional online habilitada e com escala para todos os serviços selecionados nesta configuração.</div>';return}}let bounds=v56PublicSearchBounds(date,bk.unit,specs);if(!bounds){host.innerHTML='<div class="v56-public-empty">Não há escala cadastrada para esta data.</div>';return}let start=Math.max(bounds.start,date===localDateISO()?Math.ceil((new Date().getHours()*60+new Date().getMinutes())/15)*15:bounds.start),results=[];for(let anchor=start;anchor<bounds.end;anchor+=15){let bundle=v56PublicBundle(specs,date,anchor,bounds.end,bk.unit);if(bundle)results.push({date,start:minToTime(anchor),end:minToTime(bundle.maxEnd),assignments:bundle.assigned})}bk.publicResults=results.slice(0,60);if(!bk.publicResults.length){host.innerHTML='<div class="v56-public-empty">Nenhum horário livre encontrado nesta data. Tente outro dia.</div>';return}host.innerHTML=`<div class="v56-public-slotday"><b>${escapeHtml(availabilityDateLabel(date))}</b><div class="slots">${bk.publicResults.map((r,i)=>`<button class="slot-btn" onclick="v56PublicChooseSlot(${i})">${r.start}<div class="v56-public-plan">${r.assignments.map(a=>`${escapeHtml(db.services.find(s=>s.id===a.serviceId)?.name||'Serviço')} · ${escapeHtml(db.pros.find(p=>p.id===a.proId)?.publicName||db.pros.find(p=>p.id===a.proId)?.name||'Profissional')}`).join('<br>')}</div></button>`).join('')}</div></div>`};
+ function v56PublicAvailabilityCalculation(unitId,date,serviceIds,preferredPro=''){
+ let specs=availabilityOrderedSpecs((serviceIds||[]).map(serviceId=>({serviceId,preferredPro})));
+ for(const sp of specs)if(!v56PublicEligiblePros(sp.serviceId,unitId,sp.preferredPro).length)return {reason:'no-eligible-professional',results:[]};
+ let bounds=v56PublicSearchBounds(date,unitId,specs);if(!bounds)return {reason:'no-schedule',results:[]};
+ let start=Math.max(bounds.start,date===localDateISO()?Math.ceil((new Date().getHours()*60+new Date().getMinutes())/15)*15:bounds.start),results=[];
+ for(let anchor=start;anchor<bounds.end;anchor+=15){let bundle=v56PublicBundle(specs,date,anchor,bounds.end,unitId);if(bundle)results.push({date,start:minToTime(anchor),end:minToTime(bundle.maxEnd),assignments:bundle.assigned})}
+ let limited=results.slice(0,60);return {reason:limited.length?'ok':'no-free-slot',results:limited}
+}
+window.__imperioPublicAvailabilityEngine={calculate:v56PublicAvailabilityCalculation};
+window.v56PublicSearchSlots=function(){let date=document.getElementById('bkPublicDate')?.value||localDateISO(),pro=document.getElementById('bkPublicPro')?.value||'',host=document.getElementById('bkPublicSlots');if(!host)return;if(date<localDateISO()){host.innerHTML='<div class="v56-public-empty">Escolha hoje ou uma data futura.</div>';return}bk.date=date;bk.pro=pro;let calc=v56PublicAvailabilityCalculation(bk.unit,date,bk.serviceIds||[],pro);if(calc.reason==='no-eligible-professional'){host.innerHTML='<div class="v56-public-empty">Não há profissional online habilitada e com escala para todos os serviços selecionados nesta configuração.</div>';return}if(calc.reason==='no-schedule'){host.innerHTML='<div class="v56-public-empty">Não há escala cadastrada para esta data.</div>';return}bk.publicResults=calc.results;if(!bk.publicResults.length){host.innerHTML='<div class="v56-public-empty">Nenhum horário livre encontrado nesta data. Tente outro dia.</div>';return}host.innerHTML=`<div class="v56-public-slotday"><b>${escapeHtml(availabilityDateLabel(date))}</b><div class="slots">${bk.publicResults.map((r,i)=>`<button class="slot-btn" onclick="v56PublicChooseSlot(${i})">${r.start}<div class="v56-public-plan">${r.assignments.map(a=>`${escapeHtml(db.services.find(s=>s.id===a.serviceId)?.name||'Serviço')} · ${escapeHtml(db.pros.find(p=>p.id===a.proId)?.publicName||db.pros.find(p=>p.id===a.proId)?.name||'Profissional')}`).join('<br>')}</div></button>`).join('')}</div></div>`};
  window.v56PublicChooseSlot=function(i){let r=bk.publicResults?.[i];if(!r)return;bk.time=r.start;bk.date=r.date;bk.assignments=clone(r.assignments);bookingStep(4)};
  openBooking=function(preService=null,preUnit=null){let units=v56PublicUnits(),services=v56PublicServices(),today=localDateISO();modal('Agendar horário',`
  <div id="bk1" class="booking-step active"><div class="eyebrow">1 de 5</div><h2>Escolha a unidade</h2><div class="choice-grid">${units.map(u=>`<button class="choice ${u.id===preUnit?'selected':''}" onclick="v56PublicSelectUnit('${u.id}')"><b>${escapeHtml(u.name)}</b><div class="muted">${escapeHtml(u.address||'')}</div></button>`).join('')||'<div class="v56-public-empty">Nenhuma unidade disponível para agendamento online.</div>'}</div></div>
@@ -7315,7 +7324,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  const UNIT_TO_CENTRAL=Object.freeze({u1:'big',u2:'shopping-contagem',u3:'centro',big:'big','shopping-contagem':'shopping-contagem',centro:'centro'});
  const UNIT_TO_LOCAL=Object.freeze({big:'u1','shopping-contagem':'u2',centro:'u3',u1:'u1',u2:'u2',u3:'u3'});
  const CANONICAL_UNITS=['centro','big','shopping-contagem'];
- const cache=new Map();let homeRefresh=null,publicUnitsCache={at:0,data:null};
+ const cache=new Map();let homeRefresh=null,publicUnitsCache={at:0,data:null},slotSearchGeneration=0;
  function production(){try{let h=String(location?.hostname||'').toLowerCase();return !!h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'}catch(e){return false}}
  function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
  function errorOf(data,status){let m=Array.isArray(data?.message)?data.message.join(' · '):(data?.message||('HTTP '+status));let e=new Error(String(m));e.status=status;return e}
@@ -7361,6 +7370,23 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
    let items=(row.items||[]).map(it=>({serviceId:it.serviceId||'',service:db.services.find(s=>s.id===it.serviceId)?.name||(row.status==='Bloqueado'?'Horário bloqueado':'Serviço'),pro:it.professionalId||'',time:localTime(it.startAt),duration:Number(it.durationMin||30),price:0,preference:false,forceFit:false}));
    let b={id:row.id,unit:localUnitId,date,status:row.status||'Agendado',client:'Ocupado',blockAllDay:!!row.blockAllDay,items,centralPublicOccupancy:true};if(items[0]){b.pro=items[0].pro;b.time=items[0].time;b.service=items[0].service}normalizeBooking(b);db.bookings.push(b)
   }
+ }
+ function availabilityCopy(value){if(typeof structuredClone==='function')return structuredClone(value);return JSON.parse(JSON.stringify(value))}
+ function availabilityStateSnapshot(){return {units:db.units,categories:db.categories,services:db.services,pros:db.pros,bookings:db.bookings}}
+ function stageAvailabilityState(snapshot){db.units=availabilityCopy(snapshot.units||[]);db.categories=availabilityCopy(snapshot.categories||[]);db.services=availabilityCopy(snapshot.services||[]);db.pros=availabilityCopy(snapshot.pros||[]);db.bookings=availabilityCopy(snapshot.bookings||[])}
+ function restoreAvailabilityState(snapshot){db.units=snapshot.units;db.categories=snapshot.categories;db.services=snapshot.services;db.pros=snapshot.pros;db.bookings=snapshot.bookings}
+ function isolatedAvailabilityCalculation(localUnitId,date,serviceIds,preferredPro,data,rows){
+  let engine=window.__imperioPublicAvailabilityEngine?.calculate;if(typeof engine!=='function')throw new Error('Motor público de disponibilidade indisponível');
+  let snapshot=availabilityStateSnapshot();
+  try{stageAvailabilityState(snapshot);applyCatalog(localUnitId,data);applyOccupancy(localUnitId,date,rows);return engine(localUnitId,date,serviceIds,preferredPro)}
+  finally{restoreAvailabilityState(snapshot)}
+ }
+ async function queryAvailability(unitId,date,serviceIds,preferredPro=''){
+  let centralId=UNIT_TO_CENTRAL[unitId]||unitId,localId=UNIT_TO_LOCAL[centralId]||unitId,ids=Array.isArray(serviceIds)?serviceIds.map(String):[];
+  if(!centralId||!localId||!/^\d{4}-\d{2}-\d{2}$/.test(String(date||''))||!ids.length)return [];
+  let data=await catalog(centralId);if(!data?.bookingEnabled)return [];
+  let rows=await centralPublicRequest('/api/v1/public/occupancy?unitId='+encodeURIComponent(centralId)+'&date='+encodeURIComponent(date));
+  return isolatedAvailabilityCalculation(localId,String(date),ids,String(preferredPro||''),data,rows).results||[]
  }
  function catalogs(){return CANONICAL_UNITS.map(id=>cache.get(id)?.data).filter(Boolean)}
  async function refreshAll(){
@@ -7424,15 +7450,15 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   }catch(e){toast('Não foi possível carregar os serviços desta unidade: '+e.message);return false}
  }
  async function searchSlots(base){
-  let host=document.getElementById('bkPublicSlots'),localId=bk?.unit||'',centralId=UNIT_TO_CENTRAL[localId]||localId,date=document.getElementById('bkPublicDate')?.value||bk?.date||localDateISO();
+  let host=document.getElementById('bkPublicSlots'),localId=bk?.unit||'',centralId=UNIT_TO_CENTRAL[localId]||localId,date=document.getElementById('bkPublicDate')?.value||bk?.date||localDateISO(),serviceIds=[...(bk?.serviceIds||[])].map(String),preferredPro=String(document.getElementById('bkPublicPro')?.value??bk?.pro??''),generation=++slotSearchGeneration;
+  const stillCurrent=()=>generation===slotSearchGeneration&&!!window.bk&&String(bk.unit||'')===String(localId)&&String(document.getElementById('bkPublicDate')?.value||bk.date||'')===String(date)&&JSON.stringify((bk.serviceIds||[]).map(String))===JSON.stringify(serviceIds)&&String(document.getElementById('bkPublicPro')?.value??bk.pro??'')===preferredPro;
   if(!localId||!centralId){if(host)host.innerHTML='<div class="v56-public-empty">Escolha uma unidade.</div>';return false}
   if(host)host.innerHTML='<div class="v56-public-empty">Consultando disponibilidade atual...</div>';
   try{
-   let data=await catalog(centralId);if(!data.bookingEnabled)throw new Error('Agendamento online ainda não está liberado nesta unidade');
-   applyCatalog(localId,data);let rows=await centralPublicRequest('/api/v1/public/occupancy?unitId='+encodeURIComponent(centralId)+'&date='+encodeURIComponent(date));
-   if(!window.bk||bk.unit!==localId||String(document.getElementById('bkPublicDate')?.value||bk.date)!==String(date))return false;
-   applyOccupancy(localId,date,rows);base();return true
-  }catch(e){if(host)host.innerHTML='<div class="v56-public-empty">Não foi possível consultar os horários agora. '+escapeHtml(e.message)+'</div>';return false}
+   let data=await catalog(centralId);if(!stillCurrent())return false;if(!data.bookingEnabled)throw new Error('Agendamento online ainda não está liberado nesta unidade');
+   let rows=await centralPublicRequest('/api/v1/public/occupancy?unitId='+encodeURIComponent(centralId)+'&date='+encodeURIComponent(date));if(!stillCurrent())return false;
+   applyCatalog(localId,data);applyOccupancy(localId,date,rows);base();return true
+  }catch(e){if(stillCurrent()&&host)host.innerHTML='<div class="v56-public-empty">Não foi possível consultar os horários agora. '+escapeHtml(e.message)+'</div>';return false}
  }
  async function submitBooking(){
   let localId=bk?.unit||'',centralId=UNIT_TO_CENTRAL[localId]||localId,assign=bk?.assignments||[],data=cache.get(centralId)?.data;
@@ -7465,7 +7491,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  if(typeof legacySearch==='function'){window.v56PublicSearchSlots=function(){if(!production())return legacySearch.apply(this,arguments);return searchSlots(()=>legacySearch())}}
  const legacyFinish=window.finishBooking||((typeof finishBooking==='function')?finishBooking:null);
  if(legacyFinish){let wrapped=function(){if(!production())return legacyFinish.apply(this,arguments);return submitBooking()};window.finishBooking=wrapped;try{finishBooking=wrapped}catch(e){}}
- window.__imperioPublicCentralCatalog={production,request:centralPublicRequest,catalog,refreshHome,applyCatalog,applyOccupancy,submitBooking,sourceOfTruth:'postgresql_public_catalog_and_occupancy'};
+ window.__imperioPublicCentralCatalog={production,request:centralPublicRequest,catalog,refreshHome,applyCatalog,applyOccupancy,queryAvailability,submitBooking,sourceOfTruth:'postgresql_public_catalog_and_occupancy'};
  if(production()&&!document.getElementById('publicApp')?.classList.contains('hidden'))setTimeout(refreshHome,0);
 })();
 
