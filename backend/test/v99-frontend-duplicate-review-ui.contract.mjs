@@ -32,7 +32,7 @@ ok(js.includes('hasSourceFieldConflict')&&js.includes('Manter separados não res
 ok(js.includes('hasMissingRequiredName')&&js.includes('Nome obrigatório ausente.'),'UI identifica MISSING_REQUIRED_NAME');
 ok(js.includes("decision!=='REVIEW_LATER'&&hasMissingRequiredName(item)"),'UI impede todas as decisões resolutivas quando o nome obrigatório está ausente');
 ok(js.includes("missingName||!candidate||state.saving")&&js.includes("missingName||!item.centralCandidate||state.saving")&&js.includes("missingName||!selectedCentral||state.saving")&&js.includes("missingName||sourceConflict||state.saving"),'quatro ações resolutivas ficam desabilitadas para cadastro sem nome');
-ok(js.includes("(sourceConflict||state.saving)?'disabled':''"),'botão Manter separados fica desabilitado em SOURCE_FIELD_CONFLICT');
+ok(js.includes("(missingName||sourceConflict||state.saving)?'disabled':''"),'botão Manter separados fica desabilitado em SOURCE_FIELD_CONFLICT e MISSING_REQUIRED_NAME');
 ok(js.includes('candidateClusters')&&js.includes('state.candidateId'),'comparação mantém candidato selecionado');
 ok(js.includes('v99dup-different'),'diferenças são destacadas');
 ok(js.includes("state.filter==='pending'")&&js.includes("state.filter==='resolved'")&&js.includes("state.filter==='later'"),'filtros operacionais existem');
