@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import {assertClientBatchSet,normalizeBatchSet,normalizeEmail,probableSameName,reconcileClientBatch} from '../src/migration/client-batch.logic.ts';
+import {assertClientBatchSet,normalizeBatchSet,normalizeCpf,normalizeEmail,probableSameName,reconcileClientBatch} from '../src/migration/client-batch.logic.ts';
 let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};const eq=(a,b,m)=>{tests++;assert.deepEqual(a,b,m)};
 const H=n=>'sha256:'+String(n).padStart(64,'0');
 const input={mode:'CLIENTS_ONLY',batchId:'BATCH_2_PRE_CUTOVER',phase:'PRE_CUTOVER',files:[
@@ -51,5 +51,14 @@ ok(probableSameName('TATIANE FERNANA FERREIRA','TATIANE FERNANDA FERREIRA'),'err
 ok(!probableSameName('ADRIANA ANDRADE FARIA','ELIANE DE ANDRADE FARIA'),'nomes claramente distintos em telefone familiar não viram candidato');
 eq(normalizeEmail('on'),null,'texto sem formato de e-mail é ignorado para deduplicação');
 eq(normalizeEmail('ANA@EXAMPLE.COM'),'ana@example.com','e-mail válido continua normalizado');
+eq(normalizeCpf('000.000.000-00'),null,'CPF placeholder com dígitos repetidos não participa da deduplicação forte');
+eq(normalizeCpf('111.222.333-44'),'11122233344','formatação de CPF legado continua normalizada sem ampliar validação de checksum neste bloco');
+const placeholderCpfInput={mode:'CLIENTS_ONLY',batchId:'BATCH_PLACEHOLDER_CPF',phase:'REHEARSAL',files:[
+ {unitId:'centro',exportedAt:'2026-10-05T09:00:00-03:00',fileName:'placeholder-centro.xlsx',fileHash:H(60),rows:[{sourceRow:2,id:'ph-c',nome:'Maria Souza',cpf:'000.000.000-00'}]},
+ {unitId:'big',exportedAt:'2026-10-05T09:01:00-03:00',fileName:'placeholder-big.xlsx',fileHash:H(61),rows:[{sourceRow:2,id:'ph-b',nome:'Joana Lima',cpf:'00000000000'}]}
+]};
+const placeholderCpfReport=reconcileClientBatch(placeholderCpfInput,{},[]);
+eq(placeholderCpfReport.plans.length,2,'CPF placeholder repetido não funde pessoas diferentes entre unidades');
+ok(placeholderCpfReport.plans.every(p=>p.action==='CREATE'),'sem outra evidência forte, pessoas com CPF placeholder permanecem cadastros separados');
 const service=fs.readFileSync(new URL('../src/migration/client-batch.service.ts',import.meta.url),'utf8');const runbook=fs.readFileSync(new URL('../CLIENTS_ONLY_BATCHES.md',import.meta.url),'utf8');ok(service.includes("CLIENT_BATCH_COMMIT_ENABLED"),'commit tem gate dedicado');ok(service.includes("MIGRATION_IMPORT_ENABLED"),'commit também respeita gate global');ok(service.includes("TransactionIsolationLevel.Serializable"),'commit usa transação serializable');ok(!service.includes('client.deleteMany')&&!service.includes('clientUnitLink.deleteMany'),'CLIENTS_ONLY não apaga clientes/vínculos');ok(service.includes("phase!=='FINAL'"),'somente FINAL pode promover');ok(service.includes('approvalReportHash'),'commit exige hash do relatório aprovado');ok(service.includes('sourceRow')&&service.includes('fileHash')&&service.includes('fileName')&&service.includes('exportedAt'),'proveniência de arquivo/linha persistida');ok(service.includes('Batch parcialmente importado é estado inconsistente')&&service.includes('use novo batchId para adicionar outra unidade ou nova onda de exportação'),'código proíbe continuação de batch já importado');ok(service.includes('existingPhases')&&service.includes('Use novo batchId para outra fase'),'fase do batch é validada antes de aceitar nova unidade');ok(runbook.includes('`batchId` identifica uma única onda imutável de exportação'),'runbook declara batch imutável por onda');ok(runbook.includes('Retry idêntico do batch já importado continua idempotente'),'runbook preserva retry idempotente');ok(!runbook.includes('O mesmo `BATCH_FINAL` pode ser concluído em ondas')&&!runbook.includes('unidades ainda pendentes em um `FINAL` escalonado'),'runbook não ensina mais continuação escalonada do mesmo batch');
 console.log(JSON.stringify({ok:true,tests,feature:'clients_only_versioned_batches'}));
