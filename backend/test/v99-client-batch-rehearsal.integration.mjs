@@ -162,6 +162,18 @@ async function main(){
     const incrementalFirst=await r.json();
     eq(incrementalFirst.report.files.map(x=>x.unitId),['centro'],'primeiro dry-run contém somente Centro');
 
+    const incompatibleBig={mode:'CLIENTS_ONLY',batchId:incrementalBatch,phase:'PRE_CUTOVER',files:[{
+      unitId:'big',exportedAt:'2026-10-05T08:04:00-03:00',fileName:'incremental-big-wrong-phase.xlsx',fileHash:H(132),rows:[
+        {sourceRow:2,id:'inc-big-wrong-phase',nome:'Lia Martins',celular:'31944443333',cpf:'74185296310'}
+      ]
+    }]};
+    r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers,body:JSON.stringify(incompatibleBig)});
+    eq(r.status,409,'segunda unidade com fase incompatível é rejeitada antes do staging');
+    const phaseErr=await r.json();
+    ok(String(phaseErr.message||'').includes('já está na fase REHEARSAL')&&String(phaseErr.message||'').includes('Use novo batchId'),'erro identifica a fase vigente e orienta novo batchId');
+    eq(await prisma.migrationEnvelope.count({where:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:incrementalBatch}}),1,'fase incompatível não persiste segundo envelope');
+    eq(await prisma.migrationEntity.count({where:{envelope:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:incrementalBatch}}}),1,'fase incompatível não persiste linhas da segunda unidade');
+
     const incrementalBig={mode:'CLIENTS_ONLY',batchId:incrementalBatch,phase:'REHEARSAL',files:[{
       unitId:'big',exportedAt:'2026-10-05T08:05:00-03:00',fileName:'incremental-big.xlsx',fileHash:H(131),rows:[
         {sourceRow:2,id:'inc-big-lia',nome:'Lia Martins',celular:'31944443333',cpf:'74185296310'}

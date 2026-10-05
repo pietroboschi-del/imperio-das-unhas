@@ -239,7 +239,10 @@ export class ClientBatchService {
     const instanceId=`clients:${file.unitId}`;
     const fileHash=file.fileHash.toLowerCase();
     const parserVersion=asText(file.parserVersion);
-    const batchState=await db.migrationEnvelope.findMany({where:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId,status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},select:{id:true,instanceId:true,dataHash:true,status:true}});
+    const batchState=await db.migrationEnvelope.findMany({where:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId,status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},select:{id:true,instanceId:true,dataHash:true,status:true,summary:true}});
+    const existingPhases=[...new Set(batchState.map(e=>asText((obj(e.summary) as StoredSummary).phase)).filter(Boolean))];
+    if(existingPhases.length>1)throw new ConflictException(`Batch ${set.batchId} já possui fases inconsistentes e não pode receber novos arquivos`);
+    if(existingPhases.length===1&&existingPhases[0]!==set.phase)throw new ConflictException(`Batch ${set.batchId} já está na fase ${existingPhases[0]}; não pode receber arquivo na fase ${set.phase}. Use novo batchId para outra fase`);
     const importedCount=batchState.filter(e=>e.status===ImportStatus.IMPORTED).length;
     if(importedCount>0&&importedCount<batchState.length)throw new ConflictException(`Batch ${set.batchId} está parcialmente importado e não pode receber novos arquivos`);
     const sameBatch=await db.migrationEnvelope.findFirst({where:{instanceId,sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:set.batchId,status:{notIn:[ImportStatus.REJECTED,ImportStatus.FAILED]}},orderBy:{createdAt:'desc'}});
