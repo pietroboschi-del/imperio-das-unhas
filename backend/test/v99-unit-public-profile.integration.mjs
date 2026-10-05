@@ -40,8 +40,10 @@ async function main(){
   r=await fetch(base+'/api/v1/config/units/big/public-profile',{method:'PATCH',headers:headers('upp-owner-a','upp-csrf-a','big'),body:JSON.stringify({openingHours:{monday:{status:'OPEN',open:'10:00',close:'22:00'}}})});ok(r.ok,'dia fechado pode ser reaberto');
   saved=await r.json();ok(saved.profile.openingHours.monday.status==='OPEN','reabertura persiste');
 
-  await prisma.session.deleteMany({where:{tokenHash:sha('upp-owner-a')}});
-  r=await fetch(base+'/api/v1/config/units/big/public-profile',{headers:headers('upp-owner-b','upp-csrf-b','big')});saved=await r.json();ok(r.ok&&saved.profile.fullAddress.includes('Rua Teste CI'),'outra sessão lê persistência após logout');
+  r=await fetch(base+'/api/v1/auth/logout',{method:'POST',headers:headers('upp-owner-a','upp-csrf-a','big'),body:JSON.stringify({})});ok(r.ok,'logout da primeira sessão é concluído');
+  r=await fetch(base+'/api/v1/config/units/big/public-profile',{headers:headers('upp-owner-b','upp-csrf-b','big')});
+  if(!r.ok)throw new Error('segunda sessão não conseguiu ler perfil: HTTP '+r.status+' '+await r.text());
+  saved=await r.json();ok(saved.profile.fullAddress.includes('Rua Teste CI'),'outra sessão lê persistência após logout');
   ok(saved.profile.openingHours.tuesday.close==='19:00','reload/outra sessão preserva horário');
 
   r=await fetch(base+'/api/v1/config/units/inexistente/public-profile',{headers:headers('upp-owner-b','upp-csrf-b','big')});ok(r.status===404,'unidade inválida é rejeitada');
