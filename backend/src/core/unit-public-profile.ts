@@ -114,7 +114,8 @@ export function mergeUnitPublicProfile(current:UnitPublicProfile,input:unknown,u
   for(const key of Object.keys(hours))if(!DAY_SET.has(key))throw new BadRequestException('Dia da semana inválido: '+key);
   const mergedHours:Record<string,unknown>={...current.openingHours};
   for(const day of UNIT_PUBLIC_PROFILE_DAYS)if(hours[day]!==undefined)mergedHours[day]={...current.openingHours[day],...obj(hours[day])};
-  return normalizeUnitPublicProfile({...current,...incoming,openingHours:mergedHours},unitId);
+  const patch=Object.fromEntries(Object.entries(incoming).filter(([key,value])=>key!=='openingHours'&&value!==undefined));
+  return normalizeUnitPublicProfile({...current,...patch,openingHours:mergedHours},unitId);
 }
 
 export function publicDirectionsUrl(profile:UnitPublicProfile){
