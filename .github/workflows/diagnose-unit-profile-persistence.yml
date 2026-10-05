@@ -1,0 +1,91 @@
+name: Diagnose Unit Profile Persistence
+
+on:
+  push:
+    branches:
+      - diagnostic/unit-profile-persistence-a6070c2
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: imperio
+          POSTGRES_PASSWORD: imperio_ci
+          POSTGRES_DB: imperio_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U imperio -d imperio_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://imperio:imperio_ci@localhost:5432/imperio_ci?schema=public
+      COOKIE_SECURE: "false"
+      CORS_ORIGINS: http://127.0.0.1:3101
+      MIGRATION_IMPORT_ENABLED: "true"
+      MIGRATION_REQUIRE_CANONICAL: "true"
+      READ_THROUGH_ENABLED: "false"
+      SHADOW_READS_ENABLED: "false"
+      OPERATIONAL_WRITES_ENABLED: "false"
+      BUSINESS_TIMEZONE: America/Sao_Paulo
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Prisma generate
+        run: npm run prisma:generate
+      - name: Apply migrations
+        run: npm run prisma:migrate
+      - name: Build
+        run: npm run build
+      - name: Instrument diagnostic copy
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('test/v99-unit-public-profile.integration.mjs')
+          s=p.read_text()
+          s=s.replace(
+            "let saved=await r.json();ok(saved.profile.openingHours.monday.status==='CLOSED','dia pode ser marcado fechado');",
+            "let saved=await r.json();console.log('DIAG PATCH1_RESPONSE '+JSON.stringify({fullAddress:saved.profile.fullAddress,tuesday:saved.profile.openingHours.tuesday,whatsapp:saved.profile.whatsapp}));let diagDb=await prisma.unit.findUniqueOrThrow({where:{id:'big'}});console.log('DIAG DB_AFTER_PATCH1 '+JSON.stringify(diagDb.legacyPayload?.publicProfile||null));ok(saved.profile.openingHours.monday.status==='CLOSED','dia pode ser marcado fechado');"
+          )
+          s=s.replace(
+            "saved=await r.json();ok(saved.profile.openingHours.monday.status==='OPEN','reabertura persiste');",
+            "saved=await r.json();diagDb=await prisma.unit.findUniqueOrThrow({where:{id:'big'}});console.log('DIAG PATCH2_RESPONSE '+JSON.stringify({fullAddress:saved.profile.fullAddress,monday:saved.profile.openingHours.monday,tuesday:saved.profile.openingHours.tuesday}));console.log('DIAG DB_BEFORE_LOGOUT '+JSON.stringify(diagDb.legacyPayload?.publicProfile||null));ok(saved.profile.openingHours.monday.status==='OPEN','reabertura persiste');"
+          )
+          s=s.replace(
+            "r=await fetch(base+'/api/v1/auth/logout',{method:'POST',headers:headers('upp-owner-a','upp-csrf-a','big'),body:JSON.stringify({})});ok(r.ok,'logout da primeira sessão é concluído');",
+            "r=await fetch(base+'/api/v1/auth/logout',{method:'POST',headers:headers('upp-owner-a','upp-csrf-a','big'),body:JSON.stringify({})});ok(r.ok,'logout da primeira sessão é concluído');diagDb=await prisma.unit.findUniqueOrThrow({where:{id:'big'}});const diagA=await prisma.session.findUnique({where:{tokenHash:sha('upp-owner-a')}}),diagB=await prisma.session.findUnique({where:{tokenHash:sha('upp-owner-b')}});console.log('DIAG DB_AFTER_LOGOUT '+JSON.stringify(diagDb.legacyPayload?.publicProfile||null));console.log('DIAG SESSIONS_AFTER_LOGOUT '+JSON.stringify({a:diagA?.status,b:diagB?.status}));"
+          )
+          s=s.replace(
+            "saved=await r.json();ok(saved.profile.fullAddress.includes('Rua Teste CI'),'outra sessão lê persistência após logout');",
+            "saved=await r.json();console.log('DIAG SESSION_B_RESPONSE '+JSON.stringify({fullAddress:saved.profile.fullAddress,monday:saved.profile.openingHours.monday,tuesday:saved.profile.openingHours.tuesday}));ok(saved.profile.fullAddress.includes('Rua Teste CI'),'outra sessão lê persistência após logout');"
+          )
+          p.write_text(s)
+          PY
+      - name: Run isolated test three times
+        shell: bash
+        run: |
+          set +e
+          overall=0
+          for entry in "1:3211" "2:3212" "3:3213"; do
+            n="${entry%%:*}"
+            port="${entry##*:}"
+            echo "===== ISOLATED RUN $n PORT $port ====="
+            PORT="$port" node test/v99-unit-public-profile.integration.mjs
+            rc=$?
+            echo "===== ISOLATED RUN $n EXIT $rc ====="
+            if [ "$rc" -ne 0 ]; then overall=1; fi
+            sleep 1
+          done
+          exit "$overall"
