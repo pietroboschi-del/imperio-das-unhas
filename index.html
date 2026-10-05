@@ -7361,6 +7361,17 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   if(u)u.innerHTML='<div class="v56-public-empty">Unidades temporariamente indisponíveis para consulta.</div>'
  }
 
+ const PUBLIC_WEEK=[['monday','Segunda',1],['tuesday','Terça',2],['wednesday','Quarta',3],['thursday','Quinta',4],['friday','Sexta',5],['saturday','Sábado',6],['sunday','Domingo',0]];
+ function publicOpeningHoursMarkup(openingHours){
+  let hours=openingHours&&typeof openingHours==='object'&&!Array.isArray(openingHours)?openingHours:{},today=new Date().getDay();
+  return PUBLIC_WEEK.map(([day,label,index])=>{
+   let rule=hours[day]&&typeof hours[day]==='object'?hours[day]:{},status=String(rule.status||'UNSET').toUpperCase(),value='Horário não informado';
+   if(status==='CLOSED')value='Fechado';
+   else if(status==='OPEN'){let from=String(rule.open||'').trim(),to=String(rule.close||'').trim();value=from&&to?escapeHtml(from)+' às '+escapeHtml(to):'Horário não informado'}
+   let current=index===today;
+   return '<div class="v99-public-unit-hours-row" data-day="'+day+'" style="display:flex;justify-content:space-between;gap:14px;align-items:center;padding:8px 9px;border-radius:9px;'+(current?'background:#faf7fb;':'')+'"><span style="font-size:13px;font-weight:'+(current?'750':'600')+'">'+escapeHtml(label)+(current?'<span style="margin-left:7px;font-size:10px;color:var(--brand);font-weight:800">Hoje</span>':'')+'</span><span class="muted" style="font-size:13px;text-align:right">'+value+'</span></div>'
+  }).join('')
+ }
  function renderHome(){
   let all=catalogs(),enabled=all.filter(c=>c.bookingEnabled===true),services=[],pros=[],seenS=new Set(),seenP=new Set();
   for(const c of enabled){applyCatalog(UNIT_TO_LOCAL[c.unit.id]||c.unit.id,c);for(const s of c.services||[])if(!seenS.has(s.id)){seenS.add(s.id);services.push(s)}for(const p of c.professionals||[])if(!seenP.has(p.id)){seenP.add(p.id);pros.push(p)}}
@@ -7376,7 +7387,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
      hasDirections=!!p.fullAddress&&/^https?:\/\/\S+$/i.test(directionsUrl),
      hasWhatsapp=/^https?:\/\/\S+$/i.test(whatsappUrl),
      actions=(hasDirections?'<a class="btn btn-soft btn-sm v99-public-unit-directions" style="display:inline-flex;align-items:center;justify-content:center;min-height:44px;text-decoration:none" href="'+escapeAttr(directionsUrl)+'" target="_blank" rel="noopener noreferrer">Como chegar</a>':'')+(hasWhatsapp?'<a class="v99-public-unit-whatsapp" style="display:inline-flex;align-items:center;min-height:44px;padding:8px 6px;color:var(--brand);font-size:13px;font-weight:700;text-decoration:none" href="'+escapeAttr(whatsappUrl)+'" target="_blank" rel="noopener noreferrer">WhatsApp</a>':'');
-    return '<div class="card v99-public-unit-card" data-unit="'+escapeAttr(u.id)+'"><h3>'+escapeHtml(p.publicName||u.name||u.id)+'</h3><div class="pill" style="margin:8px 0 10px;'+(open?'color:var(--ok);background:#edf7f1':'color:var(--muted);background:#f3f1f4')+'">'+escapeHtml(message)+'</div>'+(p.fullAddress?'<div class="muted v99-public-unit-address">'+escapeHtml(p.fullAddress)+'</div>':'')+(p.locationHint?'<div class="muted v99-public-unit-hint" style="font-size:12px;margin-top:6px">'+escapeHtml(p.locationHint)+'</div>':'')+(actions?'<div class="v99-public-unit-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">'+actions+'</div>':'')+'</div>'
+    return '<div class="card v99-public-unit-card" data-unit="'+escapeAttr(u.id)+'"><h3>'+escapeHtml(p.publicName||u.name||u.id)+'</h3><div class="pill" style="margin:8px 0 10px;'+(open?'color:var(--ok);background:#edf7f1':'color:var(--muted);background:#f3f1f4')+'">'+escapeHtml(message)+'</div>'+(p.fullAddress?'<div class="muted v99-public-unit-address">'+escapeHtml(p.fullAddress)+'</div>':'')+(p.locationHint?'<div class="muted v99-public-unit-hint" style="font-size:12px;margin-top:6px">'+escapeHtml(p.locationHint)+'</div>':'')+(actions?'<div class="v99-public-unit-actions" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px">'+actions+'</div>':'')+'<details class="v99-public-unit-hours" style="margin-top:4px"><summary style="display:flex;align-items:center;min-height:44px;width:max-content;max-width:100%;color:var(--brand);font-size:13px;font-weight:700;cursor:pointer;user-select:none">Ver horários</summary><div style="display:grid;gap:2px;padding:2px 0 4px">'+publicOpeningHoursMarkup(p.openingHours)+'</div></details></div>'
    }).join('')||'<div class="v56-public-empty">Nenhuma unidade disponível no site.</div>'
   }
  }
