@@ -6972,6 +6972,12 @@ button,.btn,input,select,textarea{touch-action:manipulation}
 /* ===== V99 · CLIENT DUPLICATE REVIEW UI ===== */
 .v99dup-shell{max-width:1180px;margin:0 auto}.v99dup-toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin:12px 0}.v99dup-toolbar .field{min-width:220px;flex:1}.v99dup-progress{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:12px 0}.v99dup-kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}.v99dup-kpi span{display:block;font-size:10px;color:var(--muted);margin-bottom:4px}.v99dup-kpi b{font-size:20px}.v99dup-filterbar{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin:12px 0}.v99dup-filterbar button.active{background:#f1eaf3;color:var(--brand);border-color:#dac4df}.v99dup-search{min-width:240px;flex:1}.v99dup-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(47,23,59,.04)}.v99dup-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.v99dup-head .spacer{flex:1}.v99dup-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px}.v99dup-side{border:1px solid var(--line);border-radius:13px;padding:13px;background:#fcfbfc}.v99dup-side h3{margin:0 0 10px;font-size:14px}.v99dup-row{display:grid;grid-template-columns:105px 1fr;gap:8px;padding:7px 0;border-bottom:1px solid #eee9f0;font-size:11px}.v99dup-row:last-child{border-bottom:0}.v99dup-row span{color:var(--muted)}.v99dup-row b{word-break:break-word}.v99dup-different{background:#fff5dd;margin:0 -7px;padding:7px;border-radius:8px}.v99dup-conflicts{margin-top:12px;padding:11px;border:1px solid #eadde8;border-radius:12px;background:#fbf8fc;font-size:10px;line-height:1.5}.v99dup-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}.v99dup-actions .btn{min-width:145px}.v99dup-note{margin-top:10px}.v99dup-note textarea{width:100%;min-height:64px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px}.v99dup-status{padding:11px;border:1px dashed #d9cedd;border-radius:11px;background:#fcfafc;font-size:10px;margin:10px 0}.v99dup-status.good{background:#f3fbf6;border-color:#bfe0cc;color:#287a52}.v99dup-status.bad{background:#fff7f7;border-color:#efcaca;color:#9b3b3b}.v99dup-muted{font-size:10px;color:var(--muted)}.v99dup-pagination{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px}.v99dup-choice{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px;background:#fff}.v99dup-lock{padding:10px 12px;border:1px solid #ead8df;border-radius:11px;background:#fff8fb;color:#754b5e;font-size:10px;margin:10px 0}
 @media(max-width:760px){.v99dup-compare{grid-template-columns:1fr}.v99dup-progress{grid-template-columns:1fr}.v99dup-actions .btn{width:100%}}
+
+
+/* ===== V99 · PERFIL PÚBLICO CENTRAL DAS UNIDADES · ADMIN ===== */
+.v99upp-wrap{display:grid;gap:14px;max-width:980px}.v99upp-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:17px}.v99upp-card h3{margin:0 0 4px}.v99upp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.v99upp-grid .full{grid-column:1/-1}.v99upp-hours{display:grid;gap:7px;margin-top:12px}.v99upp-day{display:grid;grid-template-columns:110px 135px minmax(110px,1fr) 28px minmax(110px,1fr) auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}.v99upp-day:last-child{border-bottom:0}.v99upp-day .day{font-weight:800}.v99upp-arrow{text-align:center;color:var(--muted)}.v99upp-muted{color:var(--muted);font-size:11px}.v99upp-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}.v99upp-status-note{border:1px solid #e5dbe8;background:#fbf8fc;border-radius:12px;padding:10px 12px;color:#675a6b;font-size:11px}
+@media(max-width:720px){.v99upp-grid{grid-template-columns:1fr}.v99upp-grid .full{grid-column:auto}.v99upp-day{grid-template-columns:1fr 118px;gap:7px}.v99upp-day .day{grid-column:1}.v99upp-day .v99upp-state{grid-column:2}.v99upp-day .v99upp-open,.v99upp-day .v99upp-close{width:100%}.v99upp-day .v99upp-arrow{display:none}.v99upp-day .v99upp-copy{grid-column:1/-1;justify-self:start}.v99upp-actions .btn{flex:1;min-width:140px}}
+
 </style>
 <script>
 /* ===== V97 · READ-THROUGH CONTROLADO ===== */
@@ -7890,18 +7896,8 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  window.__imperioCentralUserAccess={production,networkAdmin,backendPermissions,splitPermissions,syncCentral,decorateUserModal};
 })();
 
-</script>
 
 
-
-
-
-<style>
-/* ===== V99 · PERFIL PÚBLICO CENTRAL DAS UNIDADES · ADMIN ===== */
-.v99upp-wrap{display:grid;gap:14px;max-width:980px}.v99upp-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:17px}.v99upp-card h3{margin:0 0 4px}.v99upp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.v99upp-grid .full{grid-column:1/-1}.v99upp-hours{display:grid;gap:7px;margin-top:12px}.v99upp-day{display:grid;grid-template-columns:110px 135px minmax(110px,1fr) 28px minmax(110px,1fr) auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}.v99upp-day:last-child{border-bottom:0}.v99upp-day .day{font-weight:800}.v99upp-arrow{text-align:center;color:var(--muted)}.v99upp-muted{color:var(--muted);font-size:11px}.v99upp-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}.v99upp-status-note{border:1px solid #e5dbe8;background:#fbf8fc;border-radius:12px;padding:10px 12px;color:#675a6b;font-size:11px}
-@media(max-width:720px){.v99upp-grid{grid-template-columns:1fr}.v99upp-grid .full{grid-column:auto}.v99upp-day{grid-template-columns:1fr 118px;gap:7px}.v99upp-day .day{grid-column:1}.v99upp-day .v99upp-state{grid-column:2}.v99upp-day .v99upp-open,.v99upp-day .v99upp-close{width:100%}.v99upp-day .v99upp-arrow{display:none}.v99upp-day .v99upp-copy{grid-column:1/-1;justify-self:start}.v99upp-actions .btn{flex:1;min-width:140px}}
-</style>
-<script>
 /* ===== V99 · PERFIL PÚBLICO CENTRAL DAS UNIDADES ===== */
 (function(){
  const LOCAL_TO_CENTRAL=Object.freeze({u1:'big',u2:'shopping-contagem',u3:'centro',big:'big','shopping-contagem':'shopping-contagem',centro:'centro'});
@@ -7957,6 +7953,13 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  window.v99uppLoad=load;window.v99uppSave=saveProfile;window.v99uppDayChanged=dayChanged;window.v99uppCopy=copy;window.v99uppApplyCopy=applyCopy;
  window.__imperioUnitPublicProfileAdmin={sourceOfTruth:'postgresql',load,request,selected,openingHours};
 })();
+
 </script>
+
+
+
+
+
+
 
 </body></html>
