@@ -1,4 +1,5 @@
-import { Body, ConflictException, Controller, Get, IsBoolean, IsObject, IsOptional, IsString, NotFoundException, Param, Patch, Req } from '@nestjs/common';
+import { Body, ConflictException, Controller, Get, NotFoundException, Param, Patch, Req } from '@nestjs/common';
+import { IsBoolean, IsObject, IsOptional, IsString } from 'class-validator';
 import { Prisma } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { Public } from '../common/public.decorator';
