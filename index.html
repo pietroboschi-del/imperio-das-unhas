@@ -7602,6 +7602,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   for(const c of item?.candidateClusters||[])values.push(c.name,c.phone,c.email,c.cpf);
   if(item?.centralCandidate)values.push(item.centralCandidate.name,item.centralCandidate.phone,item.centralCandidate.email,item.centralCandidate.cpf);
   for(const c of item?.centralCandidates||[])values.push(c.name,c.phone,c.email,c.cpf);
+  for(const c of item?.weakCentralCandidates||[])values.push(c.name,c.phone,c.email,c.cpf);
   return values.some(v=>normalize(v).includes(q))
  }
  function filtered(){
@@ -7657,8 +7658,9 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   let d=decisionOf(item),status=d==='MERGE'?'Mesclar':d==='KEEP_SEPARATE'?'Manter separados':d==='KEEP_CENTRAL'?'Mesma cliente (central)':d==='MATCH_CENTRAL'?'Usar cliente central':d==='REVIEW_LATER'?'Revisar depois':d==='STALE'?'Decisão anterior desatualizada':'Pendente';
   let choices=candidates.length?'<div class="field" style="margin:10px 0"><label>Cadastro candidato</label><select id="v99dupCandidate" class="v99dup-choice" onchange="v99DupCandidateChanged(this.value)">'+candidates.map(x=>'<option value="'+esc(x.clusterId)+'" '+(x.clusterId===selected?'selected':'')+'>'+esc(x.name||x.clusterId)+' · '+esc(x.phone||x.email||'sem contato')+'</option>').join('')+'</select></div>':'';
   let centralChoices=centralCandidates.length?'<div class="field" style="margin:10px 0"><label>Cliente central candidato</label><select id="v99dupCentralCandidate" class="v99dup-choice" onchange="v99DupCentralChanged(this.value)">'+centralCandidates.map(x=>'<option value="'+esc(x.clientId)+'" '+(x.clientId===state.centralId?'selected':'')+'>'+esc(x.name||x.clientId)+' · '+esc(x.phone||x.email||x.cpf||'sem contato')+'</option>').join('')+'</select></div>':'';
+  let weakCentral=item.weakCentralCandidates||[],weakCentralHtml=weakCentral.length?'<div class="v99dup-status"><b>Possível cliente central — evidência fraca (somente consulta)</b><br>'+weakCentral.map(x=>esc(x.name||x.clientId)+' · '+esc(x.phone||x.email||x.cpf||'sem contato')+' · '+esc(x.clientId)).join('<br>')+'<br><span class="v99dup-muted">Este candidato não pode ser escolhido por “Usar cliente central”. Confirme por evidência forte em uma nova exportação ou mantenha para revisão.</span></div>':'';
   host.innerHTML='<div class="v99dup-card"><div class="v99dup-head"><b>Caso '+esc(state.index+1)+' de '+esc(rows.length)+'</b><span class="pill">'+esc(status)+'</span><div class="spacer"></div><span class="v99dup-muted">'+esc(item.clusterId)+'</span></div>'+
-   choices+centralChoices+centralSide(item,central)+'<div id="v99dupCompare" class="v99dup-compare">'+sourceSide(item,comparison)+candidateSide(item,candidate)+'</div>'+conflictHtml(item)+
+   choices+centralChoices+weakCentralHtml+centralSide(item,central)+'<div id="v99dupCompare" class="v99dup-compare">'+sourceSide(item,comparison)+candidateSide(item,candidate)+'</div>'+conflictHtml(item)+
    (sourceConflict?'<div class="v99dup-status bad">“Manter separados” não resolve valores conflitantes dentro deste mesmo grupo. Corrija/reexporte os dados, use “Mesma cliente (central)” quando aplicável ou deixe para revisar depois.</div>':'')+
    '<div class="v99dup-note"><label class="v99dup-muted">Observação da conferência (opcional)</label><textarea id="v99dupNote" maxlength="500" placeholder="Ex.: mesma cliente, grafia antiga; telefone familiar; pessoas diferentes...">'+esc(item.decision?.note||'')+'</textarea></div>'+
    '<div class="v99dup-lock">As ações abaixo registram uma decisão auditada. Nenhum cadastro real é mesclado, apagado ou alterado nesta etapa.</div>'+

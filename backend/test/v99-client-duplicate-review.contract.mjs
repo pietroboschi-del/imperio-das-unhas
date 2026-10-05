@@ -22,7 +22,8 @@ ok(service.includes("c.candidateClusterIds||[]"),'MERGE usa candidatos relaciona
 ok(controller.includes("'KEEP_CENTRAL'")&&controller.includes("'MATCH_CENTRAL'"),'API aceita cliente central identificado ou seleção entre múltiplos candidatos');
 ok(service.includes('centralCandidate:central?'),'fila expõe o cliente central identificado para comparação');
 ok(service.includes('centralCandidates'),'fila expõe candidatos MULTIPLE_STRONG_MATCHES');
-ok(service.includes("Cliente central permitido somente entre candidatos MULTIPLE_STRONG_MATCHES"),'MATCH_CENTRAL não aceita cliente arbitrário');
+ok(service.includes('weakCentralCandidates'),'fila expõe candidatos AMBIGUOUS_WEAK_MATCH apenas como contexto');
+ok(service.includes("Cliente central permitido somente entre candidatos MULTIPLE_STRONG_MATCHES"),'MATCH_CENTRAL não aceita cliente arbitrário nem candidato baseado apenas em evidência fraca');
 ok(service.includes("KEEP_CENTRAL exige cliente central identificado"),'KEEP_CENTRAL só é permitido quando o relatório identificou destino central');
 ok(service.includes("KEEP_SEPARATE não resolve conflito entre fontes do mesmo cluster"),'KEEP_SEPARATE é recusado antes de persistir quando há conflito interno de fontes');
 ok(service.includes("Mesclagem permitida somente com candidato relacionado"),'merge arbitrário é bloqueado');

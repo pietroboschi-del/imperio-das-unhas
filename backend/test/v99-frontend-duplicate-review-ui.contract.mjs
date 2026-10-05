@@ -26,6 +26,8 @@ ok(js.includes("credentials:'include'")&&js.includes("'X-CSRF-Token'"),'decisão
 ok(js.includes("'MERGE'")&&js.includes("'KEEP_SEPARATE'")&&js.includes("'KEEP_CENTRAL'")&&js.includes("'MATCH_CENTRAL'")&&js.includes("'REVIEW_LATER'"),'cinco decisões estão disponíveis');
 ok(js.includes('centralCandidate')&&js.includes('Mesma cliente (central)'),'UI mostra e permite confirmar o cliente central identificado');
 ok(js.includes('centralCandidates')&&js.includes('Usar cliente central'),'UI permite selecionar explicitamente um candidato central em MULTIPLE_STRONG_MATCHES');
+ok(js.includes('weakCentralCandidates')&&js.includes('evidência fraca (somente consulta)'),'UI mostra candidato central fraco sem convertê-lo em opção selecionável');
+ok(js.includes('Este candidato não pode ser escolhido por “Usar cliente central”'),'UI deixa explícita a proibição de MATCH_CENTRAL para evidência fraca');
 ok(js.includes('hasSourceFieldConflict')&&js.includes('Manter separados não resolve o conflito entre valores deste mesmo grupo'),'UI bloqueia KEEP_SEPARATE quando existe conflito interno entre fontes');
 ok(js.includes("(sourceConflict||state.saving)?'disabled':''"),'botão Manter separados fica desabilitado em SOURCE_FIELD_CONFLICT');
 ok(js.includes('candidateClusters')&&js.includes('state.candidateId'),'comparação mantém candidato selecionado');

@@ -19,7 +19,7 @@ export class ClientDuplicateReviewService {
   async queue(batchId:string) {
     const id=clean(batchId);if(!id)throw new BadRequestException('batchId obrigatório');
     const {report}=await this.clientBatches.report(id);
-    const targetClientIds=[...new Set(report.plans.flatMap(plan=>[...(plan.targetClientId?[plan.targetClientId]:[]),...plan.conflicts.filter(c=>c.type==='MULTIPLE_STRONG_MATCHES').flatMap(c=>c.candidateClientIds||[])]))];
+    const targetClientIds=[...new Set(report.plans.flatMap(plan=>[...(plan.targetClientId?[plan.targetClientId]:[]),...plan.conflicts.filter(c=>['MULTIPLE_STRONG_MATCHES','AMBIGUOUS_WEAK_MATCH'].includes(c.type)).flatMap(c=>c.candidateClientIds||[])]))];
     const centralClients=targetClientIds.length?await this.prisma.client.findMany({where:{id:{in:targetClientIds}},select:{id:true,name:true,phone:true,email:true,registrationUnitId:true,legacyPayload:true}}):[];
     const centralById=new Map(centralClients.map(x=>[x.id,x]));
     const decisions=await this.prisma.clientDuplicateReview.findMany({where:{batchId:id},orderBy:{updatedAt:'desc'}});
@@ -31,8 +31,11 @@ export class ClientDuplicateReviewService {
         const p=plansById.get(clusterId);
         return p?{clusterId,name:p.source.name,phone:p.source.phone,email:p.source.email,cpf:p.source.cpf,sourceRows:p.sourceRows}:null;
       }).filter(Boolean);
+      const centralView=(clientId:string)=>{const c=centralById.get(clientId);return c?{clientId:c.id,name:c.name,phone:c.phone,email:c.email,cpf:legacyCpf(c.legacyPayload),registrationUnitId:c.registrationUnitId}:null;};
       const strongCentralIds=[...new Set(plan.conflicts.filter(c=>c.type==='MULTIPLE_STRONG_MATCHES').flatMap(c=>c.candidateClientIds||[]))].sort();
-      const centralCandidates=strongCentralIds.map(clientId=>{const c=centralById.get(clientId);return c?{clientId:c.id,name:c.name,phone:c.phone,email:c.email,cpf:legacyCpf(c.legacyPayload),registrationUnitId:c.registrationUnitId}:null;}).filter(Boolean);
+      const weakCentralIds=[...new Set(plan.conflicts.filter(c=>c.type==='AMBIGUOUS_WEAK_MATCH').flatMap(c=>c.candidateClientIds||[]))].filter(id=>!strongCentralIds.includes(id)).sort();
+      const centralCandidates=strongCentralIds.map(centralView).filter(Boolean);
+      const weakCentralCandidates=weakCentralIds.map(centralView).filter(Boolean);
       const saved=byCluster.get(plan.clusterId);
       const current=saved&&saved.reportHash===report.reportHash?saved:null;
       const central=plan.targetClientId?centralById.get(plan.targetClientId):null;
@@ -44,6 +47,7 @@ export class ClientDuplicateReviewService {
         candidateClusters:candidates,
         centralCandidate:central?{clientId:central.id,name:central.name,phone:central.phone,email:central.email,cpf:legacyCpf(central.legacyPayload),registrationUnitId:central.registrationUnitId}:null,
         centralCandidates,
+        weakCentralCandidates,
         decision:current?{
           decision:current.decision,
           targetClusterId:current.decision==='MERGE'?current.mergeTargetClusterId:null,

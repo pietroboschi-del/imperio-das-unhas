@@ -138,6 +138,26 @@ async function main(){
   assert.ok(Array.isArray(selected.legacyPayload?.clientsOnly?.sources)&&selected.legacyPayload.clientsOnly.sources.some(x=>x.batchId===batchStrong),'proveniência do Excel é anexada ao cliente escolhido');
   assert.equal(await prisma.client.count({where:{id:importedId(strongPlan.clusterId)}}),0,'MATCH_CENTRAL não cria terceira duplicata');
 
+  const batchWeak='BATCH_REVIEW_WEAK_CENTRAL_CI',weakCentral='client-review-weak-central-ci';
+  await cleanup(batchWeak,[weakCentral]);
+  await prisma.client.create({data:{id:weakCentral,name:'Elisa Gomes',phone:'+5531966665555',email:null,legacyPayload:{clientsOnly:{sources:[]}}}});
+  const weakPayload={mode:'CLIENTS_ONLY',batchId:batchWeak,phase:'FINAL',files:[{unitId:'centro',exportedAt:'2026-10-04T10:10:00-03:00',fileName:batchWeak+'.xlsx',fileHash:H(915),rows:[
+   {sourceRow:2,id:'weak-source',nome:'Elisa Gome',celular:'31966665555'}
+  ]}]};
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers:h,body:JSON.stringify(weakPayload)});
+  assert.ok(r.ok,'dry-run weak central match');
+  const weakDry=await r.json(),weakPlan=weakDry.report.plans.find(x=>x.conflicts.some(c=>c.type==='AMBIGUOUS_WEAK_MATCH'&&(c.candidateClientIds||[]).includes(weakCentral)));
+  assert.ok(weakPlan&&weakPlan.action==='REVIEW_REQUIRED'&&!weakPlan.targetClientId,'evidência fraca não escolhe cliente central automaticamente');
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchWeak),{headers:{'cookie':c}});
+  assert.ok(r.ok,'fila weak central carregada');
+  const weakQueue=await r.json(),weakItem=weakQueue.items.find(x=>x.clusterId===weakPlan.clusterId);
+  assert.deepEqual((weakItem?.weakCentralCandidates||[]).map(x=>x.clientId),[weakCentral],'fila mostra candidato central fraco apenas como contexto');
+  assert.equal((weakItem?.centralCandidates||[]).length,0,'candidato fraco não entra na lista selecionável de MATCH_CENTRAL');
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchWeak)+'/'+encodeURIComponent(weakPlan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'MATCH_CENTRAL',targetClientId:weakCentral})});
+  assert.equal(r.status,409,'MATCH_CENTRAL continua proibido para candidato baseado apenas em evidência fraca');
+  assert.equal(await prisma.clientDuplicateReview.count({where:{batchId:batchWeak,clusterId:weakPlan.clusterId}}),0,'tentativa de promover match fraco não é persistida');
+  cleanupJobs.push([batchWeak,[weakCentral,importedId(weakPlan.clusterId)]]);
+
   const batchCycle='BATCH_REVIEW_CYCLE_CI';
   await cleanup(batchCycle);
   const two=await stageAndReport(h,batchCycle,912),[x,y]=two.plans;
