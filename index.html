@@ -7324,7 +7324,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  const UNIT_TO_CENTRAL=Object.freeze({u1:'big',u2:'shopping-contagem',u3:'centro',big:'big','shopping-contagem':'shopping-contagem',centro:'centro'});
  const UNIT_TO_LOCAL=Object.freeze({big:'u1','shopping-contagem':'u2',centro:'u3',u1:'u1',u2:'u2',u3:'u3'});
  const CANONICAL_UNITS=['centro','big','shopping-contagem'];
- const cache=new Map();let homeRefresh=null,publicUnitsCache={at:0,data:null},slotSearchGeneration=0;
+ const cache=new Map();let homeRefresh=null,publicUnitsCache={at:0,data:null},slotSearchGeneration=0,alternativeRecommendationState=[];
  function production(){try{let h=String(location?.hostname||'').toLowerCase();return !!h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'}catch(e){return false}}
  function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
  function errorOf(data,status){let m=Array.isArray(data?.message)?data.message.join(' · '):(data?.message||('HTTP '+status));let e=new Error(String(m));e.status=status;return e}
@@ -7387,6 +7387,72 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   let data=await catalog(centralId);if(!data?.bookingEnabled)return [];
   let rows=await centralPublicRequest('/api/v1/public/occupancy?unitId='+encodeURIComponent(centralId)+'&date='+encodeURIComponent(date));
   return isolatedAvailabilityCalculation(localId,String(date),ids,String(preferredPro||''),data,rows).results||[]
+ }
+ function catalogHasAllServices(data,serviceIds){
+  let available=new Set((data?.services||[]).map(s=>String(s.id)));return (serviceIds||[]).every(id=>available.has(String(id)))
+ }
+ function catalogSupportsPreferred(data,serviceIds,preferredPro){
+  if(!preferredPro)return false;
+  let pro=(data?.professionals||[]).find(p=>String(p.id)===String(preferredPro)),services=new Set((pro?.serviceIds||[]).map(String));
+  return !!pro&&(serviceIds||[]).every(id=>services.has(String(id)))
+ }
+ function recommendationDateLabel(date){
+  let today=localDateISO();if(date===today)return 'Hoje';if(date===addDaysISO(today,1))return 'Amanhã';return availabilityDateLabel(date)
+ }
+ async function findAlternativeRecommendations(currentUnitId,date,serviceIds,preferredPro='',isCurrent=()=>true){
+  let currentCentral=UNIT_TO_CENTRAL[currentUnitId]||currentUnitId,ids=Array.isArray(serviceIds)?serviceIds.map(String):[];
+  if(!currentCentral||!/^\d{4}-\d{2}-\d{2}$/.test(String(date||''))||!ids.length)return [];
+  let visible;try{visible=await publicUnits()}catch(e){return []}
+  if(!isCurrent())return null;
+  let candidates=(Array.isArray(visible)?visible:[]).filter(u=>String(UNIT_TO_CENTRAL[u.id]||u.id)!==String(currentCentral)),dates=[String(date),addDaysISO(String(date),1)],found=[];
+  for(const u of candidates){
+   if(found.length>=2)break;
+   let centralId=UNIT_TO_CENTRAL[u.id]||u.id,data;try{data=await catalog(centralId)}catch(e){continue}
+   if(!isCurrent())return null;
+   if(!data?.bookingEnabled||!catalogHasAllServices(data,ids))continue;
+   let suggestion=null,supportsPreferred=catalogSupportsPreferred(data,ids,preferredPro);
+   for(const candidateDate of dates){
+    let slots=[],keptPreference=false;
+    if(preferredPro&&supportsPreferred){
+     try{slots=await queryAvailability(centralId,candidateDate,ids,preferredPro)}catch(e){slots=[]}
+     if(!isCurrent())return null;
+     if(slots.length)keptPreference=true
+    }
+    if(!slots.length){
+     try{slots=await queryAvailability(centralId,candidateDate,ids,'')}catch(e){slots=[]}
+     if(!isCurrent())return null
+    }
+    if(slots.length){
+     suggestion={centralUnitId:centralId,localUnitId:UNIT_TO_LOCAL[centralId]||u.id,unitName:u.profile?.publicName||data.unit?.name||u.name||centralId,date:candidateDate,slot:slots[0],preferredPro:String(preferredPro||''),fallbackProfessional:!!preferredPro&&!keptPreference,serviceIds:[...ids]};
+     break
+    }
+   }
+   if(suggestion)found.push(suggestion)
+  }
+  return found.sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.slot?.start||'').localeCompare(String(b.slot?.start||''))).slice(0,2)
+ }
+ function renderAlternativeRecommendations(host,suggestions){
+  alternativeRecommendationState=Array.isArray(suggestions)?suggestions.slice(0,2):[];
+  if(!host)return;
+  if(!alternativeRecommendationState.length){host.innerHTML='<div class="v56-public-empty"><b>Não encontramos horário nesta unidade.</b><div style="margin-top:5px">Tente outra data.</div></div>';return}
+  host.innerHTML='<div class="v99-public-alt-slots"><div class="v56-public-empty" style="text-align:left"><b>Não encontramos horário nesta unidade.</b><div style="margin-top:5px">Encontramos estas opções em outras unidades:</div></div><div style="display:grid;gap:10px;margin-top:10px">'+alternativeRecommendationState.map((r,i)=>'<div class="card" style="padding:14px"><b>'+escapeHtml(r.unitName)+'</b><div style="margin-top:5px;font-size:15px;font-weight:750">'+escapeHtml(recommendationDateLabel(r.date))+' • '+escapeHtml(r.slot?.start||'')+'</div>'+(r.fallbackProfessional?'<div class="muted" style="font-size:12px;margin-top:4px">Disponível com outra profissional</div>':'')+'<button type="button" class="btn btn-soft btn-sm" style="margin-top:10px;min-height:44px" onclick="v99PublicUseRecommendation('+i+')">Ver este horário</button></div>').join('')+'</div></div>'
+ }
+ async function useAlternativeRecommendation(index){
+  let rec=alternativeRecommendationState[Number(index)],dateInput=document.getElementById('bkPublicDate'),proInput=document.getElementById('bkPublicPro');
+  if(!rec||!window.bk)return false;
+  let sourceUnit=String(bk.unit||''),sourceDate=String(dateInput?.value||bk.date||''),sourceServices=[...(bk.serviceIds||[])].map(String),sourcePro=String(proInput?.value??bk.pro??''),generation=++slotSearchGeneration;
+  const stillCurrent=()=>generation===slotSearchGeneration&&!!window.bk&&String(bk.unit||'')===sourceUnit&&String(document.getElementById('bkPublicDate')?.value||bk.date||'')===sourceDate&&JSON.stringify((bk.serviceIds||[]).map(String))===JSON.stringify(sourceServices)&&String(document.getElementById('bkPublicPro')?.value??bk.pro??'')===sourcePro;
+  if(JSON.stringify(sourceServices)!==JSON.stringify(rec.serviceIds||[]))return false;
+  try{
+   let data=await catalog(rec.centralUnitId);if(!stillCurrent())return false;
+   if(!data?.bookingEnabled||!catalogHasAllServices(data,sourceServices)){toast('Esta opção não está mais disponível. Atualizando os horários.');return window.v56PublicSearchSlots()}
+   let localId=UNIT_TO_LOCAL[rec.centralUnitId]||rec.localUnitId;
+   applyCatalog(localId,data);bk.unit=localId;bk.date=rec.date;bk.time=null;bk.assignments=[];bk.publicResults=[];bk.pro=rec.fallbackProfessional?'':String(rec.preferredPro||'');alternativeRecommendationState=[];
+   if(dateInput)dateInput.value=rec.date;
+   if(typeof window.v56PublicRenderProfessionalOptions==='function')window.v56PublicRenderProfessionalOptions();
+   proInput=document.getElementById('bkPublicPro');if(proInput)proInput.value=bk.pro;
+   return window.v56PublicSearchSlots()
+  }catch(e){if(stillCurrent())toast('Não foi possível atualizar esta opção agora: '+e.message);return false}
  }
  function catalogs(){return CANONICAL_UNITS.map(id=>cache.get(id)?.data).filter(Boolean)}
  async function refreshAll(){
@@ -7451,13 +7517,19 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  }
  async function searchSlots(base){
   let host=document.getElementById('bkPublicSlots'),localId=bk?.unit||'',centralId=UNIT_TO_CENTRAL[localId]||localId,date=document.getElementById('bkPublicDate')?.value||bk?.date||localDateISO(),serviceIds=[...(bk?.serviceIds||[])].map(String),preferredPro=String(document.getElementById('bkPublicPro')?.value??bk?.pro??''),generation=++slotSearchGeneration;
+  alternativeRecommendationState=[];
   const stillCurrent=()=>generation===slotSearchGeneration&&!!window.bk&&String(bk.unit||'')===String(localId)&&String(document.getElementById('bkPublicDate')?.value||bk.date||'')===String(date)&&JSON.stringify((bk.serviceIds||[]).map(String))===JSON.stringify(serviceIds)&&String(document.getElementById('bkPublicPro')?.value??bk.pro??'')===preferredPro;
   if(!localId||!centralId){if(host)host.innerHTML='<div class="v56-public-empty">Escolha uma unidade.</div>';return false}
   if(host)host.innerHTML='<div class="v56-public-empty">Consultando disponibilidade atual...</div>';
   try{
    let data=await catalog(centralId);if(!stillCurrent())return false;if(!data.bookingEnabled)throw new Error('Agendamento online ainda não está liberado nesta unidade');
    let rows=await centralPublicRequest('/api/v1/public/occupancy?unitId='+encodeURIComponent(centralId)+'&date='+encodeURIComponent(date));if(!stillCurrent())return false;
-   applyCatalog(localId,data);applyOccupancy(localId,date,rows);base();return true
+   applyCatalog(localId,data);applyOccupancy(localId,date,rows);bk.publicResults=[];base();if(!stillCurrent())return false;
+   if((bk.publicResults||[]).length)return true;
+   if(host)host.innerHTML='<div class="v56-public-empty">Não encontramos horário nesta unidade.<div style="margin-top:5px">Procurando opções em outras unidades...</div></div>';
+   let suggestions=await findAlternativeRecommendations(localId,date,serviceIds,preferredPro,stillCurrent);
+   if(suggestions===null||!stillCurrent())return false;
+   renderAlternativeRecommendations(host,suggestions);return true
   }catch(e){if(stillCurrent()&&host)host.innerHTML='<div class="v56-public-empty">Não foi possível consultar os horários agora. '+escapeHtml(e.message)+'</div>';return false}
  }
  async function submitBooking(){
@@ -7487,11 +7559,12 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   '<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button id="bkContinue" class="btn btn-primary hidden" onclick="identifyBookingClient()">Continuar</button><button id="bkFinish" class="btn btn-primary hidden" onclick="finishBooking()">Confirmar agendamento</button>');
   window.bk={unit:null,service:preService||null,serviceIds:preService?[preService]:[],date:today,time:null,pro:'',assignments:[],publicResults:[],clientId:null,newClient:false,centralOperationKey:'public_booking_'+Date.now()+'_'+Math.random().toString(36).slice(2)};if(preUnit)await selectUnit(preUnit);return true})()};window.openBooking=wrapped;try{openBooking=wrapped}catch(e){}}
  window.v99PublicSelectUnit=selectUnit;
+ window.v99PublicUseRecommendation=useAlternativeRecommendation;
  const legacySearch=window.v56PublicSearchSlots;
  if(typeof legacySearch==='function'){window.v56PublicSearchSlots=function(){if(!production())return legacySearch.apply(this,arguments);return searchSlots(()=>legacySearch())}}
  const legacyFinish=window.finishBooking||((typeof finishBooking==='function')?finishBooking:null);
  if(legacyFinish){let wrapped=function(){if(!production())return legacyFinish.apply(this,arguments);return submitBooking()};window.finishBooking=wrapped;try{finishBooking=wrapped}catch(e){}}
- window.__imperioPublicCentralCatalog={production,request:centralPublicRequest,catalog,refreshHome,applyCatalog,applyOccupancy,queryAvailability,submitBooking,sourceOfTruth:'postgresql_public_catalog_and_occupancy'};
+ window.__imperioPublicCentralCatalog={production,request:centralPublicRequest,catalog,refreshHome,applyCatalog,applyOccupancy,queryAvailability,findAlternativeRecommendations,useAlternativeRecommendation,submitBooking,sourceOfTruth:'postgresql_public_catalog_and_occupancy'};
  if(production()&&!document.getElementById('publicApp')?.classList.contains('hidden'))setTimeout(refreshHome,0);
 })();
 
