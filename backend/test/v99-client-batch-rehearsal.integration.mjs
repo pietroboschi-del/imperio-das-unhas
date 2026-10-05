@@ -176,6 +176,9 @@ async function main(){
     const lia=incrementalSecond.report.plans.find(p=>p.source.cpf==='74185296310');
     ok(lia&&lia.sourceRows.length===2,'plano consolida as duas linhas da mesma pessoa no batch completo');
     eq(await prisma.migrationEnvelope.count({where:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:incrementalBatch}}),2,'batch pendente mantém um envelope por unidade');
+    const incrementalEnvelopeIds=(await prisma.migrationEnvelope.findMany({where:{sourceKind:'CLIENTS_ONLY_BATCH',reconciliationId:incrementalBatch},select:{id:true}})).map(x=>x.id);
+    await prisma.migrationEntity.deleteMany({where:{envelopeId:{in:incrementalEnvelopeIds}}});
+    await prisma.migrationEnvelope.deleteMany({where:{id:{in:incrementalEnvelopeIds}}});
 
     r=await fetch(base+'/api/v1/migrations/v94/clients/batches/BATCH_1_REHEARSAL/finalize-staging',{
       method:'POST',headers,body:JSON.stringify({approvalReportHash:report.reportHash})
