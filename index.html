@@ -7896,3 +7896,66 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
 
 
 </body></html>
+
+<style>
+/* ===== V99 · PERFIL PÚBLICO CENTRAL DAS UNIDADES · ADMIN ===== */
+.v99upp-wrap{display:grid;gap:14px;max-width:980px}.v99upp-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:17px}.v99upp-card h3{margin:0 0 4px}.v99upp-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.v99upp-grid .full{grid-column:1/-1}.v99upp-hours{display:grid;gap:7px;margin-top:12px}.v99upp-day{display:grid;grid-template-columns:110px 135px minmax(110px,1fr) 28px minmax(110px,1fr) auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}.v99upp-day:last-child{border-bottom:0}.v99upp-day .day{font-weight:800}.v99upp-arrow{text-align:center;color:var(--muted)}.v99upp-muted{color:var(--muted);font-size:11px}.v99upp-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}.v99upp-status-note{border:1px solid #e5dbe8;background:#fbf8fc;border-radius:12px;padding:10px 12px;color:#675a6b;font-size:11px}
+@media(max-width:720px){.v99upp-grid{grid-template-columns:1fr}.v99upp-grid .full{grid-column:auto}.v99upp-day{grid-template-columns:1fr 118px;gap:7px}.v99upp-day .day{grid-column:1}.v99upp-day .v99upp-state{grid-column:2}.v99upp-day .v99upp-open,.v99upp-day .v99upp-close{width:100%}.v99upp-day .v99upp-arrow{display:none}.v99upp-day .v99upp-copy{grid-column:1/-1;justify-self:start}.v99upp-actions .btn{flex:1;min-width:140px}}
+</style>
+<script>
+/* ===== V99 · PERFIL PÚBLICO CENTRAL DAS UNIDADES ===== */
+(function(){
+ const LOCAL_TO_CENTRAL=Object.freeze({u1:'big',u2:'shopping-contagem',u3:'centro',big:'big','shopping-contagem':'shopping-contagem',centro:'centro'});
+ const DAYS=[['monday','Segunda'],['tuesday','Terça'],['wednesday','Quarta'],['thursday','Quinta'],['friday','Sexta'],['saturday','Sábado'],['sunday','Domingo']];
+ let current=null,copySource='';
+ const esc=v=>typeof escapeHtml==='function'?escapeHtml(String(v??'')):String(v??'');
+ const attr=v=>typeof escapeAttr==='function'?escapeAttr(String(v??'')):esc(v);
+ function allowed(){try{return window.__imperioV67?.can?.('page.services')!==false}catch(e){return true}}
+ function selected(){let raw=String(document.getElementById('unitPicker')?.value||'').trim();return LOCAL_TO_CENTRAL[raw]||raw}
+ function api(){let value=window.__imperioCentralApi?.status?.()?.endpoint||'';return String(value||'').replace(/\/+$/,'')}
+ function csrf(){try{return sessionStorage.getItem('imperio-v96-shadow-csrf')||''}catch(e){return ''}}
+ async function request(unitId,opt={}){
+  if(!api())throw new Error('Backend central indisponível');
+  let headers={Accept:'application/json','X-Unit-Id':unitId},token=csrf();if(token)headers['X-CSRF-Token']=token;if(opt.body!==undefined)headers['Content-Type']='application/json';
+  let res=await fetch(api()+'/api/v1/config/units/'+encodeURIComponent(unitId)+'/public-profile',{credentials:'include',method:opt.method||'GET',headers,body:opt.body===undefined?undefined:JSON.stringify(opt.body)}),txt=await res.text(),data=null;
+  try{data=txt?JSON.parse(txt):null}catch(e){data={message:txt}}
+  if(!res.ok){let m=Array.isArray(data?.message)?data.message.join(' · '):(data?.message||('HTTP '+res.status));throw new Error(String(m))}return data
+ }
+ function stateOptions(value){return [['UNSET','Não informado'],['OPEN','Aberto'],['CLOSED','Fechado']].map(([v,l])=>'<option value="'+v+'" '+(v===value?'selected':'')+'>'+l+'</option>').join('')}
+ function row(day,label,rule){
+  let r=rule||{status:'UNSET',open:'',close:''},on=r.status==='OPEN';
+  return '<div class="v99upp-day" data-day="'+day+'"><div class="day">'+label+'</div><select class="v99upp-state" onchange="v99uppDayChanged(this)">'+stateOptions(r.status)+'</select><input class="v99upp-open" type="time" value="'+attr(r.open||'')+'" '+(on?'':'disabled')+'><span class="v99upp-arrow">→</span><input class="v99upp-close" type="time" value="'+attr(r.close||'')+'" '+(on?'':'disabled')+'><button type="button" class="btn btn-ghost btn-sm v99upp-copy" onclick="v99uppCopy(\''+day+'\')">Copiar para outros dias</button></div>'
+ }
+ function render(data){
+  current=data;let p=data.profile||{},hours=p.openingHours||{};
+  subbar.textContent='Configurações da unidade · Perfil público';
+  adminPage.innerHTML='<div class="v99upp-wrap"><div class="page-head"><div><h1>Perfil público da unidade</h1><div class="muted">'+esc(data.name||data.id)+' · dados centrais do PostgreSQL</div></div></div>'+
+  '<div class="v99upp-status-note"><b>Este cadastro alimentará o site público.</b> Horário da loja não cria vagas: o agendamento continua exigindo serviço, profissional habilitada, escala e disponibilidade real.</div>'+
+  '<div class="v99upp-card"><h3>Identificação e contato</h3><div class="v99upp-muted">Deixe vazio o que ainda não estiver confirmado. O site não deve inventar dados.</div><div class="v99upp-grid" style="margin-top:12px">'+
+  '<div class="field full"><label>Nome público</label><input id="v99uppName" value="'+attr(p.publicName||'')+'"></div>'+
+  '<div class="field full"><label>Endereço completo</label><input id="v99uppAddress" value="'+attr(p.fullAddress||'')+'" placeholder="Preencha quando confirmado"></div>'+
+  '<div class="field"><label>Busca/destino do mapa</label><input id="v99uppMapsQuery" value="'+attr(p.mapsQuery||'')+'" placeholder="Opcional"></div>'+
+  '<div class="field"><label>URL específica do mapa</label><input id="v99uppMapsUrl" value="'+attr(p.mapsUrl||'')+'" placeholder="https://..."></div>'+
+  '<div class="field full"><label>Orientação de localização</label><input id="v99uppHint" value="'+attr(p.locationHint||'')+'" placeholder="Ex.: andar e ponto de referência"></div>'+
+  '<div class="field"><label>Telefone público</label><input id="v99uppPhone" value="'+attr(p.phone||'')+'"></div>'+
+  '<div class="field"><label>WhatsApp</label><input id="v99uppWhatsapp" value="'+attr(p.whatsapp||'')+'" inputmode="tel"><div class="help">Pode digitar formatado; o backend normaliza o número.</div></div>'+
+  '<div class="field full"><label class="check"><input id="v99uppShow" type="checkbox" '+(p.showOnWebsite!==false?'checked':'')+'> Exibir esta unidade no site</label></div></div></div>'+
+  '<div class="v99upp-card"><h3>Horário de funcionamento</h3><div class="v99upp-muted">“Não informado” é diferente de “Fechado”. Use Fechado somente quando a unidade realmente não abre naquele dia.</div><div class="v99upp-hours">'+DAYS.map(([d,l])=>row(d,l,hours[d])).join('')+'</div></div>'+
+  '<div class="v99upp-actions"><button class="btn btn-ghost" onclick="v99uppLoad()">Descartar alterações</button><button class="btn btn-primary" onclick="v99uppSave()">Salvar perfil da unidade</button></div></div>';
+ }
+ function error(message){subbar.textContent='Configurações da unidade · Perfil público';adminPage.innerHTML='<div class="page-head"><div><h1>Perfil público da unidade</h1><div class="muted">Não foi possível carregar os dados centrais.</div></div></div><div class="card"><b>'+esc(message)+'</b><div style="margin-top:12px"><button class="btn btn-primary" onclick="v99uppLoad()">Tentar novamente</button></div></div>'}
+ async function load(){let id=selected();if(!id){error('Selecione uma unidade');return}subbar.textContent='Configurações da unidade · Perfil público';adminPage.innerHTML='<div class="card">Carregando perfil central…</div>';try{render(await request(id))}catch(e){error(e?.message||e)}}
+ function dayChanged(el){let host=el.closest('.v99upp-day'),on=el.value==='OPEN';host.querySelector('.v99upp-open').disabled=!on;host.querySelector('.v99upp-close').disabled=!on;if(!on){host.querySelector('.v99upp-open').value='';host.querySelector('.v99upp-close').value=''}}
+ function openingHours(){let out={};document.querySelectorAll('.v99upp-day').forEach(host=>{let status=host.querySelector('.v99upp-state').value;out[host.dataset.day]={status,open:status==='OPEN'?host.querySelector('.v99upp-open').value:'',close:status==='OPEN'?host.querySelector('.v99upp-close').value:''}});return out}
+ async function saveProfile(){let id=selected(),body={publicName:v99uppName.value.trim(),fullAddress:v99uppAddress.value.trim(),mapsQuery:v99uppMapsQuery.value.trim(),mapsUrl:v99uppMapsUrl.value.trim(),locationHint:v99uppHint.value.trim(),phone:v99uppPhone.value.trim(),whatsapp:v99uppWhatsapp.value.trim(),showOnWebsite:!!v99uppShow.checked,openingHours:openingHours()};try{render(await request(id,{method:'PATCH',body}));toast('Perfil público salvo no banco central ✓')}catch(e){toast('Perfil não salvo: '+(e?.message||e))}}
+ function copy(day){copySource=day;let source=document.querySelector('.v99upp-day[data-day="'+day+'"]');if(!source)return;let label=DAYS.find(x=>x[0]===day)?.[1]||day,body='<div class="muted" style="margin-bottom:10px">Copiar configuração de <b>'+label+'</b> para:</div>'+DAYS.filter(x=>x[0]!==day).map(([d,l])=>'<label class="check"><input class="v99upp-copy-target" type="checkbox" value="'+d+'"> '+l+'</label>').join('');modal('Copiar horário',body,'<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="v99uppApplyCopy()">Copiar</button>')}
+ function applyCopy(){let source=document.querySelector('.v99upp-day[data-day="'+copySource+'"]');if(!source)return closeModal();let status=source.querySelector('.v99upp-state').value,open=source.querySelector('.v99upp-open').value,close=source.querySelector('.v99upp-close').value;document.querySelectorAll('.v99upp-copy-target:checked').forEach(x=>{let host=document.querySelector('.v99upp-day[data-day="'+x.value+'"]');if(!host)return;host.querySelector('.v99upp-state').value=status;host.querySelector('.v99upp-open').value=status==='OPEN'?open:'';host.querySelector('.v99upp-close').value=status==='OPEN'?close:'';dayChanged(host.querySelector('.v99upp-state'))});closeModal()}
+ function navAllowed(){return allowed()}
+ const baseBuild=window.buildAdminNav;window.buildAdminNav=function(){let target=typeof page!=='undefined'&&page==='unit-profile',saved=target?page:null;if(target)page='services';let out=baseBuild?baseBuild.apply(this,arguments):undefined;if(target)page=saved;if(navAllowed()&&typeof adminTabs!=='undefined'&&adminTabs)adminTabs.insertAdjacentHTML('beforeend','<button class="'+(page==='unit-profile'?'active':'')+'" onclick="setPage(\'unit-profile\')">Unidade pública</button>');return out};try{buildAdminNav=window.buildAdminNav}catch(e){}
+ const baseSet=window.setPage;window.setPage=function(p){if(p==='unit-profile'){if(!navAllowed()){toast('Você não possui permissão para esta área');return false}page='unit-profile';window.buildAdminNav();window.renderAdmin();return true}return baseSet?baseSet.apply(this,arguments):undefined};try{setPage=window.setPage}catch(e){}
+ const baseRender=window.renderAdmin;window.renderAdmin=function(){if(typeof page!=='undefined'&&page==='unit-profile')return load();return baseRender?baseRender.apply(this,arguments):undefined};try{renderAdmin=window.renderAdmin}catch(e){}
+ const baseUnitChange=window.handleUnitChange;window.handleUnitChange=function(){if(typeof page!=='undefined'&&page==='unit-profile')return load();return baseUnitChange?baseUnitChange.apply(this,arguments):undefined};try{handleUnitChange=window.handleUnitChange}catch(e){}
+ window.v99uppLoad=load;window.v99uppSave=saveProfile;window.v99uppDayChanged=dayChanged;window.v99uppCopy=copy;window.v99uppApplyCopy=applyCopy;
+ window.__imperioUnitPublicProfileAdmin={sourceOfTruth:'postgresql',load,request,selected,openingHours};
+})();
+</script>

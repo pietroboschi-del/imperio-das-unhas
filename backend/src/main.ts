@@ -10,11 +10,14 @@ import { PrismaService } from './prisma/prisma.service';
 import { ensureCanonicalUnits } from './core/canonical-units';
 import { ClientBatchService } from './migration/client-batch.service';
 import { operationalWriteStatus } from './common/operational-write-gate';
+import { ensureCanonicalUnitPublicProfiles } from './core/unit-public-profile';
 
 async function bootstrap(){
   const app=await NestFactory.create(AppModule,{cors:false});
   const canonicalUnits=await ensureCanonicalUnits(app.get(PrismaService));
   console.log('canonical units reconciled '+JSON.stringify(canonicalUnits));
+  const publicProfiles=await ensureCanonicalUnitPublicProfiles(app.get(PrismaService));
+  console.log('canonical unit public profiles reconciled '+JSON.stringify(publicProfiles));
   console.log('operational write gate '+JSON.stringify({
     global:operationalWriteStatus(),
     centro:operationalWriteStatus('centro'),

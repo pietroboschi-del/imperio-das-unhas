@@ -5,5 +5,6 @@ import { FinanceWriteController } from './finance-write.controller';
 import { PublicBookingController } from './public-booking.controller';
 import { CatalogConfigController } from './catalog-config.controller';
 import { StructuralConfigController } from './structural-config.controller';
-@Module({controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController,StructuralConfigController]})
+import { UnitPublicProfileController } from './unit-public-profile.controller';
+@Module({controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController,StructuralConfigController,UnitPublicProfileController]})
 export class CoreModule {}
