@@ -100,10 +100,10 @@ async function main(){
 
   const batchStrong='BATCH_REVIEW_MULTIPLE_STRONG_CI',strongA='client-review-strong-a-ci',strongB='client-review-strong-b-ci';
   await cleanup(batchStrong,[strongA,strongB]);
-  await prisma.client.create({data:{id:strongA,name:'Diana Lopes',phone:null,email:null,legacyPayload:{clientsOnly:{cpf:'11122233344',sources:[]}}}});
-  await prisma.client.create({data:{id:strongB,name:'Diana Lopes',phone:null,email:'diana.legacy@example.com',legacyPayload:{clientsOnly:{cpf:'99988877766',sources:[]}}}});
+  await prisma.client.create({data:{id:strongA,name:'Diana Lopes',phone:null,email:null,legacyPayload:{clientsOnly:{cpf:'84520371964',sources:[]}}}});
+  await prisma.client.create({data:{id:strongB,name:'Diana Lopes',phone:null,email:'diana.legacy@example.com',legacyPayload:{clientsOnly:{cpf:'86420975311',sources:[]}}}});
   const strongPayload={mode:'CLIENTS_ONLY',batchId:batchStrong,phase:'FINAL',files:[{unitId:'centro',exportedAt:'2026-10-04T10:05:00-03:00',fileName:batchStrong+'.xlsx',fileHash:H(914),rows:[
-   {sourceRow:2,id:'strong-source',nome:'Diana Lopes',celular:'31977776666',email:'diana.legacy@example.com',cpf:'111.222.333-44'}
+   {sourceRow:2,id:'strong-source',nome:'Diana Lopes',celular:'31977776666',email:'diana.legacy@example.com',cpf:'845.203.719-64'}
   ]}]};
   r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers:h,body:JSON.stringify(strongPayload)});
   assert.ok(r.ok,'dry-run multiple strong matches');
@@ -132,7 +132,7 @@ async function main(){
   const selected=await prisma.client.findUniqueOrThrow({where:{id:strongA}}),other=await prisma.client.findUniqueOrThrow({where:{id:strongB}});
   assert.equal(selected.phone,null,'seleção de identidade não autoriza preencher telefone central vazio');
   assert.equal(selected.email,null,'seleção de identidade não copia e-mail que também apontava para outro cliente central');
-  assert.equal(selected.legacyPayload?.clientsOnly?.cpf,'11122233344','CPF do cliente selecionado é preservado');
+  assert.equal(selected.legacyPayload?.clientsOnly?.cpf,'84520371964','CPF do cliente selecionado é preservado');
   assert.equal(other.email,'diana.legacy@example.com','cliente central não selecionado permanece inalterado');
   assert.equal(await prisma.clientUnitLink.count({where:{clientId:strongA,unitId:'centro'}}),1,'unidade é vinculada ao cliente central escolhido');
   assert.ok(Array.isArray(selected.legacyPayload?.clientsOnly?.sources)&&selected.legacyPayload.clientsOnly.sources.some(x=>x.batchId===batchStrong),'proveniência do Excel é anexada ao cliente escolhido');
