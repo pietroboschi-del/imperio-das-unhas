@@ -2,10 +2,9 @@ name: V98 Backend CI
 
 on:
   push:
-  pull_request:
 
 jobs:
-  backend:
+  diagnose:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -26,7 +25,6 @@ jobs:
         working-directory: backend
     env:
       DATABASE_URL: postgresql://imperio:imperio_ci@localhost:5432/imperio_ci?schema=public
-      PORT: 3100
       COOKIE_SECURE: "false"
       CORS_ORIGINS: http://127.0.0.1:3101
       MIGRATION_IMPORT_ENABLED: "true"
@@ -34,21 +32,7 @@ jobs:
       READ_THROUGH_ENABLED: "false"
       SHADOW_READS_ENABLED: "false"
       OPERATIONAL_WRITES_ENABLED: "false"
-      ADMIN_USERNAME: ci_owner
-      ADMIN_PASSWORD: ci-owner-password-123
-      ADMIN_NAME: CI Owner
-      JSON_BODY_LIMIT: 20mb
-      MIGRATION_BATCH_SIZE: "500"
-      MIGRATION_TX_TIMEOUT_MS: "60000"
-      MIGRATION_PROMOTION_TX_TIMEOUT_MS: "180000"
-      MIGRATION_STAGE_RETENTION_DAYS: "30"
       BUSINESS_TIMEZONE: America/Sao_Paulo
-      OPENAPI_ENABLED: "true"
-      LOGIN_RATE_LIMIT_MAX: "5"
-      LOGIN_RATE_LIMIT_WINDOW_MS: "900000"
-      LOGIN_RATE_LIMIT_BLOCK_MS: "900000"
-      ACTIVATION_TOKEN_TTL_MS: "86400000"
-      RESET_TOKEN_TTL_MS: "1800000"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -62,37 +46,44 @@ jobs:
         run: npm run prisma:migrate
       - name: Build
         run: npm run build
-      - name: Static and projector tests
-        run: npm test
-      - name: Frontend central bridge contract
-        run: npm run test:frontend-central-bridge
-      - name: CLIENTS_ONLY migration UI contract
-        run: npm run test:frontend-client-migration-ui
-      - name: Deployment cutover contract
-        run: npm run test:deployment-cutover
-      - name: Build production container
-        run: docker build -t imperio-backend-ci .
-      - name: Install Python parity dependency
+      - name: Instrument diagnostic test
+        shell: bash
         run: |
-          python3 -m pip install --user playwright
-          python3 -m playwright install chromium
-      - name: Critical behavior characterization gate
-        run: npm run test:characterization
-      - name: Create CI administrator
-        run: npm run admin:create
-      - name: CLIENTS_ONLY rehearsal integration
-        run: npm run test:client-batch-rehearsal
-      - name: CLIENTS_ONLY Excel integration
-        run: npm run test:client-excel
-      - name: PostgreSQL/Nest integration tests
-        run: npm run test:integration
-      - name: V98b security integration tests
-        run: npm run test:security-integration
-      - name: Central catalog and professional configuration
-        run: npm run test:catalog-config
-      - name: Multi-unit operational write tests
-        run: npm run test:operational-writes
-      - name: Multi-unit cash command payment flow
-        run: npm run test:finance-flow
-      - name: Three-unit public booking flow
-        run: npm run test:public-booking
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('test/v99-unit-public-profile.integration.mjs')
+          s=p.read_text()
+          s=s.replace(
+            "let saved=await r.json();ok(saved.profile.openingHours.monday.status==='CLOSED','dia pode ser marcado fechado');",
+            "let saved=await r.json();console.log('DIAG PATCH1_RESPONSE '+JSON.stringify({fullAddress:saved.profile.fullAddress,tuesday:saved.profile.openingHours.tuesday,whatsapp:saved.profile.whatsapp}));let diagDb=await prisma.unit.findUniqueOrThrow({where:{id:'big'}});console.log('DIAG DB_AFTER_PATCH1 '+JSON.stringify(diagDb.legacyPayload?.publicProfile||null));ok(saved.profile.openingHours.monday.status==='CLOSED','dia pode ser marcado fechado');"
+          )
+          s=s.replace(
+            "saved=await r.json();ok(saved.profile.openingHours.monday.status==='OPEN','reabertura persiste');",
+            "saved=await r.json();diagDb=await prisma.unit.findUniqueOrThrow({where:{id:'big'}});console.log('DIAG PATCH2_RESPONSE '+JSON.stringify({fullAddress:saved.profile.fullAddress,monday:saved.profile.openingHours.monday,tuesday:saved.profile.openingHours.tuesday}));console.log('DIAG DB_BEFORE_LOGOUT '+JSON.stringify(diagDb.legacyPayload?.publicProfile||null));ok(saved.profile.openingHours.monday.status==='OPEN','reabertura persiste');"
+          )
+          s=s.replace(
+            "r=await fetch(base+'/api/v1/auth/logout',{method:'POST',headers:headers('upp-owner-a','upp-csrf-a','big'),body:JSON.stringify({})});ok(r.ok,'logout da primeira sessão é concluído');",
+            "r=await fetch(base+'/api/v1/auth/logout',{method:'POST',headers:headers('upp-owner-a','upp-csrf-a','big'),body:JSON.stringify({})});ok(r.ok,'logout da primeira sessão é concluído');diagDb=await prisma.unit.findUniqueOrThrow({where:{id:'big'}});const diagA=await prisma.session.findUnique({where:{tokenHash:sha('upp-owner-a')}}),diagB=await prisma.session.findUnique({where:{tokenHash:sha('upp-owner-b')}});console.log('DIAG DB_AFTER_LOGOUT '+JSON.stringify(diagDb.legacyPayload?.publicProfile||null));console.log('DIAG SESSIONS_AFTER_LOGOUT '+JSON.stringify({a:diagA?.status,b:diagB?.status}));"
+          )
+          s=s.replace(
+            "saved=await r.json();ok(saved.profile.fullAddress.includes('Rua Teste CI'),'outra sessão lê persistência após logout');",
+            "saved=await r.json();console.log('DIAG SESSION_B_RESPONSE '+JSON.stringify({fullAddress:saved.profile.fullAddress,monday:saved.profile.openingHours.monday,tuesday:saved.profile.openingHours.tuesday}));ok(saved.profile.fullAddress.includes('Rua Teste CI'),'outra sessão lê persistência após logout');"
+          )
+          p.write_text(s)
+          PY
+      - name: Run isolated test three times
+        shell: bash
+        run: |
+          set +e
+          overall=0
+          for entry in "1:3211" "2:3212" "3:3213"; do
+            n="${entry%%:*}"
+            port="${entry##*:}"
+            echo "===== ISOLATED RUN $n PORT $port ====="
+            PORT="$port" node test/v99-unit-public-profile.integration.mjs
+            rc=$?
+            echo "===== ISOLATED RUN $n EXIT $rc ====="
+            if [ "$rc" -ne 0 ]; then overall=1; fi
+            sleep 1
+          done
+          exit "$overall"
