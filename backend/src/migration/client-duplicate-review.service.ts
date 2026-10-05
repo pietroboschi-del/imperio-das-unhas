@@ -79,6 +79,8 @@ export class ClientDuplicateReviewService {
     if(plan.action!=='REVIEW_REQUIRED')throw new ConflictException('Apenas clusters REVIEW_REQUIRED entram na fila de duplicidades');
 
     const sourceFieldConflicts=plan.conflicts.filter(c=>c.type==='SOURCE_FIELD_CONFLICT');
+    const missingRequiredName=plan.conflicts.some(c=>c.type==='MISSING_REQUIRED_NAME');
+    if(missingRequiredName&&input.decision!=='REVIEW_LATER')throw new ConflictException('Cliente sem nome não pode ser marcado como resolvido; corrija/reexporte o cadastro ou use REVIEW_LATER');
     if(input.decision==='KEEP_SEPARATE'&&sourceFieldConflicts.length)throw new ConflictException('KEEP_SEPARATE não resolve conflito entre fontes do mesmo cluster; corrija/reexporte os dados ou escolha outra resolução segura');
 
     let targetClusterId:string|null=null,targetClientId:string|null=null;

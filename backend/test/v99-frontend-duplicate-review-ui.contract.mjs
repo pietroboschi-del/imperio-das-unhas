@@ -29,6 +29,9 @@ ok(js.includes('centralCandidates')&&js.includes('Usar cliente central'),'UI per
 ok(js.includes('weakCentralCandidates')&&js.includes('evidência fraca (somente consulta)'),'UI mostra candidato central fraco sem convertê-lo em opção selecionável');
 ok(js.includes('Este candidato não pode ser escolhido por “Usar cliente central”'),'UI deixa explícita a proibição de MATCH_CENTRAL para evidência fraca');
 ok(js.includes('hasSourceFieldConflict')&&js.includes('Manter separados não resolve o conflito entre valores deste mesmo grupo'),'UI bloqueia KEEP_SEPARATE quando existe conflito interno entre fontes');
+ok(js.includes('hasMissingRequiredName')&&js.includes('Nome obrigatório ausente.'),'UI identifica MISSING_REQUIRED_NAME');
+ok(js.includes("decision!=='REVIEW_LATER'&&hasMissingRequiredName(item)"),'UI impede todas as decisões resolutivas quando o nome obrigatório está ausente');
+ok(js.includes("missingName||!candidate||state.saving")&&js.includes("missingName||!item.centralCandidate||state.saving")&&js.includes("missingName||!selectedCentral||state.saving")&&js.includes("missingName||sourceConflict||state.saving"),'quatro ações resolutivas ficam desabilitadas para cadastro sem nome');
 ok(js.includes("(sourceConflict||state.saving)?'disabled':''"),'botão Manter separados fica desabilitado em SOURCE_FIELD_CONFLICT');
 ok(js.includes('candidateClusters')&&js.includes('state.candidateId'),'comparação mantém candidato selecionado');
 ok(js.includes('v99dup-different'),'diferenças são destacadas');

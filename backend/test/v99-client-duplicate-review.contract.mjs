@@ -26,6 +26,7 @@ ok(service.includes('weakCentralCandidates'),'fila expõe candidatos AMBIGUOUS_W
 ok(service.includes("Cliente central permitido somente entre candidatos MULTIPLE_STRONG_MATCHES"),'MATCH_CENTRAL não aceita cliente arbitrário nem candidato baseado apenas em evidência fraca');
 ok(service.includes("KEEP_CENTRAL exige cliente central identificado"),'KEEP_CENTRAL só é permitido quando o relatório identificou destino central');
 ok(service.includes("KEEP_SEPARATE não resolve conflito entre fontes do mesmo cluster"),'KEEP_SEPARATE é recusado antes de persistir quando há conflito interno de fontes');
+ok(service.includes("missingRequiredName&&input.decision!=='REVIEW_LATER'")&&service.includes('Cliente sem nome não pode ser marcado como resolvido'),'MISSING_REQUIRED_NAME só aceita REVIEW_LATER na revisão humana');
 ok(service.includes("Mesclagem permitida somente com candidato relacionado"),'merge arbitrário é bloqueado');
 ok(service.includes("CLIENT_DUPLICATE_REVIEW_DECISION"),'toda decisão gera auditoria');
 ok(service.includes("clientRowsMutated:false")&&!service.includes('.client.update(')&&!service.includes('.client.create(')&&!service.includes('.client.delete'),'revisão não altera clientes');

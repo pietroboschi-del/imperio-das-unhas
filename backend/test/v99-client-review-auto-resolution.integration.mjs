@@ -158,6 +158,30 @@ async function main(){
   assert.equal(await prisma.clientDuplicateReview.count({where:{batchId:batchWeak,clusterId:weakPlan.clusterId}}),0,'tentativa de promover match fraco não é persistida');
   cleanupJobs.push([batchWeak,[weakCentral,importedId(weakPlan.clusterId)]]);
 
+  const batchMissing='BATCH_REVIEW_MISSING_NAME_CI',missingCentral='client-review-missing-name-central-ci';
+  await cleanup(batchMissing,[missingCentral]);
+  await prisma.client.create({data:{id:missingCentral,name:'Fernanda Lima',phone:null,email:null,legacyPayload:{clientsOnly:{cpf:'31415926535',sources:[]}}}});
+  const missingPayload={mode:'CLIENTS_ONLY',batchId:batchMissing,phase:'FINAL',files:[{unitId:'centro',exportedAt:'2026-10-04T10:15:00-03:00',fileName:batchMissing+'.xlsx',fileHash:H(916),rows:[
+   {sourceRow:2,id:'missing-name-source',celular:'31955554444',cpf:'314.159.265-35'}
+  ]}]};
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/dry-run',{method:'POST',headers:h,body:JSON.stringify(missingPayload)});
+  assert.ok(r.ok,'dry-run cliente sem nome');
+  const missingDry=await r.json(),missingPlan=missingDry.report.plans.find(x=>x.conflicts.some(c=>c.type==='MISSING_REQUIRED_NAME'));
+  assert.ok(missingPlan&&missingPlan.action==='REVIEW_REQUIRED'&&missingPlan.targetClientId===missingCentral,'CPF pode identificar central, mas nome ausente mantém revisão obrigatória');
+
+  for(const decision of ['KEEP_CENTRAL','KEEP_SEPARATE']){
+   r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchMissing)+'/'+encodeURIComponent(missingPlan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision})});
+   assert.equal(r.status,409,decision+' é recusado para cliente sem nome');
+   const missingErr=await r.json();assert.ok(String(missingErr.message||'').includes('Cliente sem nome não pode ser marcado como resolvido'),'erro explica que o nome precisa ser corrigido');
+   assert.equal(await prisma.clientDuplicateReview.count({where:{batchId:batchMissing,clusterId:missingPlan.clusterId}}),0,'decisão resolutiva sem nome não é persistida');
+  }
+  r=await fetch(base+'/api/v1/client-duplicate-reviews/'+encodeURIComponent(batchMissing)+'/'+encodeURIComponent(missingPlan.clusterId),{method:'POST',headers:h,body:JSON.stringify({decision:'REVIEW_LATER',note:'corrigir nome no Excel antes de promover'})});
+  assert.ok(r.ok,'REVIEW_LATER continua disponível para cadastro sem nome');
+  r=await fetch(base+'/api/v1/migrations/v94/clients/batches/commit',{method:'POST',headers:h,body:JSON.stringify({batchId:batchMissing,approvalReportHash:missingDry.report.reportHash})});
+  assert.equal(r.status,409,'REVIEW_LATER mantém promoção bloqueada até corrigir o nome');
+  assert.equal(await prisma.clientUnitLink.count({where:{clientId:missingCentral,unitId:'centro'}}),0,'cadastro sem nome não cria vínculo nem altera cliente central');
+  cleanupJobs.push([batchMissing,[missingCentral,importedId(missingPlan.clusterId)]]);
+
   const batchCycle='BATCH_REVIEW_CYCLE_CI';
   await cleanup(batchCycle);
   const two=await stageAndReport(h,batchCycle,912),[x,y]=two.plans;
