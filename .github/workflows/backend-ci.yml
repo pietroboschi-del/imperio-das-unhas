@@ -65,9 +65,18 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          PORT=3211 node test/v99-operational-writes.integration.mjs
-          PORT=3212 node test/v99-operational-writes.integration.mjs
-          PORT=3213 node test/v99-operational-writes.integration.mjs
+          for entry in "1:3211" "2:3212" "3:3213"; do
+            port="${entry##*:}"
+            n="${entry%%:*}"
+            echo "=== isolated run $n ==="
+            npx prisma migrate reset --force
+            npm run admin:create
+            PORT="$port" node test/v99-operational-writes.integration.mjs
+          done
+      - name: Prepare operational suite database
+        run: |
+          npx prisma migrate reset --force
+          npm run admin:create
       - name: Operational writes suite
         run: npm run test:operational-writes
       - name: npm test
