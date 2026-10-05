@@ -16,4 +16,18 @@ ok(!html.includes('5531983514216'),'WhatsApp real não fica hardcoded no fronten
 ok(!html.includes('em frente à Leitura'),'referência do Big não fica hardcoded no frontend');
 ok(!html.includes('em frente à TIM'),'referência do Shopping não fica hardcoded no frontend');
 ok(!html.includes('Caixa d’Água'),'referência do Centro não fica hardcoded no frontend');
+
+const publicMarker='V99 · PUBLIC BOOKING CENTRAL CATALOG',pi=html.indexOf(publicMarker),publicBlock=pi>=0?html.slice(pi,html.indexOf('V99 · PERFIL PÚBLICO CENTRAL DAS UNIDADES',pi)):'';
+ok(pi>=0,'ponte pública central existe');
+ok(publicBlock.includes("/api/v1/public/units"),'cartões públicos consultam GET /api/v1/public/units');
+ok(publicBlock.includes("publicUnitsCache"),'unidades públicas possuem cache separado do seed local');
+ok(publicBlock.includes("p.publicName||u.name||u.id"),'nome público vem do perfil central');
+ok(publicBlock.includes("p.openingStatus")&&publicBlock.includes("Horário não informado"),'status público usa openingStatus e fallback seguro');
+ok(publicBlock.includes("p.fullAddress"),'endereço público vem do perfil central');
+ok(publicBlock.includes("p.locationHint"),'orientação pública vem do perfil central');
+const unitRender=publicBlock.slice(publicBlock.indexOf("let uh=document.getElementById('publicUnits')"),publicBlock.indexOf("async function refreshHome"));
+ok(!unitRender.includes("(db.units||[])"),'cartões públicos não usam db.units/seed');
+ok(!unitRender.includes('Agendar nesta unidade'),'microbloco A não adiciona agendamento ao cartão');
+ok(!unitRender.includes('directionsUrl')&&!unitRender.includes('whatsappUrl'),'microbloco A não antecipa mapa ou WhatsApp');
+
 console.log(JSON.stringify({ok:true,tests,feature:'unit_public_profile_admin_ui_contract'}));
