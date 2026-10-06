@@ -4,7 +4,7 @@ import {once} from 'node:events';
 import {PrismaClient} from '@prisma/client';
 import {ensureCanonicalUnits} from '../dist/src/core/canonical-units.js';
 const prisma=new PrismaClient();let checks=0;const eq=(a,b,m)=>{checks++;assert.equal(a,b,m)},ok=(v,m)=>{checks++;assert.ok(v,m)},sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const ids={services:['w3c2-s1','w3c2-s2'],pros:['w3c2-p1','w3c2-p2']},secret='w3c2-secret-never-log',date:'2030-10-08';
+const ids={services:['w3c2-s1','w3c2-s2'],pros:['w3c2-p1','w3c2-p2'],secret:'w3c2-secret-never-log',date:'2030-10-08'};
 async function cleanup(){await prisma.workstation.deleteMany({where:{id:{startsWith:'w3c2-ws'}}}).catch(()=>{});await prisma.professionalUnit.deleteMany({where:{professionalId:{in:ids.pros}}}).catch(()=>{});await prisma.professional.deleteMany({where:{id:{in:ids.pros}}}).catch(()=>{});await prisma.service.deleteMany({where:{id:{in:ids.services}}}).catch(()=>{});await prisma.serviceCategory.deleteMany({where:{id:{in:['w3c2-c1','w3c2-c2']}}}).catch(()=>{})}
 async function setup(){await ensureCanonicalUnits(prisma);await cleanup();await prisma.serviceCategory.createMany({data:[{id:'w3c2-c1',name:'Hands',active:true},{id:'w3c2-c2',name:'Feet',active:true}]});await prisma.service.createMany({data:[
 {id:'w3c2-s1',name:'S1',categoryId:'w3c2-c1',price:'10',durationMin:45,active:true,legacyPayload:{show:true,online:true,clientArea:'hands',mustFinishBeforeSameArea:false,proRules:{'w3c2-p1':{enabled:true,online:true}}}},
