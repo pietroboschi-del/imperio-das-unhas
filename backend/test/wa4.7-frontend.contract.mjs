@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';const c=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8');let n=0;const ok=(v,m)=>{n++;assert.ok(v,m)};
+ok(c.includes("waitlist(){return centralRequest('/api/v1/waitlist')"),'bridge consulta a fila central existente');
+ok(c.includes("tasks(){return centralRequest('/api/v1/tasks')"),'bridge consulta tarefas/notificações existentes');
+ok(c.includes('function mergeCentralWaitlist'),'pedidos centrais entram em db.waitlistRequests');
+ok(c.includes('function mergeCentralTasks'),'notificações entram em db.managementTasks');
+ok(c.includes("req.source==='WHATSAPP_AGENT'")&&c.includes('WhatsApp'),'card identifica origem WhatsApp');
+ok(c.includes("x.sourceType==='waitlist'")&&c.includes("v79OpenQueue('active')"),'notificação abre a mesma Fila de Encaixe');
+ok(c.includes('services.map')&&c.includes('acceptsOtherUnits'),'UI expõe multi-serviço e flexibilidade');
+ok(!c.includes("page='waitlist'"),'WA4 não cria página/aba paralela');
+console.log(JSON.stringify({ok:true,checks:n,feature:'wa4_7_frontend_existing_queue'}));

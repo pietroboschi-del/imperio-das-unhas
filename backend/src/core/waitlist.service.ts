@@ -93,7 +93,7 @@ export class WaitlistService {
      where:{active:true,OR:[{networkAdmin:true},{unitAccesses:{some:{unitId:body.unitId,active:true}}}]},
      select:{id:true,networkAdmin:true,permissions:true,unitAccesses:{where:{unitId:body.unitId,active:true},select:{permissions:true}}},
     });
-    const allowedRecipients=recipients.filter(u=>u.networkAdmin||hasPermissions(permissionSet(u.permissions,u.unitAccesses[0]?.permissions),['tasks.read'])||hasPermissions(permissionSet(u.permissions,u.unitAccesses[0]?.permissions),['agenda.read']));
+    const allowedRecipients=recipients.filter(u=>u.networkAdmin||hasPermissions(permissionSet(u.permissions,u.unitAccesses[0]?.permissions),['tasks.read']));
     if(allowedRecipients.length){
      const serviceNames=serviceRows.map(x=>x.serviceName).join(' + ');
      await tx.managementTask.createMany({data:allowedRecipients.map(u=>({

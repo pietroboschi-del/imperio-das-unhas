@@ -98,6 +98,8 @@ jobs:
         run: npm run test:wa4.5
       - name: WA4.6 states and traceability
         run: npm run test:wa4.6
+      - name: WA4.7 existing queue UI bridge
+        run: npm run test:wa4.7
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract

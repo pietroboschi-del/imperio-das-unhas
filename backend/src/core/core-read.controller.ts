@@ -47,6 +47,25 @@ export class CoreReadController {
     return rows.map(x=>this.clientView(x));
   }
 
+  @Get('waitlist')
+  @UnitScoped()
+  @RequirePermissions('agenda.read')
+  async waitlist(@Req() req:ImperioRequest){
+    const rows=await this.prisma.waitlistRequest.findMany({
+      where:{unitId:req.unitId!},
+      orderBy:[{createdAt:'asc'},{id:'asc'}],
+      take:500,
+    });
+    const clientIds=[...new Set(rows.map(x=>x.clientId).filter(Boolean))] as string[];
+    const clients=clientIds.length?await this.prisma.client.findMany({where:{id:{in:clientIds}},select:{id:true,name:true,phone:true}}):[];
+    const byClient=new Map(clients.map(x=>[x.id,x]));
+    return rows.map(row=>{
+      const legacy=(row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload:{}) as Record<string,unknown>;
+      const c=row.clientId?byClient.get(row.clientId):null;
+      return {id:row.id,unitId:row.unitId,clientId:row.clientId,status:row.status,version:row.version,createdAt:row.createdAt,updatedAt:row.updatedAt,clientName:c?.name||null,clientPhone:c?.phone||null,legacyPayload:legacy};
+    });
+  }
+
   @Get('tasks')
   @UnitScoped()
   @RequirePermissions('tasks.read')
