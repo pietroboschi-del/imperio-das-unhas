@@ -30,6 +30,16 @@ r=await svc.multiAvailability({unitId:unit,date,services:[{serviceId:'w3c-mani',
 r=await svc.multiAvailability({unitId:unit,date,services:[{serviceId:'w3c-mani',professionalId:'w3c-b',preferenceMode:'required'},{serviceId:'w3c-pedi',professionalId:'w3c-c',preferenceMode:'required'}]});ok(r.visits.every(x=>x.items.find(i=>i.serviceId==='w3c-mani').professionalId==='w3c-b'),'required nunca substitui profissional');
 await prisma.workstation.update({where:{id:'w3c-ws-f1'},data:{active:false}});r=await svc.multiAvailability({unitId:unit,date,services:[{serviceId:'w3c-maint'},{serviceId:'w3c-pedi'}]});eq(r.visits.length,0,'falta de estação compatível rejeita combinação');await prisma.workstation.update({where:{id:'w3c-ws-f1'},data:{active:true}});
 await prisma.workstation.update({where:{id:'w3c-ws-h2'},data:{active:false}});r=await svc.multiAvailability({unitId:unit,date,services:[{serviceId:'w3c-maint'},{serviceId:'w3c-mani'}]});ok(r.visits.length>0,'sequência na mesma área cabe em uma única estação por não sobrepor');
-await prisma.workstation.update({where:{id:'w3c-ws-h2'},data:{active:true}});r=await svc.multiAvailability({unitId:unit,date,services:[{serviceId:'w3c-maint'},{serviceId:'w3c-mani'},{serviceId:'w3c-pedi'}]});ok(r.visits[0].visitDurationMin<=120,'menor duração total com paralelismo é priorizada');
+await prisma.workstation.update({where:{id:'w3c-ws-h2'},data:{active:true}});
+await prisma.workstation.update({where:{id:'w3c-ws-h1'},data:{allowedCategoryIds:['w3c-hands','w3c-feet']}});
+await prisma.workstation.update({where:{id:'w3c-ws-h2'},data:{active:false}});
+await prisma.workstation.update({where:{id:'w3c-ws-f1'},data:{active:false}});
+r=await svc.multiAvailability({unitId:unit,date,services:[{serviceId:'w3c-maint',professionalId:'w3c-a',preferenceMode:'required'},{serviceId:'w3c-pedi',professionalId:'w3c-c',preferenceMode:'required'}]});
+ok(r.visits.length>0,'capacidade esgotada ainda permite combinação sequencial');
+ok(r.visits.every(v=>{const a=v.items.find(x=>x.serviceId==='w3c-maint'),b=v.items.find(x=>x.serviceId==='w3c-pedi');return !(a.startMin<b.endMin&&a.endMin>b.startMin)}),'capacidade esgotada rejeita sobreposição física impossível');
+await prisma.workstation.update({where:{id:'w3c-ws-h1'},data:{allowedCategoryIds:['w3c-hands']}});
+await prisma.workstation.update({where:{id:'w3c-ws-h2'},data:{active:true}});
+await prisma.workstation.update({where:{id:'w3c-ws-f1'},data:{active:true}});
+r=await svc.multiAvailability({unitId:unit,date,services:[{serviceId:'w3c-maint'},{serviceId:'w3c-mani'},{serviceId:'w3c-pedi'}]});ok(r.visits[0].visitDurationMin<=120,'menor duração total com paralelismo é priorizada');
 console.log(JSON.stringify({ok:true,checks,feature:'wa3c1_multi_service_availability'}));
 }finally{await cleanup().catch(()=>{});await prisma.$disconnect()}

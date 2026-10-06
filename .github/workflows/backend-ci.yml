@@ -84,6 +84,8 @@ jobs:
         run: npm run test:wa3c2
       - name: WA3C.3 authoritative multi-service creation
         run: npm run test:wa3c3
+      - name: WA3C.4 regressions and parity
+        run: npm run test:wa3c4
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract

@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+const root=path.resolve(process.cwd(),'..');
+const read=p=>fs.readFileSync(path.join(root,p),'utf8');
+let checks=0;const ok=(v,m)=>{checks++;assert.ok(v,m)};
+const availability=read('backend/src/core/booking-availability.service.ts');
+const creation=read('backend/src/core/booking-creation.service.ts');
+const publicController=read('backend/src/core/public-booking.controller.ts');
+const agentController=read('backend/src/core/whatsapp-agent.controller.ts');
+const frontend=read('index.html');
+
+ok(availability.includes('PUBLIC_BOOKING_SLOT_MINUTES=15'),'backend preserva grid público de 15 minutos');
+ok(frontend.includes('anchor+=15'),'frontend público preserva grid de 15 minutos');
+ok(frontend.includes('clientServicePairIssue')&&frontend.includes('mustFinishBeforeSameArea'),'frontend possui regra canônica de clientArea/ordem');
+ok(availability.includes('mustFinishBeforeSameArea')&&availability.includes("clientArea==='none'"),'backend reutiliza clientArea e mustFinishBeforeSameArea');
+ok(frontend.includes('function maximumMatching(demands,stations)'),'V77 possui maximum matching de estações');
+ok(availability.includes('stationToDemand')&&availability.includes('allowedCategoryIds'),'disponibilidade backend usa matching de Workstation/allowedCategoryIds');
+ok(creation.includes("['physical|'")+creation.includes('Capacidade física da unidade esgotada'),'criação autoritativa bloqueia corrida de capacidade física');
+ok(creation.includes('Serviços incompatíveis da mesma área não podem se sobrepor'),'criação revalida incompatibilidade da mesma clientArea');
+ok(publicController.includes('this.creation.createPublicBooking(body,key)'),'POST público continua na camada canônica de criação');
+ok(agentController.includes("@UseGuards(WhatsappAgentGuard)")&&agentController.includes("@Post('availability/multi')")&&agentController.includes("@Post('bookings/multi')"),'endpoints multi permanecem server-to-server protegidos');
+ok(!creation.includes('MessagingOutbox')&&!creation.includes('messagingOutbox.create'),'WA3C não cria outbound');
+const migrations=fs.readdirSync(path.join(root,'backend/prisma/migrations'));
+ok(!migrations.some(x=>/wa3c/i.test(x)),'WA3C não adicionou migration');
+ok(availability.includes('preferencePenalty')&&availability.includes("mode==='required'"),'preferred e required permanecem distintos');
+ok(availability.includes('visitDurationMin')&&availability.includes('a.visitDurationMin-b.visitDurationMin'),'resultado prioriza menor duração total deterministicamente');
+console.log(JSON.stringify({ok:true,checks,feature:'wa3c4_regression_parity'}));
