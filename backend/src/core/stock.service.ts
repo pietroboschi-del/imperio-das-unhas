@@ -113,8 +113,8 @@ export class StockService {
     return this.prisma.$transaction(async tx=>{
       const prior=await tx.stockPurchase.findUnique({where:{idempotencyKey:idem},include:{items:true}});if(prior)return prior;
       const products=await this.productsByIds(tx,raw.map((x:any)=>String(x.productId)));
-      const lines=raw.map((x:any,i:number)=>({productId:String(x.productId),qty:Number(x.qty),unitCost:Number(x.unitCost),sortOrder:i}));if(lines.some(x=>!(x.qty>0)||x.unitCost<0||!Number.isFinite(x.unitCost)))throw new ConflictException('Quantidade/custo inválido na compra');
-      const goods=lines.reduce((s,x)=>s+x.qty*x.unitCost,0),freight=Math.max(0,Number(body.freight||0)),total=goods+freight,purchaseId=randomUUID();
+      const lines:{productId:string;qty:number;unitCost:number;sortOrder:number}[]=raw.map((x:any,i:number)=>({productId:String(x.productId),qty:Number(x.qty),unitCost:Number(x.unitCost),sortOrder:i}));if(lines.some((x:{productId:string;qty:number;unitCost:number;sortOrder:number})=>!(x.qty>0)||x.unitCost<0||!Number.isFinite(x.unitCost)))throw new ConflictException('Quantidade/custo inválido na compra');
+      const goods=lines.reduce((s:number,x:{productId:string;qty:number;unitCost:number;sortOrder:number})=>s+x.qty*x.unitCost,0),freight=Math.max(0,Number(body.freight||0)),total=goods+freight,purchaseId=randomUUID();
       const row=await tx.stockPurchase.create({data:{id:purchaseId,destinationLocationId:locationId,purchaseDate:dateOnly(body.purchaseDate),supplier:String(body.supplier||'').trim()||'Não informado',freight:D(freight,2),goodsTotal:D(goods,2),total:D(total,2),note:String(body.note||'').trim()||null,createdByUserId:p.userId,idempotencyKey:idem}});
       for(const line of lines){
         products.get(line.productId);
@@ -173,7 +173,7 @@ export class StockService {
     return this.prisma.$transaction(async tx=>{
       const prior=await tx.stockTransfer.findUnique({where:{idempotencyKey:idem},include:{items:true}});if(prior)return prior;
       await this.productsByIds(tx,raw.map((x:any)=>String(x.productId)));const seen=new Set<string>(),items=raw.map((x:any,i:number)=>{const productId=String(x.productId),qty=Number(x.qty);if(seen.has(productId))throw new ConflictException('Produto repetido na transferência');seen.add(productId);if(!(qty>0))throw new ConflictException('Quantidade inválida');return {productId,qty,sortOrder:i}});
-      const id=randomUUID();await tx.stockTransfer.create({data:{id,sourceLocationId,destinationLocationId,transferDate:dateOnly(body.transferDate),status:'SEPARATED',note:String(body.note||'').trim()||null,createdByUserId:p.userId,idempotencyKey:idem,items:{create:items.map(x=>({productId:x.productId,qty:D(x.qty),sortOrder:x.sortOrder}))}}});
+      const id=randomUUID();await tx.stockTransfer.create({data:{id,sourceLocationId,destinationLocationId,transferDate:dateOnly(body.transferDate),status:'SEPARATED',note:String(body.note||'').trim()||null,createdByUserId:p.userId,idempotencyKey:idem,items:{create:items.map((x:{productId:string;qty:number;sortOrder:number})=>({productId:x.productId,qty:D(x.qty),sortOrder:x.sortOrder}))}}});
       await tx.auditEvent.create({data:{id:randomUUID(),userId:p.userId,action:'stock.transfer.separated',entityType:'StockTransfer',entityId:id,legacyPayload:{stock:true,sourceLocationId,destinationLocationId},occurredAt:new Date()}});
       return tx.stockTransfer.findUniqueOrThrow({where:{id},include:{items:true}});
     });
