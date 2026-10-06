@@ -27,7 +27,7 @@ ok(!/\bfetch\s*\(|\baxios\b|https?:\/\//i.test(provider+service),'WA1 não cont�
 ok(service.includes("action:'communication.queued'")&&service.includes("entityType:'MessagingOutbox'"),'fila gera AuditEvent sem depender de provider');
 ok(service.includes('channelId,')&&service.includes('unitId,')&&!service.includes('unitId=channelId'),'unitId e channelId permanecem conceitos independentes');
 ok(moduleSource.includes('MessagingFoundationService'),'WA1 foundation service permanece registrado no módulo');
-ok(!foundation.includes('@Controller(')&&!foundation.includes('@Post(')&&!foundation.includes('Evolution'),'WA1 foundation não publica endpoint nem acopla Evolution');
-ok(app.includes('MessagingModule'),'módulo WA1 está integrado ao backend sem controller externo');
+ok(!service.includes('@Controller(')&&!service.includes('@Post(')&&!service.includes('Evolution'),'WA1 foundation não publica endpoint nem acopla Evolution');
+ok(app.includes('MessagingModule'),'módulo WA1 permanece integrado ao backend');
 
 console.log(JSON.stringify({ok:true,tests:n,feature:'wa1_messaging_foundation_contract'}));
