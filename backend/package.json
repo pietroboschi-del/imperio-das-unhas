@@ -49,6 +49,7 @@
     "test:xlsx-legacy-layout": "node test/v99-client-excel-legacy-layout.contract.mjs",
     "test:catalog-config": "node test/v99-catalog-config.integration.mjs && node test/v99-unit-public-profile.integration.mjs",
     "test:wa1": "node test/wa1-messaging-foundation.contract.mjs && node test/wa1-messaging-foundation.integration.mjs",
+    "test:wa2": "node test/wa2-evolution-messaging.contract.mjs && node test/wa2-evolution-messaging.integration.mjs",
     "diagnostic:three-units": "node tools/three-unit-readiness.mjs"
   },
   "dependencies": {

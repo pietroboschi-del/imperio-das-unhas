@@ -35,6 +35,7 @@ jobs:
       SHADOW_READS_ENABLED: "false"
       OPERATIONAL_WRITES_ENABLED: "false"
       WHATSAPP_AUTOMATION_ENABLED: "false"
+      EVOLUTION_WEBHOOK_ENABLED: "false"
       ADMIN_USERNAME: ci_owner
       ADMIN_PASSWORD: ci-owner-password-123
       ADMIN_NAME: CI Owner
@@ -67,6 +68,8 @@ jobs:
         run: npm run typecheck
       - name: WA1 messaging foundation
         run: npm run test:wa1
+      - name: WA2 Evolution messaging
+        run: npm run test:wa2
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract

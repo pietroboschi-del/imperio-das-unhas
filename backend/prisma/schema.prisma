@@ -42,6 +42,20 @@ enum MessagingOutboxStatus {
   CANCELLED
 }
 
+enum MessagingInboundType {
+  TEXT
+  IMAGE
+  DOCUMENT
+  UNKNOWN
+}
+
+enum MessagingInboundProcessingStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
 model Unit {
   id           String   @id
   name         String
@@ -358,6 +372,7 @@ model MessagingChannel {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
   outbox    MessagingOutbox[]
+  inbound   MessagingInbound[]
 
   @@index([enabled])
 }
@@ -395,6 +410,39 @@ model MessagingOutbox {
   @@index([bookingId])
   @@index([commandId])
   @@index([channelId, providerMessageId])
+}
+
+model MessagingInbound {
+  id                     String                            @id @default(cuid())
+  provider               String
+  channelId              String?
+  providerMessageId      String
+  providerConversationId String?
+  senderPhone            String
+  recipientInstance      String
+  messageType            MessagingInboundType
+  textBody               String?
+  mediaMetadata          Json?
+  providerTimestamp      DateTime?
+  receivedAt             DateTime                          @default(now())
+  rawMetadata            Json
+  processingStatus       MessagingInboundProcessingStatus @default(RECEIVED)
+  unitId                 String?
+  clientId               String?
+  bookingId              String?
+  commandId              String?
+  threadRef              String?
+  deduplicationKey       String                            @unique
+  contentHash            String
+  channel                MessagingChannel?                 @relation(fields: [channelId], references: [id], onDelete: Restrict)
+
+  @@index([provider, providerMessageId])
+  @@index([channelId, receivedAt])
+  @@index([senderPhone, receivedAt])
+  @@index([clientId, receivedAt])
+  @@index([bookingId])
+  @@index([commandId])
+  @@index([processingStatus, receivedAt])
 }
 
 model MigrationEnvelope {
