@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { isMessagingChannelId, whatsappAutomationEnabled } from './messaging-channels';
 import { MESSAGING_PROVIDER, MessagingProvider, MessagingProviderError } from './messaging.provider';
+import { messagingSendingStaleMs } from './messaging-dispatch-config';
 
 export type DispatchOutcome='SENT'|'FAILED'|'SKIPPED'|'NOT_FOUND';
 function retryAt(attempt:number,now:Date){
@@ -64,9 +65,55 @@ export class MessagingDispatchService {
       return {outcome:'FAILED',id,status:MessagingOutboxStatus.FAILED};
     }
   }
+  async recoverStaleSending(limit=50,now=new Date()){
+    const safeLimit=Math.min(100,Math.max(1,Math.trunc(limit||50)));
+    const staleMs=messagingSendingStaleMs();
+    const cutoff=new Date(now.getTime()-staleMs);
+    const rows=await this.prisma.messagingOutbox.findMany({
+      where:{status:MessagingOutboxStatus.SENDING,lastAttemptAt:{lt:cutoff}},
+      select:{id:true,unitId:true,channelId:true,messageType:true,trigger:true,attempts:true},
+      orderBy:{lastAttemptAt:'asc'},
+      take:safeLimit,
+    });
+    const recovered:string[]=[];
+    for(const row of rows){
+      const changed=await this.prisma.$transaction(async tx=>{
+        const updated=await tx.messagingOutbox.updateMany({
+          where:{id:row.id,status:MessagingOutboxStatus.SENDING,lastAttemptAt:{lt:cutoff}},
+          data:{
+            status:MessagingOutboxStatus.FAILED,
+            lastError:'Previous send attempt did not complete',
+            nextAttemptAt:retryAt(row.attempts,now),
+          },
+        });
+        if(updated.count!==1)return false;
+        await tx.auditEvent.create({data:{
+          id:randomUUID(),
+          unitId:row.unitId,
+          action:'communication.send_recovered',
+          entityType:'MessagingOutbox',
+          entityId:row.id,
+          legacyPayload:{
+            provider:this.provider.providerName,
+            channelId:row.channelId,
+            messageType:row.messageType,
+            trigger:row.trigger,
+            attempts:row.attempts,
+            staleMs,
+          },
+          occurredAt:now,
+        }});
+        return true;
+      });
+      if(changed)recovered.push(row.id);
+    }
+    return {recovered:recovered.length,ids:recovered,staleMs,cutoff};
+  }
+
   async processPending(limit=10){
-    if(!whatsappAutomationEnabled())return [];
     const safeLimit=Math.min(50,Math.max(1,Math.trunc(limit||10))),now=new Date();
+    await this.recoverStaleSending(safeLimit,now);
+    if(!whatsappAutomationEnabled())return [];
     const rows=await this.prisma.messagingOutbox.findMany({
       where:{status:{in:[MessagingOutboxStatus.PENDING,MessagingOutboxStatus.FAILED]},OR:[{nextAttemptAt:null},{nextAttemptAt:{lte:now}}]},
       select:{id:true},orderBy:{createdAt:'asc'},take:safeLimit,

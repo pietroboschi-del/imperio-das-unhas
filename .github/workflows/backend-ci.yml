@@ -36,6 +36,7 @@ jobs:
       OPERATIONAL_WRITES_ENABLED: "false"
       WHATSAPP_AUTOMATION_ENABLED: "false"
       EVOLUTION_WEBHOOK_ENABLED: "false"
+      MESSAGING_SENDING_STALE_MS: "300000"
       ADMIN_USERNAME: ci_owner
       ADMIN_PASSWORD: ci-owner-password-123
       ADMIN_NAME: CI Owner
@@ -70,6 +71,8 @@ jobs:
         run: npm run test:wa1
       - name: WA2 Evolution messaging
         run: npm run test:wa2
+      - name: WA2.1 stale SENDING recovery
+        run: npm run test:wa2.1
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract
