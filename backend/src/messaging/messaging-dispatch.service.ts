@@ -25,7 +25,7 @@ export class MessagingDispatchService {
       const row=await tx.messagingOutbox.findUnique({where:{id},include:{channel:true}});
       if(!row)return null;
       if(!row.channel.enabled)return {blocked:true,row} as const;
-      if(![MessagingOutboxStatus.PENDING,MessagingOutboxStatus.FAILED].includes(row.status))return {blocked:true,row} as const;
+      if(row.status!==MessagingOutboxStatus.PENDING&&row.status!==MessagingOutboxStatus.FAILED)return {blocked:true,row} as const;
       if(row.nextAttemptAt&&row.nextAttemptAt>now)return {blocked:true,row} as const;
       const updated=await tx.messagingOutbox.updateMany({
         where:{id:row.id,status:row.status,attempts:row.attempts},

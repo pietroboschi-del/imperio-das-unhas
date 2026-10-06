@@ -87,10 +87,10 @@ export class MessagingInboundService {
   }
   private nextStatus(current:MessagingOutboxStatus,target:ParsedEvolutionStatus['targetStatus']):MessagingOutboxStatus|null{
     if(current===MessagingOutboxStatus.CANCELLED)return null;
-    if(target==='SENT'){if([MessagingOutboxStatus.SENT,MessagingOutboxStatus.DELIVERED,MessagingOutboxStatus.READ].includes(current))return null;return MessagingOutboxStatus.SENT}
-    if(target==='DELIVERED'){if([MessagingOutboxStatus.DELIVERED,MessagingOutboxStatus.READ].includes(current))return null;return MessagingOutboxStatus.DELIVERED}
+    if(target==='SENT'){if(current===MessagingOutboxStatus.SENT||current===MessagingOutboxStatus.DELIVERED||current===MessagingOutboxStatus.READ)return null;return MessagingOutboxStatus.SENT}
+    if(target==='DELIVERED'){if(current===MessagingOutboxStatus.DELIVERED||current===MessagingOutboxStatus.READ)return null;return MessagingOutboxStatus.DELIVERED}
     if(target==='READ'){if(current===MessagingOutboxStatus.READ)return null;return MessagingOutboxStatus.READ}
-    if([MessagingOutboxStatus.DELIVERED,MessagingOutboxStatus.READ,MessagingOutboxStatus.FAILED].includes(current))return null;
+    if(current===MessagingOutboxStatus.DELIVERED||current===MessagingOutboxStatus.READ||current===MessagingOutboxStatus.FAILED)return null;
     return MessagingOutboxStatus.FAILED;
   }
   private async auditReplayConflict(existingId:string,input:ParsedEvolutionInbound){
