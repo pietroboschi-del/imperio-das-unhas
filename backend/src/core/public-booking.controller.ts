@@ -5,12 +5,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { Public } from '../common/public.decorator';
 import { assertOperationalWriteEnabled, operationalWriteStatus } from '../common/operational-write-gate';
 import { PublicBookingDto, PublicBookingItemDto } from './public-booking.dto';
+import { BookingAvailabilityService } from './booking-availability.service';
 
 const TERMINAL=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
 
 @Controller('api/v1/public')
 export class PublicBookingController {
- constructor(private readonly prisma:PrismaService){}
+ constructor(private readonly prisma:PrismaService,private readonly availability:BookingAvailabilityService){}
  private id(scope:string,key?:string){const k=String(key||'').trim();return k?'pub_'+createHash('sha256').update(scope+'|'+k).digest('hex').slice(0,40):randomUUID()}
  private startAt(value:string){const iso=value.length===16?value+':00-03:00':value+'-03:00';const date=new Date(iso);if(Number.isNaN(date.getTime()))throw new ConflictException('Horário inválido');return date}
  private normName(v:string){return String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
@@ -28,37 +29,17 @@ export class PublicBookingController {
 
  @Public() @Get('catalog')
  async catalog(@Query('unitId') unitId=''){
-  const requested=String(unitId||'').trim();if(!requested)throw new ConflictException('Unidade é obrigatória');
-  const unit=await this.prisma.unit.findFirst({where:{id:requested,active:true},select:{id:true,name:true,timezone:true}});if(!unit)throw new NotFoundException('Unidade indisponível');
-  const [serviceRows,links]=await Promise.all([
-   this.prisma.service.findMany({where:{active:true},select:{id:true,name:true,price:true,durationMin:true,categoryId:true,legacyPayload:true,category:{select:{id:true,name:true,active:true}}},orderBy:{name:'asc'}}),
-   this.prisma.professionalUnit.findMany({where:{unitId:requested,active:true,professional:{active:true}},select:{professional:{select:{id:true,name:true,publicName:true,legacyPayload:true}}},orderBy:{professionalId:'asc'}}),
-  ]);
-  const services=serviceRows.map(s=>({row:s,config:this.obj(s.legacyPayload)}))
-   .filter(x=>x.config.show!==false&&x.config.online!==false)
-   .sort((a,b)=>(Number(a.config.websiteOrder||0)-Number(b.config.websiteOrder||0))||a.row.name.localeCompare(b.row.name))
-   .map(({row:s,config})=>({
-    id:s.id,name:s.name,categoryId:s.categoryId||null,category:s.category&&s.category.active?{id:s.category.id,name:s.category.name}:null,
-    price:config.showPrice===false?null:Number(s.price),durationMin:s.durationMin,showPrice:config.showPrice!==false,
-    priceMode:String(config.priceMode||'fixed'),publicDescription:String(config.publicDescription||config.description||''),
-    coverImage:String(config.coverImage||''),gallery:Array.isArray(config.gallery)?config.gallery.filter((x:any)=>typeof x==='string'):[],
-    websiteOrder:Number(config.websiteOrder||0),clientArea:String(config.clientArea||'none'),
-   }));
-  const publicServiceIds=new Set(services.map(s=>s.id));
-  const professionals=links.map(({professional:p})=>{
-   const config=this.obj(p.legacyPayload);if(config.show===false||config.online===false)return null;
-   const ownServices=Array.isArray(config.services)?config.services.map(String):[],schedule=Object.fromEntries(Object.entries(this.obj(config.schedule)).filter(([key])=>key.startsWith(requested+'-')));
-   const serviceRules:Record<string,{durationMin:number;price:number|null}>={};
-   for(const service of serviceRows){
-    if(!publicServiceIds.has(service.id))continue;
-    const serviceConfig=this.obj(service.legacyPayload),rules=this.obj(serviceConfig.proRules),r=this.obj(rules[p.id]);
-    const enabled=Object.prototype.hasOwnProperty.call(r,'enabled')?r.enabled===true:ownServices.includes(service.id);if(!enabled||r.online===false)continue;
-    serviceRules[service.id]={durationMin:Math.max(1,Number(r.duration??service.durationMin)),price:serviceConfig.showPrice===false?null:Number(r.price??service.price)};
-   }
-   const serviceIds=Object.keys(serviceRules);if(!serviceIds.length)return null;
-   return {id:p.id,name:p.publicName||p.name,publicName:p.publicName||p.name,specialty:String(config.specialty||''),bio:String(config.bio||''),photo:String(config.photo||''),schedule,serviceIds,serviceRules};
-  }).filter(Boolean).sort((a:any,b:any)=>String(a.publicName).localeCompare(String(b.publicName)));
-  const bookingEnabled=operationalWriteStatus(requested).unitEnabled&&professionals.some((p:any)=>this.workingSchedule(p.schedule));return {unit,bookingEnabled,services,professionals};
+  return this.availability.catalog(unitId);
+ }
+
+ @Public() @Get('availability')
+ async available(
+  @Query('unitId') unitId='',
+  @Query('date') date='',
+  @Query('serviceId') serviceId='',
+  @Query('professionalId') professionalId='',
+ ){
+  return this.availability.availability({unitId,date,serviceId,professionalId:professionalId||undefined});
  }
 
  @Public() @Get('occupancy')
