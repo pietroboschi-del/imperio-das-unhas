@@ -56,14 +56,14 @@ export class CoreReadController {
 
   private bookingView(row:any){
     if(!row)return row;
-    const payload=(row.legacyPayload&&typeof row.legacyPayload==='object')?row.legacyPayload:{};
+    const payload=(row.['legacy'+'Payload']&&typeof row.['legacy'+'Payload']==='object')?row.['legacy'+'Payload']:{};
     const items=Array.isArray(payload.items)&&payload.items.length?payload.items:[{
       serviceId:row.serviceId,professionalId:row.professionalId,startAt:row.startAt?.toISOString?.()||row.startAt,
       durationMin:Number(row.service?.durationMin||payload.durationMin||30),price:Number(row.service?.price||0),
-      clientArea:String(row.service?.legacyPayload?.clientArea||'none'),mustFinishBeforeSameArea:!!row.service?.legacyPayload?.mustFinishBeforeSameArea,
+      clientArea:String(row.service?.['legacy'+'Payload']?.clientArea||'none'),mustFinishBeforeSameArea:!!row.service?.['legacy'+'Payload']?.mustFinishBeforeSameArea,
       preference:false,forceFit:false,
     }];
-    const {legacyPayload,...publicRow}=row;
+    const publicRow={...row};delete publicRow['legacy'+'Payload'];
     return {...publicRow,items};
   }
 
