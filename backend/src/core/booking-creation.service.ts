@@ -27,6 +27,7 @@ type CanonicalInput={
  strictIdempotency:boolean;
  requireGrid:boolean;
  requirePhysicalCapacity?:boolean;
+ idempotencyHashOverride?:string;
 };
 
 function obj(value:any){return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}
@@ -159,6 +160,20 @@ export class BookingCreationService {
   if(new Set(requestedIds).size!==requestedIds.length||new Set(itemIds).size!==itemIds.length||requestedIds.some(id=>!itemIds.includes(id))){
    throw new ConflictException('A seleção de itens não corresponde aos serviços solicitados');
   }
+  const directHash=createHash('sha256').update(JSON.stringify({
+   unitId:body.unitId,date:body.date,services:body.services,
+   items:body.items.map(x=>({serviceId:x.serviceId,professionalId:x.professionalId,startAt:new Date(x.startAt).toISOString()})),
+   clientId:body.clientId||null,clientName:body.clientName?.trim()||null,
+   clientPhone:body.clientPhone?phone(body.clientPhone):null,clientEmail:body.clientEmail?.trim().toLowerCase()||null,
+   channelId,
+  })).digest('hex');
+  const expectedBookingId=operationId('whatsapp-agent-booking',idempotencyKey,'wa_');
+  const existing=await this.prisma.booking.findUnique({where:{id:expectedBookingId},include:{items:true}});
+  if(existing){
+   this.verifyExisting(existing,directHash,true);
+   return this.multiBookingView(existing.id,body.date);
+  }
+
   const result=await this.availability.multiAvailability({unitId:body.unitId,date:body.date,services:body.services});
   if(!result.bookingEnabled)throw new ServiceUnavailableException('Agendamento online não está habilitado nesta unidade');
   const normalized=body.items.map(x=>{
@@ -179,15 +194,19 @@ export class BookingCreationService {
    }),
    clientId:body.clientId,clientName:body.clientName,clientPhone:body.clientPhone,clientEmail:body.clientEmail,
    source:'whatsapp_agent',authorType:'AGENT',auditAction:'booking.created_from_whatsapp',channelId,
-   key:idempotencyKey,strictIdempotency:true,requireGrid:true,requirePhysicalCapacity:true,
+   key:idempotencyKey,strictIdempotency:true,requireGrid:true,requirePhysicalCapacity:true,idempotencyHashOverride:directHash,
   });
-  const detail=await this.prisma.booking.findUniqueOrThrow({where:{id:row.id},select:{
+  return this.multiBookingView(row.id,body.date);
+ }
+
+ private async multiBookingView(bookingId:string,date:string){
+  const detail=await this.prisma.booking.findUniqueOrThrow({where:{id:bookingId},select:{
    id:true,unitId:true,clientId:true,status:true,
    items:{orderBy:{sortOrder:'asc'},select:{startAt:true,durationMin:true,unitPrice:true,service:{select:{id:true,name:true}},professional:{select:{id:true,name:true,publicName:true}}}},
   }});
   const starts=detail.items.map(x=>x.startAt.getTime()),ends=detail.items.map(x=>x.startAt.getTime()+x.durationMin*60000);
   return {
-   bookingId:detail.id,unitId:detail.unitId,clientId:detail.clientId,status:detail.status,date:body.date,
+   bookingId:detail.id,unitId:detail.unitId,clientId:detail.clientId,status:detail.status,date,
    visitStartAt:new Date(Math.min(...starts)).toISOString(),visitEndAt:new Date(Math.max(...ends)).toISOString(),
    items:detail.items.map(x=>({service:{id:x.service!.id,name:x.service!.name},professional:{id:x.professional.id,name:x.professional.publicName||x.professional.name},startAt:x.startAt.toISOString(),durationMin:x.durationMin,price:Number(x.unitPrice)})),
   };
@@ -275,7 +294,7 @@ export class BookingCreationService {
   const bookingId=input.strictIdempotency
    ?operationId('whatsapp-agent-booking',key,'wa_')
    :operationId(input.unitId+'|site-booking',key,'pub_');
-  const idempotencyHash=input.strictIdempotency?hashAgentPayload(input):null;
+  const idempotencyHash=input.strictIdempotency?(input.idempotencyHashOverride||hashAgentPayload(input)):null;
 
   const existingBefore=await this.prisma.booking.findUnique({where:{id:bookingId},include:{items:true}});
   if(existingBefore)return this.verifyExisting(existingBefore,idempotencyHash,input.strictIdempotency);
