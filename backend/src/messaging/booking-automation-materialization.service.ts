@@ -28,7 +28,7 @@ export class BookingAutomationMaterializationService {
     const booking=await this.prisma.booking.findUnique({
       where:{id:bookingId},
       select:{
-        id:true,unitId:true,clientId:true,status:true,version:true,createdAt:true,legacyPayload:true,
+        id:true,unitId:true,clientId:true,status:true,version:true,createdAt:true,updatedAt:true,legacyPayload:true,
         items:{
           orderBy:{sortOrder:'asc'},
           select:{id:true,serviceId:true,professionalId:true,startAt:true,durationMin:true,sortOrder:true},
@@ -51,7 +51,7 @@ export class BookingAutomationMaterializationService {
     const visitEndAt=new Date(Math.max(...ends));
     const legacy=obj(booking.legacyPayload);
     const serviceIds=serviceItems.map(item=>String(item.serviceId));
-    const now=new Date();
+    const eventAt=generation===1?booking.createdAt:booking.updatedAt;
     const payloadBase={
       bookingVersion:booking.version,
       bookingStatus:booking.status,
@@ -65,11 +65,11 @@ export class BookingAutomationMaterializationService {
     } satisfies Record<string,Prisma.JsonValue>;
 
     const specs:Array<{automationType:string;scheduledAt:Date;payload:Prisma.InputJsonValue}>=[
-      {automationType:'BOOKING_CONFIRMATION',scheduledAt:now,payload:{...payloadBase,phase:'INITIAL_CONFIRMATION'} as Prisma.InputJsonValue},
-      {automationType:'SIGNAL_REQUEST',scheduledAt:now,payload:{...payloadBase,phase:'SIGNAL_LOGICAL_ONLY',financialDecision:'DEFERRED_TO_WA6'} as Prisma.InputJsonValue},
+      {automationType:'BOOKING_CONFIRMATION',scheduledAt:eventAt,payload:{...payloadBase,phase:'INITIAL_CONFIRMATION'} as Prisma.InputJsonValue},
+      {automationType:'SIGNAL_REQUEST',scheduledAt:eventAt,payload:{...payloadBase,phase:'SIGNAL_LOGICAL_ONLY',financialDecision:'DEFERRED_TO_WA6'} as Prisma.InputJsonValue},
     ];
 
-    const signalReminderAt=new Date(now.getTime()+DAY_MS);
+    const signalReminderAt=new Date(eventAt.getTime()+DAY_MS);
     if(signalReminderAt.getTime()<visitStartAt.getTime()){
       specs.push({
         automationType:'SIGNAL_REMINDER',
@@ -78,12 +78,12 @@ export class BookingAutomationMaterializationService {
       });
     }
 
-    const leadMs=visitStartAt.getTime()-now.getTime();
+    const leadMs=visitStartAt.getTime()-eventAt.getTime();
     const appointmentReminderAt=
       leadMs>=DAY_MS?new Date(visitStartAt.getTime()-DAY_MS):
       leadMs>2*HOUR_MS?new Date(visitStartAt.getTime()-2*HOUR_MS):
       null;
-    if(appointmentReminderAt&&appointmentReminderAt.getTime()>=now.getTime()){
+    if(appointmentReminderAt&&appointmentReminderAt.getTime()>=eventAt.getTime()){
       specs.push({
         automationType:'APPOINTMENT_REMINDER',
         scheduledAt:appointmentReminderAt,
