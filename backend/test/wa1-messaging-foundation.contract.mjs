@@ -26,7 +26,8 @@ ok(provider.includes('export interface MessagingProvider')&&provider.includes('s
 ok(!/\bfetch\s*\(|\baxios\b|https?:\/\//i.test(provider+service),'WA1 não contém chamada externa');
 ok(service.includes("action:'communication.queued'")&&service.includes("entityType:'MessagingOutbox'"),'fila gera AuditEvent sem depender de provider');
 ok(service.includes('channelId,')&&service.includes('unitId,')&&!service.includes('unitId=channelId'),'unitId e channelId permanecem conceitos independentes');
-ok(moduleSource.includes('providers:[MessagingFoundationService]')&&!moduleSource.includes('controllers:'),'WA1 não publica endpoint de provider/webhook');
+ok(moduleSource.includes('MessagingFoundationService'),'WA1 foundation service permanece registrado no módulo');
+ok(!foundation.includes('@Controller(')&&!foundation.includes('@Post(')&&!foundation.includes('Evolution'),'WA1 foundation não publica endpoint nem acopla Evolution');
 ok(app.includes('MessagingModule'),'módulo WA1 está integrado ao backend sem controller externo');
 
 console.log(JSON.stringify({ok:true,tests:n,feature:'wa1_messaging_foundation_contract'}));
