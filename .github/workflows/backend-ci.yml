@@ -108,6 +108,8 @@ jobs:
         run: npm run test:wa5.3
       - name: WA5.4 temporal automation rules
         run: npm run test:wa5.4
+      - name: WA5.5 waitlist offer automation
+        run: npm run test:wa5.5
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract

@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BookingAvailabilityService, MultiServiceSpec } from './booking-availability.service';
+import { WaitlistAutomationMaterializationService } from '../messaging/waitlist-automation-materialization.service';
 
 export type WaitlistOpportunitySource=
  'EXISTING_AVAILABILITY'|'CANCELLATION'|'RESCHEDULE'|'SERVICE_CHANGE'|'UNBLOCK'|
@@ -28,7 +29,11 @@ function dateAllowed(date:string,legacy:any){
 
 @Injectable()
 export class WaitlistOpportunityService {
- constructor(private readonly prisma:PrismaService,private readonly availability:BookingAvailabilityService){}
+ constructor(
+  private readonly prisma:PrismaService,
+  private readonly availability:BookingAvailabilityService,
+  @Optional() private readonly waitlistAutomations?:WaitlistAutomationMaterializationService,
+ ){}
 
  async reevaluateForAvailabilityEvent(event:AvailabilityEvent){
   const rows=await this.prisma.waitlistRequest.findMany({
@@ -106,6 +111,7 @@ export class WaitlistOpportunityService {
      await tx.auditEvent.create({data:{id:randomUUID(),unitId:c.request.unitId,action:'waitlist.offer_candidate_ready',entityType:'WaitlistOpportunity',entityId:id,legacyPayload:{requestId:c.request.id,offeredUnitId:event.unitId,serviceIds:legacy.serviceIds,offerState:'CONTACT_PENDING',source:'WA4'},occurredAt:new Date()}});
     }
    });
+   if(this.waitlistAutomations)await this.waitlistAutomations.materializeOfferCandidate(id);
    created.push({id,requestId:c.request.id,unitId:event.unitId,classification,...c.option});
   }
   return created;
