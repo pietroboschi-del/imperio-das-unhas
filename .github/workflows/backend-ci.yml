@@ -110,6 +110,8 @@ jobs:
         run: npm run test:wa5.4
       - name: WA5.5 waitlist offer automation
         run: npm run test:wa5.5
+      - name: WA5.6 post-service automation
+        run: npm run test:wa5.6
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract

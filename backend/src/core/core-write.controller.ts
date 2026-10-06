@@ -1,4 +1,4 @@
-import { Body, ConflictException, Controller, Headers, NotFoundException, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, ConflictException, Controller, Headers, NotFoundException, Optional, Param, Patch, Post, Req } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,6 +10,7 @@ import { BookingItemWriteDto, CreateBlockSeriesDto, CreateBookingDto, CreateClie
 import { WaitlistOpportunityService } from './waitlist-opportunity.service';
 import { BookingAutomationMaterializationService } from '../messaging/booking-automation-materialization.service';
 import { BookingAutomationLifecycleService } from '../messaging/booking-automation-lifecycle.service';
+import { PostServiceAutomationMaterializationService } from '../messaging/post-service-automation-materialization.service';
 
 const TERMINAL_BOOKING=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
 
@@ -20,6 +21,7 @@ export class CoreWriteController {
     private readonly waitlistOpportunities:WaitlistOpportunityService,
     private readonly bookingAutomations:BookingAutomationMaterializationService,
     private readonly bookingAutomationLifecycle:BookingAutomationLifecycleService,
+    @Optional() private readonly postServiceAutomations?:PostServiceAutomationMaterializationService,
   ) {}
 
   private operationId(scope:string,key?:string){
@@ -198,6 +200,7 @@ export class CoreWriteController {
     const beforeSig=before.items.map(x=>[x.professionalId,x.startAt.toISOString(),x.durationMin,x.serviceId||''].join('|')).sort().join('~');
     const afterSig=(after?.items||[]).map(x=>[x.professionalId,x.startAt.toISOString(),x.durationMin,x.serviceId||''].join('|')).sort().join('~');
     const rescheduled=!!after&&(oldDate!==after.serviceDate.toISOString().slice(0,10)||beforeSig!==afterSig);
+    const completedTransition=before.status!=='Concluído'&&after?.status==='Concluído';
     if(!terminalBefore&&terminalAfter){
       await this.waitlistOpportunities.reevaluateForAvailabilityEvent({unitId:req.unitId!,date:oldDate,sourceType:'CANCELLATION',sourceBookingId:id,sourceReferenceId:id});
       await this.bookingAutomationLifecycle.cancelForBooking(id,'BOOKING_CANCELLED');
@@ -205,6 +208,7 @@ export class CoreWriteController {
       await this.waitlistOpportunities.reevaluateForAvailabilityEvent({unitId:req.unitId!,date:oldDate,sourceType:'RESCHEDULE',sourceBookingId:id,sourceReferenceId:id});
       await this.bookingAutomationLifecycle.replaceForReschedule(id);
     }
+    if(completedTransition&&this.postServiceAutomations)await this.postServiceAutomations.materializeCompletedBooking(id);
     return this.bookingView(req.unitId!,id);
   }
 }
