@@ -275,6 +275,12 @@ export class BookingCreationService {
     const lockKeys=[...new Set(prepared.map(x=>x.professionalId+'|'+firstDate))].sort();
     for(const lock of lockKeys)await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.unitId}), hashtext(${lock}))`;
 
+    // A second request with the same idempotency key may have entered before
+    // the first transaction committed. Re-read after the advisory lock so it
+    // converges to the committed booking instead of treating it as a slot race.
+    const afterLock=await tx.booking.findUnique({where:{id:bookingId},include:{items:true}});
+    if(afterLock)return this.verifyExisting(afterLock,idempotencyHash,input.strictIdempotency);
+
     for(let i=0;i<prepared.length;i++){
      const item=prepared[i],start=item.startAt.getTime(),end=start+item.durationMin*60000;
      for(let j=0;j<i;j++){
