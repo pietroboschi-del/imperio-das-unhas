@@ -311,11 +311,13 @@ model BookingItem {
   serviceId      String?
   professionalId String
   startAt        DateTime
-  durationMin    Int
-  unitPrice      Decimal  @db.Decimal(14,2)
+  durationMin    Int?
+  unitPrice      Decimal? @db.Decimal(14,2)
   preference     Boolean  @default(false)
   forceFit       Boolean  @default(false)
   sortOrder      Int      @default(0)
+  clientAreaSnapshot String?
+  mustFinishBeforeSameAreaSnapshot Boolean?
   legacyPayload  Json?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

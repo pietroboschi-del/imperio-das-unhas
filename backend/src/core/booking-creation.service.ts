@@ -344,7 +344,9 @@ export class BookingCreationService {
      prepared.push({
       id:'bi_'+createHash('sha256').update(bookingId+'|'+i).digest('hex').slice(0,40),
       bookingId,unitId:input.unitId,serviceId:it.serviceId,professionalId:it.professionalId,startAt,durationMin:duration,unitPrice,
-      preference:false,forceFit:false,sortOrder:i,legacyPayload:{source:input.source},
+      preference:false,forceFit:false,sortOrder:i,
+      clientAreaSnapshot:String(serviceLegacy.clientArea||'none'),mustFinishBeforeSameAreaSnapshot:serviceLegacy.mustFinishBeforeSameArea===true,
+      legacyPayload:{source:input.source,areaSnapshotSource:'service_at_write'},
       categoryId:service.categoryId||null,clientArea:String(serviceLegacy.clientArea||'none'),mustFinishBeforeSameArea:serviceLegacy.mustFinishBeforeSameArea===true,
      });
     }
@@ -369,7 +371,7 @@ export class BookingCreationService {
       if(other.professionalId===item.professionalId&&os<end&&oe>start)throw new ConflictException('Os serviços selecionados estão sobrepostos para a mesma profissional');
      }
      const allDayBlock=await tx.booking.findFirst({
-      where:{unitId:input.unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL},OR:[{professionalId:item.professionalId},{items:{some:{professionalId:item.professionalId}}}]},
+      where:{unitId:input.unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL},items:{some:{professionalId:item.professionalId}}},
       select:{id:true},
      });
      if(allDayBlock)throw new ConflictException('Horário bloqueado para esta profissional');
@@ -420,6 +422,20 @@ export class BookingCreationService {
     }
 
     const client=await this.resolveClient(tx,input);
+    const sameClientItems=await tx.bookingItem.findMany({
+     where:{unitId:input.unitId,booking:{clientId:client.id,serviceDate,status:{notIn:TERMINAL}}},
+     select:{startAt:true,durationMin:true,clientAreaSnapshot:true,mustFinishBeforeSameAreaSnapshot:true},
+    });
+    const areaConflict=(a:any,b:any)=>{
+     const areaA=a.clientAreaSnapshot,areaB=b.clientAreaSnapshot;
+     if(areaA==null||areaB==null||areaA==='none'||areaB==='none'||areaA!==areaB)return false;
+     if(a.mustFinishBeforeSameAreaSnapshot==null||b.mustFinishBeforeSameAreaSnapshot==null||a.durationMin==null||b.durationMin==null)return false;
+     const as=a.startAt.getTime(),bs=b.startAt.getTime(),ae=as+Number(a.durationMin)*60000,be=bs+Number(b.durationMin)*60000;
+     if(a.mustFinishBeforeSameAreaSnapshot&&!b.mustFinishBeforeSameAreaSnapshot&&bs<ae)return true;
+     if(b.mustFinishBeforeSameAreaSnapshot&&!a.mustFinishBeforeSameAreaSnapshot&&as<be)return true;
+     return as<be&&bs<ae;
+    };
+    for(const item of prepared)for(const other of sameClientItems)if(areaConflict(item,other))throw new ConflictException('Cliente já possui serviço incompatível na mesma área neste horário');
     await tx.clientUnitLink.upsert({
      where:{clientId_unitId:{clientId:client.id,unitId:input.unitId}},
      create:{clientId:client.id,unitId:input.unitId,source:input.source,active:true},

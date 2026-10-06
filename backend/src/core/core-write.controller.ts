@@ -88,30 +88,49 @@ export class CoreWriteController {
       const rule=service&&it.serviceId?(service.legacyPayload as any)?.proRules?.[it.professionalId]:null;
       const duration=Math.max(1,Number(it.durationMin??rule?.duration??service?.durationMin??30));
       const unitPrice=new Prisma.Decimal(Number(isBlock?0:(it.unitPrice??rule?.price??service?.price??0)).toFixed(2));
-      out.push({id:'bi_'+createHash('sha256').update(unitId+'|'+i+'|'+(it.serviceId||'block')+'|'+it.professionalId+'|'+it.startAt+'|'+randomUUID()).digest('hex').slice(0,40),unitId,serviceId:it.serviceId||null,professionalId:it.professionalId,startAt,durationMin:duration,unitPrice,preference:!!it.preference,forceFit:!!it.forceFit,sortOrder:i,legacyPayload:{source:'central_api'}});
+      const serviceConfig=service?.legacyPayload&&typeof service.legacyPayload==='object'&&!Array.isArray(service.legacyPayload)?service.legacyPayload as any:{};
+      out.push({id:'bi_'+createHash('sha256').update(unitId+'|'+i+'|'+(it.serviceId||'block')+'|'+it.professionalId+'|'+it.startAt+'|'+randomUUID()).digest('hex').slice(0,40),unitId,serviceId:it.serviceId||null,professionalId:it.professionalId,startAt,durationMin:duration,unitPrice,preference:!!it.preference,forceFit:!!it.forceFit,sortOrder:i,clientAreaSnapshot:isBlock?null:String(serviceConfig.clientArea||'none'),mustFinishBeforeSameAreaSnapshot:isBlock?null:serviceConfig.mustFinishBeforeSameArea===true,legacyPayload:{source:'central_api',areaSnapshotSource:isBlock?'not_applicable':'service_at_write'}});
     }
     return out;
   }
-  private async lockAndCheck(tx:Prisma.TransactionClient,unitId:string,serviceDate:string,bookingId:string|null,items:any[],status:string,blockAllDay=false){
+  private clientAreaConflict(a:any,b:any){
+    const areaA=a.clientAreaSnapshot,areaB=b.clientAreaSnapshot;
+    if(areaA==null||areaB==null||areaA==='none'||areaB==='none'||areaA!==areaB)return false;
+    if(a.mustFinishBeforeSameAreaSnapshot==null||b.mustFinishBeforeSameAreaSnapshot==null)return false;
+    const as=a.startAt.getTime(),bs=b.startAt.getTime(),ae=as+Number(a.durationMin)*60000,be=bs+Number(b.durationMin)*60000;
+    if(a.mustFinishBeforeSameAreaSnapshot&&!b.mustFinishBeforeSameAreaSnapshot&&bs<ae)return true;
+    if(b.mustFinishBeforeSameAreaSnapshot&&!a.mustFinishBeforeSameAreaSnapshot&&as<be)return true;
+    return as<be&&bs<ae;
+  }
+  private async lockAndCheck(tx:Prisma.TransactionClient,unitId:string,serviceDate:string,bookingId:string|null,items:any[],status:string,blockAllDay=false,clientId:string|null=null){
     if(TERMINAL_BOOKING.includes(status))return;
+    for(const item of items)if(!Number.isFinite(Number(item.durationMin))||Number(item.durationMin)<=0)throw new ConflictException('Agendamento possui item sem duração histórica confiável; revise o item antes de operar');
+    for(let i=0;i<items.length;i++)for(let j=0;j<i;j++)if(this.clientAreaConflict(items[j],items[i]))throw new ConflictException('Serviços incompatíveis da mesma área da cliente não podem se sobrepor ou violar a sequência configurada');
     const keys=[...new Set(items.map(x=>x.professionalId+'|'+serviceDate))].sort(),day=new Date(serviceDate+'T00:00:00.000Z');
     for(const k of keys)await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${unitId}), hashtext(${k}))`;
     for(let i=0;i<items.length;i++){
       const item=items[i],start=item.startAt.getTime(),end=start+item.durationMin*60000;
       for(let j=0;j<i;j++){const other=items[j],os=other.startAt.getTime(),oe=os+other.durationMin*60000;if(other.professionalId===item.professionalId&&os<end&&oe>start&&!(item.forceFit||other.forceFit))throw new ConflictException('Dois serviços da mesma visita estão sobrepostos para a mesma profissional')}
       if(item.forceFit)continue;
-      const allDayBlock=await tx.booking.findFirst({where:{unitId,serviceDate:day,blockAllDay:true,status:{notIn:TERMINAL_BOOKING},...(bookingId?{id:{not:bookingId}}:{}),OR:[{professionalId:item.professionalId},{items:{some:{professionalId:item.professionalId}}}]},select:{id:true}});
+      const allDayBlock=await tx.booking.findFirst({where:{unitId,serviceDate:day,blockAllDay:true,status:{notIn:TERMINAL_BOOKING},...(bookingId?{id:{not:bookingId}}:{}),items:{some:{professionalId:item.professionalId}}},select:{id:true}});
       if(allDayBlock)throw new ConflictException('Profissional bloqueada durante todo o dia');
       if(blockAllDay){
         const occupied=await tx.bookingItem.findFirst({where:{unitId,professionalId:item.professionalId,...(bookingId?{bookingId:{not:bookingId}}:{}),booking:{serviceDate:day,status:{notIn:TERMINAL_BOOKING}}},select:{id:true}});
         if(occupied)throw new ConflictException('Existem agendamentos para esta profissional neste dia');
       }
       const candidates=await tx.bookingItem.findMany({where:{unitId,professionalId:item.professionalId,...(bookingId?{bookingId:{not:bookingId}}:{}),startAt:{gte:new Date(start-12*60*60*1000),lt:new Date(end)},booking:{status:{notIn:TERMINAL_BOOKING}}},select:{startAt:true,durationMin:true}});
-      for(const x of candidates){const xs=x.startAt.getTime(),xe=xs+x.durationMin*60000;if(xs<end&&xe>start)throw new ConflictException('Horário não está mais disponível')}
+      for(const x of candidates){if(x.durationMin==null)throw new ConflictException('Existe item histórico sem duração confiável ocupando esta agenda; revise antes de gravar');const xs=x.startAt.getTime(),xe=xs+x.durationMin*60000;if(xs<end&&xe>start)throw new ConflictException('Horário não está mais disponível')}
+    }
+    if(clientId){
+      const clientItems=await tx.bookingItem.findMany({where:{unitId,...(bookingId?{bookingId:{not:bookingId}}:{}),booking:{clientId,serviceDate:day,status:{notIn:TERMINAL_BOOKING}}},select:{startAt:true,durationMin:true,clientAreaSnapshot:true,mustFinishBeforeSameAreaSnapshot:true}});
+      for(const item of items)for(const other of clientItems){
+        if(other.durationMin==null)continue;
+        if(this.clientAreaConflict(item,other))throw new ConflictException('Cliente já possui serviço incompatível na mesma área neste horário');
+      }
     }
   }
   private bookingView(unitId:string,id:string){
-    return this.prisma.booking.findFirst({where:{id,unitId},select:{id:true,unitId:true,clientId:true,serviceDate:true,startAt:true,serviceId:true,professionalId:true,notes:true,status:true,blockAllDay:true,blockSeriesId:true,blockRecurrence:true,blockException:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}},items:{orderBy:{sortOrder:'asc'},select:{id:true,serviceId:true,professionalId:true,startAt:true,durationMin:true,unitPrice:true,preference:true,forceFit:true,sortOrder:true,service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}}}}}});
+    return this.prisma.booking.findFirst({where:{id,unitId},select:{id:true,unitId:true,clientId:true,serviceDate:true,startAt:true,serviceId:true,professionalId:true,notes:true,status:true,blockAllDay:true,blockSeriesId:true,blockRecurrence:true,blockException:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}},items:{orderBy:{sortOrder:'asc'},select:{id:true,serviceId:true,professionalId:true,startAt:true,durationMin:true,unitPrice:true,preference:true,forceFit:true,sortOrder:true,clientAreaSnapshot:true,mustFinishBeforeSameAreaSnapshot:true,service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}}}}}});
   }
 
   @Post('clients')
@@ -153,7 +172,7 @@ export class CoreWriteController {
     const rawItems=body.items?.length?body.items:(body.serviceId&&body.professionalId&&body.startAt?[{serviceId:body.serviceId,professionalId:body.professionalId,startAt:body.startAt} as BookingItemWriteDto]:[]);
     if(!rawItems.length)throw new ConflictException('Informe pelo menos um serviço do agendamento');
     const id=this.operationId(req.unitId!,key),status=body.status||'Agendado',idempotencyHash=this.bookingRequestHash(req.unitId!,body,rawItems,status);
-    await this.prisma.$transaction(async tx=>{const existing=await tx.booking.findUnique({where:{id}});if(existing){const legacy=existing.legacyPayload&&typeof existing.legacyPayload==='object'&&!Array.isArray(existing.legacyPayload)?existing.legacyPayload as any:{};if(legacy.idempotencyHash!==idempotencyHash)throw new ConflictException('Idempotency-Key já utilizada para outro agendamento nesta unidade');return}const unit=await tx.unit.findFirst({where:{id:req.unitId!,active:true}});if(!unit)throw new NotFoundException('Unidade não encontrada ou inativa');const items=await this.prepareItems(tx,req.unitId!,body.serviceDate,rawItems,status);await this.lockAndCheck(tx,req.unitId!,body.serviceDate,null,items,status,!!body.blockAllDay);const first=items[0];await tx.booking.create({data:{id,unitId:req.unitId!,clientId:body.clientId||null,serviceId:first.serviceId||null,professionalId:first.professionalId,serviceDate:new Date(body.serviceDate+'T00:00:00.000Z'),startAt:first.startAt,notes:body.notes?.trim()||null,status,blockAllDay:!!body.blockAllDay,legacyPayload:{source:'central_api',multiItem:true,idempotencyHash},items:{create:items.map(x=>({...x,id:x.id}))}}});if(body.clientId)await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:body.clientId,unitId:req.unitId!}},create:{clientId:body.clientId,unitId:req.unitId!,source:'booking'},update:{active:true}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.created',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',itemCount:items.length},occurredAt:new Date()}})});
+    await this.prisma.$transaction(async tx=>{const existing=await tx.booking.findUnique({where:{id}});if(existing){const legacy=existing.legacyPayload&&typeof existing.legacyPayload==='object'&&!Array.isArray(existing.legacyPayload)?existing.legacyPayload as any:{};if(legacy.idempotencyHash!==idempotencyHash)throw new ConflictException('Idempotency-Key já utilizada para outro agendamento nesta unidade');return}const unit=await tx.unit.findFirst({where:{id:req.unitId!,active:true}});if(!unit)throw new NotFoundException('Unidade não encontrada ou inativa');const items=await this.prepareItems(tx,req.unitId!,body.serviceDate,rawItems,status);await this.lockAndCheck(tx,req.unitId!,body.serviceDate,null,items,status,!!body.blockAllDay,body.clientId||null);const first=items[0];await tx.booking.create({data:{id,unitId:req.unitId!,clientId:body.clientId||null,serviceId:first.serviceId||null,professionalId:first.professionalId,serviceDate:new Date(body.serviceDate+'T00:00:00.000Z'),startAt:first.startAt,notes:body.notes?.trim()||null,status,blockAllDay:!!body.blockAllDay,legacyPayload:{source:'central_api',multiItem:true,idempotencyHash},items:{create:items.map(x=>({...x,id:x.id}))}}});if(body.clientId)await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:body.clientId,unitId:req.unitId!}},create:{clientId:body.clientId,unitId:req.unitId!,source:'booking'},update:{active:true}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.created',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',itemCount:items.length},occurredAt:new Date()}})});
     await this.bookingAutomations.materializeCreatedBooking(id);
     return this.bookingView(req.unitId!,id);
   }
@@ -173,7 +192,7 @@ export class CoreWriteController {
       const prepared:any[]=[];
       for(let i=0;i<body.occurrences.length;i++){
         const o=body.occurrences[i],items=await this.prepareItems(tx,unitId,o.serviceDate,[{professionalId:body.professionalId,startAt:o.startAt,durationMin:o.durationMin,unitPrice:0,forceFit:!!body.forceFit}],'Bloqueado');
-        await this.lockAndCheck(tx,unitId,o.serviceDate,null,items,'Bloqueado',!!body.blockAllDay);
+        await this.lockAndCheck(tx,unitId,o.serviceDate,null,items,'Bloqueado',!!body.blockAllDay,null);
         prepared.push({index:i,id:ids[i],occurrence:o,item:items[0]});
       }
       const rows:any[]=[];
@@ -192,7 +211,7 @@ export class CoreWriteController {
     if(!before)throw new NotFoundException('Agendamento não encontrado nesta unidade');
     await this.prisma.$transaction(async tx=>{const current=await tx.booking.findFirst({where:{id,unitId:req.unitId!},include:{items:{orderBy:{sortOrder:'asc'}}}});if(!current)throw new NotFoundException('Agendamento não encontrado nesta unidade');const currentServiceDate=current.serviceDate.toISOString().slice(0,10),serviceDate=body.serviceDate||currentServiceDate,status=body.status||current.status,effectiveBlockAllDay=body.blockAllDay===undefined?current.blockAllDay:body.blockAllDay;let items:any[]=current.items;
       if(serviceDate!==currentServiceDate&&!body.items?.length)throw new ConflictException('Para alterar a data, envie também todos os itens do agendamento com os novos horários');
-      if(body.items?.length){items=await this.prepareItems(tx,req.unitId!,serviceDate,body.items,status);await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status,effectiveBlockAllDay);await tx.bookingItem.deleteMany({where:{bookingId:id}});await tx.bookingItem.createMany({data:items.map(x=>({...x,bookingId:id}))});}else if((status!==current.status||body.serviceDate!==undefined||body.blockAllDay!==undefined)&&!TERMINAL_BOOKING.includes(status)){await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status,effectiveBlockAllDay)}
+      if(body.items?.length){items=await this.prepareItems(tx,req.unitId!,serviceDate,body.items,status);await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status,effectiveBlockAllDay,current.clientId||null);await tx.bookingItem.deleteMany({where:{bookingId:id}});await tx.bookingItem.createMany({data:items.map(x=>({...x,bookingId:id}))});}else if((status!==current.status||body.serviceDate!==undefined||body.blockAllDay!==undefined)&&!TERMINAL_BOOKING.includes(status)){await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status,effectiveBlockAllDay,current.clientId||null)}
       const first=items[0]||null;await tx.booking.update({where:{id},data:{serviceDate:new Date(serviceDate+'T00:00:00.000Z'),status,notes:body.notes===undefined?current.notes:(body.notes.trim()||null),startAt:first?.startAt||current.startAt,serviceId:first?first.serviceId:(current.serviceId||null),professionalId:first?.professionalId||current.professionalId,...(body.blockAllDay===undefined?{}:{blockAllDay:body.blockAllDay}),...(body.blockException===undefined?{}:{blockException:body.blockException}),version:{increment:1}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.updated',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',status,itemCount:items.length},occurredAt:new Date()}})});
     const after=await this.prisma.booking.findFirst({where:{id,unitId:req.unitId!},include:{items:{orderBy:{sortOrder:'asc'}}}});
     const oldDate=before.serviceDate.toISOString().slice(0,10);

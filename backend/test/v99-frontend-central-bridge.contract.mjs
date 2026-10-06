@@ -138,4 +138,6 @@ const markerIndex=html.indexOf('V99 · PUBLIC BOOKING CENTRAL CATALOG'),scriptOp
 new Function(html.slice(scriptBody,scriptClose));tests++;
 
 
+ok(html.includes("remoteItems=Array.isArray(x.items)?x.items:[]"),'agenda central consome Booking.items sem fallback sintético');
+ok(!html.includes("Array.isArray(x.items)&&x.items.length?x.items:[{serviceId:x.serviceId"),'agenda central não reduz cabeçalho legado a item sintético');
 console.log(JSON.stringify({ok:true,tests,feature:'v99_frontend_central_bridge'}));

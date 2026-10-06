@@ -148,6 +148,8 @@ jobs:
         run: npm run test:employee-config-readiness
       - name: Multi-unit operational write tests
         run: npm run test:operational-writes
+      - name: BookingItem source-of-truth gate
+        run: npm run test:booking-item-data-model
       - name: Multi-unit cash command payment flow
         run: npm run test:finance-flow
       - name: Three-unit public booking flow

@@ -153,10 +153,10 @@ export class BookingAvailabilityService {
       where:{unitId,booking:{serviceDate,status:{notIn:TERMINAL_BOOKING_STATUSES}}},
       select:{id:true,professionalId:true,startAt:true,durationMin:true,service:{select:{id:true,categoryId:true}}},
     });
-    const allDay=await this.prisma.booking.findMany({where:{unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL_BOOKING_STATUSES}},select:{professionalId:true,items:{select:{professionalId:true}}}});
-    const blocked=new Set<string>();for(const b of allDay){if(b.professionalId)blocked.add(b.professionalId);for(const x of b.items)blocked.add(x.professionalId)}
+    const allDay=await this.prisma.booking.findMany({where:{unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL_BOOKING_STATUSES},items:{some:{}}},select:{items:{select:{professionalId:true}}}});
+    const blocked=new Set<string>();for(const b of allDay)for(const x of b.items)blocked.add(x.professionalId)
     const occupied=new Map<string,Array<{start:number;end:number}>>();
-    for(const x of existing){const a=x.startAt.getTime(),z=a+x.durationMin*60000;if(!occupied.has(x.professionalId))occupied.set(x.professionalId,[]);occupied.get(x.professionalId)!.push({start:a,end:z})}
+    for(const x of existing){if(x.durationMin==null)throw new ConflictException('Agenda contém item histórico sem duração confiável; revise antes de calcular disponibilidade');const a=x.startAt.getTime(),z=a+x.durationMin*60000;if(!occupied.has(x.professionalId))occupied.set(x.professionalId,[]);occupied.get(x.professionalId)!.push({start:a,end:z})}
 
     const specs=input.services.map((request,index)=>{
       const service=serviceMap.get(request.serviceId)!;
@@ -185,7 +185,7 @@ export class BookingAvailabilityService {
     const capacityOk=(assigned:any[])=>{
       if(!assigned.length)return true;
       const demands=[
-        ...existing.map(x=>({id:'existing:'+x.id,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.service?.categoryId||''})),
+        ...existing.map(x=>{if(x.durationMin==null)throw new ConflictException('Agenda contém item histórico sem duração confiável; revise antes de calcular capacidade');return {id:'existing:'+x.id,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.service?.categoryId||''}}),
         ...assigned.map((x:any,i:number)=>({id:'candidate:'+i,start:x.startAtMs,end:x.endAtMs,categoryId:x.categoryId||''})),
       ];
       const marks=[...new Set(demands.flatMap(x=>[x.start,x.end]))].sort((a,b)=>a-b);
@@ -280,23 +280,18 @@ export class BookingAvailabilityService {
       this.prisma.booking.findMany({
         where:{
           unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL_BOOKING_STATUSES},
-          OR:[
-            {professionalId:{in:professionalIds}},
-            {items:{some:{professionalId:{in:professionalIds}}}},
-          ],
+          items:{some:{professionalId:{in:professionalIds}}},
         },
-        select:{professionalId:true,items:{select:{professionalId:true}}},
+        select:{items:{select:{professionalId:true}}},
       }),
     ]);
 
     const blocked=new Set<string>();
-    for(const row of allDayBlocks){
-      if(row.professionalId)blocked.add(row.professionalId);
-      for(const item of row.items)blocked.add(item.professionalId);
-    }
+    for(const row of allDayBlocks)for(const item of row.items)blocked.add(item.professionalId);
     const occupied=new Map<string,Array<{start:number;end:number}>>();
     for(const id of professionalIds)occupied.set(id,[]);
     for(const item of items){
+      if(item.durationMin==null)throw new ConflictException('Agenda contém item histórico sem duração confiável; revise antes de calcular disponibilidade');
       const start=item.startAt.getTime(),end=start+item.durationMin*60_000;
       occupied.get(item.professionalId)?.push({start,end});
     }
