@@ -114,6 +114,8 @@ jobs:
         run: npm run test:wa5.6
       - name: WA5.7 automation to Outbox bridge
         run: npm run test:wa5.7
+      - name: WA5.8 end-to-end and security
+        run: npm run test:wa5.8
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract
