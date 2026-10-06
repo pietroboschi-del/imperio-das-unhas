@@ -153,8 +153,8 @@ export class BookingAvailabilityService {
       where:{unitId,booking:{serviceDate,status:{notIn:TERMINAL_BOOKING_STATUSES}}},
       select:{id:true,professionalId:true,startAt:true,durationMin:true,service:{select:{id:true,categoryId:true}}},
     });
-    const allDay=await this.prisma.booking.findMany({where:{unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL_BOOKING_STATUSES},items:{some:{}}},select:{items:{select:{professionalId:true}}}});
-    const blocked=new Set<string>();for(const b of allDay)for(const x of b.items)blocked.add(x.professionalId)
+    const allDay=await this.prisma.booking.findMany({where:{unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL_BOOKING_STATUSES}},select:{professionalId:true,items:{select:{professionalId:true}}}});
+    const blocked=new Set<string>();for(const b of allDay){if(b.items.length)for(const x of b.items)blocked.add(x.professionalId);else if(b.professionalId)blocked.add(b.professionalId)}
     const occupied=new Map<string,Array<{start:number;end:number}>>();
     for(const x of existing){if(x.durationMin==null)throw new ConflictException('Agenda contém item histórico sem duração confiável; revise antes de calcular disponibilidade');const a=x.startAt.getTime(),z=a+x.durationMin*60000;if(!occupied.has(x.professionalId))occupied.set(x.professionalId,[]);occupied.get(x.professionalId)!.push({start:a,end:z})}
 
@@ -280,14 +280,17 @@ export class BookingAvailabilityService {
       this.prisma.booking.findMany({
         where:{
           unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL_BOOKING_STATUSES},
-          items:{some:{professionalId:{in:professionalIds}}},
+          OR:[
+            {items:{some:{professionalId:{in:professionalIds}}}},
+            {items:{none:{}},professionalId:{in:professionalIds}},
+          ],
         },
-        select:{items:{select:{professionalId:true}}},
+        select:{professionalId:true,items:{select:{professionalId:true}}},
       }),
     ]);
 
     const blocked=new Set<string>();
-    for(const row of allDayBlocks)for(const item of row.items)blocked.add(item.professionalId);
+    for(const row of allDayBlocks){if(row.items.length)for(const item of row.items)blocked.add(item.professionalId);else if(row.professionalId)blocked.add(row.professionalId);}
     const occupied=new Map<string,Array<{start:number;end:number}>>();
     for(const id of professionalIds)occupied.set(id,[]);
     for(const item of items){

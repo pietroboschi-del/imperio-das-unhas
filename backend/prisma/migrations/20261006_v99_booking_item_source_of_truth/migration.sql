@@ -41,9 +41,9 @@ SELECT
   ),
   b."createdAt",CURRENT_TIMESTAMP
 FROM "Booking" b
-WHERE b."serviceId" IS NOT NULL
-  AND b."professionalId" IS NOT NULL
+WHERE b."professionalId" IS NOT NULL
   AND b."startAt" IS NOT NULL
+  AND (b."serviceId" IS NOT NULL OR b."status"='Bloqueado')
   AND NOT EXISTS (SELECT 1 FROM "BookingItem" i WHERE i."bookingId"=b."id");
 
 -- Intentionally no UPDATE of existing BookingItem rows.

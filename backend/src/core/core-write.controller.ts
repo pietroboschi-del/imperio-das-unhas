@@ -112,7 +112,7 @@ export class CoreWriteController {
       const item=items[i],start=item.startAt.getTime(),end=start+item.durationMin*60000;
       for(let j=0;j<i;j++){const other=items[j],os=other.startAt.getTime(),oe=os+other.durationMin*60000;if(other.professionalId===item.professionalId&&os<end&&oe>start&&!(item.forceFit||other.forceFit))throw new ConflictException('Dois serviços da mesma visita estão sobrepostos para a mesma profissional')}
       if(item.forceFit)continue;
-      const allDayBlock=await tx.booking.findFirst({where:{unitId,serviceDate:day,blockAllDay:true,status:{notIn:TERMINAL_BOOKING},...(bookingId?{id:{not:bookingId}}:{}),items:{some:{professionalId:item.professionalId}}},select:{id:true}});
+      const allDayBlock=await tx.booking.findFirst({where:{unitId,serviceDate:day,blockAllDay:true,status:{notIn:TERMINAL_BOOKING},...(bookingId?{id:{not:bookingId}}:{}),OR:[{items:{some:{professionalId:item.professionalId}}},{items:{none:{}},professionalId:item.professionalId}]},select:{id:true}});
       if(allDayBlock)throw new ConflictException('Profissional bloqueada durante todo o dia');
       if(blockAllDay){
         const occupied=await tx.bookingItem.findFirst({where:{unitId,professionalId:item.professionalId,...(bookingId?{bookingId:{not:bookingId}}:{}),booking:{serviceDate:day,status:{notIn:TERMINAL_BOOKING}}},select:{id:true}});

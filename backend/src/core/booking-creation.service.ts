@@ -372,7 +372,7 @@ export class BookingCreationService {
       if(other.professionalId===item.professionalId&&os<end&&oe>start)throw new ConflictException('Os serviços selecionados estão sobrepostos para a mesma profissional');
      }
      const allDayBlock=await tx.booking.findFirst({
-      where:{unitId:input.unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL},items:{some:{professionalId:item.professionalId}}},
+      where:{unitId:input.unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL},OR:[{items:{some:{professionalId:item.professionalId}}},{items:{none:{}},professionalId:item.professionalId}]},
       select:{id:true},
      });
      if(allDayBlock)throw new ConflictException('Horário bloqueado para esta profissional');
