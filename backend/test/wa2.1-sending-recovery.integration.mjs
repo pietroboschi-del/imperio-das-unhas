@@ -10,7 +10,7 @@ const prisma=new PrismaClient();
 let checks=0;
 const ok=(value,message)=>{checks++;assert.ok(value,message)};
 const eq=(actual,expected,message)=>{checks++;assert.equal(actual,expected,message)};
-const now=new Date('2026-10-06T03:00:00.000Z');
+const now=new Date();
 const oldAutomation=process.env.WHATSAPP_AUTOMATION_ENABLED;
 const oldStale=process.env.MESSAGING_SENDING_STALE_MS;
 
