@@ -84,6 +84,8 @@ jobs:
         run: npm run test:security-integration
       - name: Multi-unit operational write tests
         run: npm run test:operational-writes
+      - name: Three-unit central agenda flow
+        run: npm run test:agenda-three-units
       - name: Multi-unit cash command payment flow
         run: npm run test:finance-flow
       - name: Three-unit public booking flow

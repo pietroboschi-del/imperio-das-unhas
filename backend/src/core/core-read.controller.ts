@@ -54,26 +54,41 @@ export class CoreReadController {
     });
   }
 
+  private bookingView(row:any){
+    if(!row)return row;
+    const payload=(row.legacyPayload&&typeof row.legacyPayload==='object')?row.legacyPayload:{};
+    const items=Array.isArray(payload.items)&&payload.items.length?payload.items:[{
+      serviceId:row.serviceId,professionalId:row.professionalId,startAt:row.startAt?.toISOString?.()||row.startAt,
+      durationMin:Number(row.service?.durationMin||payload.durationMin||30),price:Number(row.service?.price||0),
+      clientArea:String(row.service?.legacyPayload?.clientArea||'none'),mustFinishBeforeSameArea:!!row.service?.legacyPayload?.mustFinishBeforeSameArea,
+      preference:false,forceFit:false,
+    }];
+    const {legacyPayload,...publicRow}=row;
+    return {...publicRow,items};
+  }
+
   @Get('bookings')
   @UnitScoped()
   @RequirePermissions('agenda.read')
-  bookings(@Req() req: ImperioRequest,@Query('date') date?:string) {
+  async bookings(@Req() req: ImperioRequest,@Query('date') date?:string) {
     const where:any={unitId:req.unitId!};
     if(date&&/^\d{4}-\d{2}-\d{2}$/.test(date))where.serviceDate=new Date(`${date}T00:00:00.000Z`);
-    return this.prisma.booking.findMany({
+    const rows=await this.prisma.booking.findMany({
       where,
-      select:{id:true,unitId:true,clientId:true,serviceDate:true,startAt:true,serviceId:true,professionalId:true,notes:true,status:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}},service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}}},
+      include:{client:{select:{id:true,name:true,phone:true,email:true}},service:true,professional:{select:{id:true,name:true,publicName:true}}},
       orderBy:[{serviceDate:'asc'},{id:'asc'}],take:500,
     });
+    return rows.map(x=>this.bookingView(x));
   }
 
   @Get('bookings/:id')
   @UnitScoped()
   @RequirePermissions('agenda.read')
   async booking(@Req() req: ImperioRequest,@Param('id') id:string) {
-    return this.prisma.booking.findFirst({
+    const row=await this.prisma.booking.findFirst({
       where:{id,unitId:req.unitId!},
-      select:{id:true,unitId:true,clientId:true,serviceDate:true,startAt:true,serviceId:true,professionalId:true,notes:true,status:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}},service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}}},
+      include:{client:{select:{id:true,name:true,phone:true,email:true}},service:true,professional:{select:{id:true,name:true,publicName:true}}},
     });
+    return this.bookingView(row);
   }
 }

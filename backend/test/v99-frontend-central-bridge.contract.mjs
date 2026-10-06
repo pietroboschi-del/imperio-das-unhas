@@ -21,7 +21,12 @@ ok(html.includes("localUnitId:localUnitId(),unitId:centralUnitId()"),'status exp
 ok(!html.includes("if(!centralEnabled()||id)return legacySaveClient"),'edição de cliente não cai silenciosamente no legado');
 ok(!html.includes("if(!centralEnabled()||resDraft?.appendToBookingId)return legacySaveReservation"),'edição de agenda não cai silenciosamente no legado');
 ok(html.includes("Edição de cliente ainda não liberada no modo central; nenhuma alteração foi salva."),'edição de cliente central bloqueada explicitamente');
-ok(html.includes("Alteração de agendamento existente ainda não liberada no modo central; nenhuma alteração foi salva."),'edição de agenda central bloqueada explicitamente');
+ok(!html.includes("Alteração de agendamento existente ainda não liberada no modo central; nenhuma alteração foi salva."),'edição de agenda central não permanece bloqueada');
+ok(html.includes("updateBooking(id,body){return centralRequest('/api/v1/bookings/'+encodeURIComponent(id),{method:'PATCH',body})}"),'ponte expõe PATCH central de agendamento');
+ok(html.includes("function centralBookingBody(date,items,extra={})"),'ponte serializa múltiplos itens');
+ok(html.includes("legacySaveExistingBooking"),'edição/cancelamento/reagendamento usa ponte central');
+ok(html.includes("Reagendamento central salvo"),'drag-and-drop persiste no backend central');
+ok(!html.includes("No corte central inicial, salve um serviço por agendamento"),'limite de um serviço removido');
 ok(html.includes("let wrapped=function auditClientBridge(id=''){if(!centralEnabled())return legacySaveClient.apply(this,arguments)"),'fallback de cliente preserva retorno síncrono legado');
 ok(html.includes("let wrapped=function(){if(!centralEnabled())return legacySaveReservation.apply(this,arguments)"),'fallback de agenda preserva retorno síncrono legado');
 ok(!html.includes("let wrapped=async function(id=''){if(!centralEnabled())return legacySaveClient"),'cliente não converte fallback legado em Promise');

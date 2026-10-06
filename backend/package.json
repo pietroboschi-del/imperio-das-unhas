@@ -37,7 +37,8 @@
     "test:public-booking": "node test/v99-public-booking.integration.mjs",
     "test:frontend-central-bridge": "node test/v99-frontend-central-bridge.contract.mjs",
     "start:prod": "node dist/main.js",
-    "test:deployment-cutover": "node test/v99-deployment-cutover.contract.mjs"
+    "test:deployment-cutover": "node test/v99-deployment-cutover.contract.mjs",
+    "test:agenda-three-units": "node test/v99-agenda-three-units.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
