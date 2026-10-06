@@ -34,6 +34,7 @@ jobs:
       READ_THROUGH_ENABLED: "false"
       SHADOW_READS_ENABLED: "false"
       OPERATIONAL_WRITES_ENABLED: "false"
+      WHATSAPP_AUTOMATION_ENABLED: "false"
       ADMIN_USERNAME: ci_owner
       ADMIN_PASSWORD: ci-owner-password-123
       ADMIN_NAME: CI Owner
@@ -62,6 +63,10 @@ jobs:
         run: npm run prisma:migrate
       - name: Build
         run: npm run build
+      - name: Typecheck
+        run: npm run typecheck
+      - name: WA1 messaging foundation
+        run: npm run test:wa1
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract

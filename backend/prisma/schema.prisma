@@ -32,6 +32,16 @@ enum CredentialTokenPurpose {
   RESET
 }
 
+enum MessagingOutboxStatus {
+  PENDING
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  CANCELLED
+}
+
 model Unit {
   id           String   @id
   name         String
@@ -339,6 +349,52 @@ model AuditEvent {
   @@index([unitId, occurredAt])
   @@index([entityType, entityId])
   @@index([userId, occurredAt])
+}
+
+model MessagingChannel {
+  id        String   @id
+  provider  String   @default("EVOLUTION")
+  enabled   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  outbox    MessagingOutbox[]
+
+  @@index([enabled])
+}
+
+model MessagingOutbox {
+  id                String                @id @default(cuid())
+  channelId         String
+  unitId            String?
+  clientId          String?
+  bookingId         String?
+  commandId         String?
+  status            MessagingOutboxStatus @default(PENDING)
+  idempotencyKey    String                @unique
+  requestHash       String
+  messageType       String
+  trigger           String
+  payload           Json
+  attempts          Int                   @default(0)
+  lastAttemptAt     DateTime?
+  nextAttemptAt     DateTime?
+  providerMessageId String?
+  lastError         String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @default(now()) @updatedAt
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  cancelledAt       DateTime?
+  channel           MessagingChannel      @relation(fields: [channelId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@index([channelId, status])
+  @@index([unitId, createdAt])
+  @@index([clientId, createdAt])
+  @@index([bookingId])
+  @@index([commandId])
+  @@index([channelId, providerMessageId])
 }
 
 model MigrationEnvelope {
