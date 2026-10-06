@@ -7,6 +7,7 @@ import { BookingAutomationMaterializationService } from './booking-automation-ma
 import { BookingAutomationLifecycleService } from './booking-automation-lifecycle.service';
 import { WaitlistAutomationMaterializationService } from './waitlist-automation-materialization.service';
 import { PostServiceAutomationMaterializationService } from './post-service-automation-materialization.service';
+import { MessagingAutomationOutboxService } from './messaging-automation-outbox.service';
 import { EvolutionInstanceResolver } from './evolution-config';
 import { EvolutionMessagingProvider } from './evolution-messaging.provider';
 import { EvolutionWebhookParser } from './evolution-webhook.parser';
@@ -25,12 +26,13 @@ import { MESSAGING_PROVIDER } from './messaging.provider';
     BookingAutomationLifecycleService,
     WaitlistAutomationMaterializationService,
     PostServiceAutomationMaterializationService,
+    MessagingAutomationOutboxService,
     EvolutionInstanceResolver,
     EvolutionMessagingProvider,
     EvolutionWebhookParser,
     EvolutionWebhookGuard,
     {provide:MESSAGING_PROVIDER,useExisting:EvolutionMessagingProvider},
   ],
-  exports:[MessagingFoundationService,MessagingDispatchService,MessagingInboundService,MessagingAutomationService,BookingAutomationMaterializationService,BookingAutomationLifecycleService,WaitlistAutomationMaterializationService,PostServiceAutomationMaterializationService],
+  exports:[MessagingFoundationService,MessagingDispatchService,MessagingInboundService,MessagingAutomationService,BookingAutomationMaterializationService,BookingAutomationLifecycleService,WaitlistAutomationMaterializationService,PostServiceAutomationMaterializationService,MessagingAutomationOutboxService],
 })
 export class MessagingModule {}
