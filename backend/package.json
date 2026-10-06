@@ -55,6 +55,7 @@
     "test:wa3b": "node test/wa3b-agent-booking.integration.mjs",
     "test:wa3c1": "node test/wa3c1-multi-availability.integration.mjs",
     "test:wa3c2": "node test/wa3c2-agent-multi-availability.integration.mjs",
+    "test:wa3c3": "node test/wa3c3-agent-multi-booking.integration.mjs",
     "diagnostic:three-units": "node tools/three-unit-readiness.mjs"
   },
   "dependencies": {

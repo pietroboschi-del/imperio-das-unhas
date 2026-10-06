@@ -6,7 +6,7 @@ import { assertOperationalWriteEnabled } from '../common/operational-write-gate'
 import { isMessagingChannelId } from '../messaging/messaging-channels';
 import { BookingAvailabilityService, PUBLIC_BOOKING_SLOT_MINUTES } from './booking-availability.service';
 import { PublicBookingDto, PublicBookingItemDto } from './public-booking.dto';
-import { WhatsappAgentBookingDto } from './whatsapp-agent.dto';
+import { WhatsappAgentBookingDto, WhatsappAgentMultiBookingDto } from './whatsapp-agent.dto';
 
 const TERMINAL=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
 
@@ -26,6 +26,7 @@ type CanonicalInput={
  key?:string;
  strictIdempotency:boolean;
  requireGrid:boolean;
+ requirePhysicalCapacity?:boolean;
 };
 
 function obj(value:any){return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}
@@ -142,6 +143,56 @@ export class BookingCreationService {
   });
  }
 
+ async createAgentMultiBooking(body:WhatsappAgentMultiBookingDto,key?:string){
+  const idempotencyKey=strictKey(key);
+  const channelId=String(body.channelId||'CENTRAL').trim();
+  if(!isMessagingChannelId(channelId))throw new ConflictException('Canal de mensageria inválido');
+  if(channelId!=='CENTRAL')throw new ConflictException('WA3C aceita somente o canal CENTRAL');
+  if(body.clientId){
+   const client=await this.prisma.client.findFirst({where:{id:body.clientId,active:true},select:{id:true}});
+   if(!client)throw new NotFoundException('Cliente não encontrado ou inativo');
+  }else if(!String(body.clientName||'').trim()||!String(body.clientPhone||'').trim()){
+   throw new ConflictException('Informe clientId ou nome e telefone da cliente');
+  }
+  if(body.items.length!==body.services.length)throw new ConflictException('A seleção deve conter exatamente um item para cada serviço solicitado');
+  const requestedIds=body.services.map(x=>x.serviceId),itemIds=body.items.map(x=>x.serviceId);
+  if(new Set(requestedIds).size!==requestedIds.length||new Set(itemIds).size!==itemIds.length||requestedIds.some(id=>!itemIds.includes(id))){
+   throw new ConflictException('A seleção de itens não corresponde aos serviços solicitados');
+  }
+  const result=await this.availability.multiAvailability({unitId:body.unitId,date:body.date,services:body.services});
+  if(!result.bookingEnabled)throw new ServiceUnavailableException('Agendamento online não está habilitado nesta unidade');
+  const normalized=body.items.map(x=>{
+   const d=new Date(x.startAt);if(Number.isNaN(d.getTime()))throw new ConflictException('Horário inválido');
+   return {serviceId:x.serviceId,professionalId:x.professionalId,startAt:d.toISOString()};
+  }).sort((a,b)=>a.serviceId.localeCompare(b.serviceId));
+  const visit=result.visits.find(v=>{
+   const candidate=v.items.map((x:any)=>({serviceId:x.serviceId,professionalId:x.professionalId,startAt:x.startAt})).sort((a:any,b:any)=>a.serviceId.localeCompare(b.serviceId));
+   return JSON.stringify(candidate)===JSON.stringify(normalized);
+  });
+  if(!visit)throw new ConflictException('A combinação selecionada não pertence à disponibilidade multi-serviço canônica atual');
+  const byService=new Map(visit.items.map((x:any)=>[x.serviceId,x]));
+  const row=await this.createCanonical({
+   unitId:body.unitId,
+   items:body.items.map(x=>{
+    const selected:any=byService.get(x.serviceId);
+    return {serviceId:x.serviceId,professionalId:x.professionalId,startAt:body.date+'T'+selected.localStart};
+   }),
+   clientId:body.clientId,clientName:body.clientName,clientPhone:body.clientPhone,clientEmail:body.clientEmail,
+   source:'whatsapp_agent',authorType:'AGENT',auditAction:'booking.created_from_whatsapp',channelId,
+   key:idempotencyKey,strictIdempotency:true,requireGrid:true,requirePhysicalCapacity:true,
+  });
+  const detail=await this.prisma.booking.findUniqueOrThrow({where:{id:row.id},select:{
+   id:true,unitId:true,clientId:true,status:true,
+   items:{orderBy:{sortOrder:'asc'},select:{startAt:true,durationMin:true,unitPrice:true,service:{select:{id:true,name:true}},professional:{select:{id:true,name:true,publicName:true}}}},
+  }});
+  const starts=detail.items.map(x=>x.startAt.getTime()),ends=detail.items.map(x=>x.startAt.getTime()+x.durationMin*60000);
+  return {
+   bookingId:detail.id,unitId:detail.unitId,clientId:detail.clientId,status:detail.status,date:body.date,
+   visitStartAt:new Date(Math.min(...starts)).toISOString(),visitEndAt:new Date(Math.max(...ends)).toISOString(),
+   items:detail.items.map(x=>({service:{id:x.service!.id,name:x.service!.name},professional:{id:x.professional.id,name:x.professional.publicName||x.professional.name},startAt:x.startAt.toISOString(),durationMin:x.durationMin,price:Number(x.unitPrice)})),
+  };
+ }
+
  async createAgentBooking(body:WhatsappAgentBookingDto,key?:string){
   const idempotencyKey=strictKey(key);
   const channelId=String(body.channelId||'CENTRAL').trim();
@@ -247,7 +298,7 @@ export class BookingCreationService {
      }
      const startAt=localDateTimeToUtc(it.startAt,unit.timezone);
      const [service,pro]=await Promise.all([
-      tx.service.findFirst({where:{id:it.serviceId,active:true},select:{id:true,price:true,durationMin:true,legacyPayload:true}}),
+      tx.service.findFirst({where:{id:it.serviceId,active:true},select:{id:true,categoryId:true,price:true,durationMin:true,legacyPayload:true}}),
       tx.professionalUnit.findFirst({
        where:{unitId:input.unitId,professionalId:it.professionalId,active:true,professional:{active:true}},
        select:{professional:{select:{id:true,legacyPayload:true}}},
@@ -268,11 +319,15 @@ export class BookingCreationService {
       id:'bi_'+createHash('sha256').update(bookingId+'|'+i).digest('hex').slice(0,40),
       bookingId,unitId:input.unitId,serviceId:it.serviceId,professionalId:it.professionalId,startAt,durationMin:duration,unitPrice,
       preference:false,forceFit:false,sortOrder:i,legacyPayload:{source:input.source},
+      categoryId:service.categoryId||null,clientArea:String(serviceLegacy.clientArea||'none'),mustFinishBeforeSameArea:serviceLegacy.mustFinishBeforeSameArea===true,
      });
     }
 
     const serviceDate=new Date(firstDate+'T00:00:00.000Z');
-    const lockKeys=[...new Set(prepared.map(x=>x.professionalId+'|'+firstDate))].sort();
+    const lockKeys=[...new Set([
+     ...prepared.map(x=>x.professionalId+'|'+firstDate),
+     ...(input.requirePhysicalCapacity?['physical|'+firstDate]:[]),
+    ])].sort();
     for(const lock of lockKeys)await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.unitId}), hashtext(${lock}))`;
 
     // A second request with the same idempotency key may have entered before
@@ -306,6 +361,38 @@ export class BookingCreationService {
      }
     }
 
+    if(input.requirePhysicalCapacity){
+     for(let i=0;i<prepared.length;i++)for(let j=0;j<i;j++){
+      const a=prepared[j],b=prepared[i],as=a.startAt.getTime(),ae=as+a.durationMin*60000,bs=b.startAt.getTime(),be=bs+b.durationMin*60000;
+      if(a.clientArea!=='none'&&b.clientArea!=='none'&&a.clientArea===b.clientArea){
+       if(a.mustFinishBeforeSameArea&&!b.mustFinishBeforeSameArea&&bs<ae)throw new ConflictException('Ordem de execução da mesma área não foi respeitada');
+       if(b.mustFinishBeforeSameArea&&!a.mustFinishBeforeSameArea&&as<be)throw new ConflictException('Ordem de execução da mesma área não foi respeitada');
+       if(as<be&&ae>bs)throw new ConflictException('Serviços incompatíveis da mesma área não podem se sobrepor');
+      }
+     }
+     const stations=await tx.workstation.findMany({where:{unitId:input.unitId,active:true},select:{id:true,allowedCategoryIds:true},orderBy:{id:'asc'}});
+     const stationRows=stations.map(x=>({id:x.id,categories:Array.isArray(x.allowedCategoryIds)?x.allowedCategoryIds.map(String):[]}));
+     const existingDemands=await tx.bookingItem.findMany({
+      where:{unitId:input.unitId,booking:{serviceDate,status:{notIn:[...TERMINAL,'Bloqueado']}}},
+      select:{id:true,startAt:true,durationMin:true,service:{select:{categoryId:true}}},
+     });
+     const demands=[
+      ...existingDemands.map(x=>({id:'existing:'+x.id,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.service?.categoryId||''})),
+      ...prepared.map((x:any,i:number)=>({id:'candidate:'+i,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.categoryId||''})),
+     ];
+     const marks=[...new Set(demands.flatMap(x=>[x.start,x.end]))].sort((a,b)=>a-b);
+     for(let mi=0;mi<marks.length-1;mi++){
+      const a=marks[mi],z=marks[mi+1],active=demands.filter(x=>x.start<z&&x.end>a);if(!active.length)continue;
+      const candidates=active.map(d=>stationRows.filter(st=>st.categories.includes(d.categoryId)).map(st=>st.id));
+      if(active.some((d,i)=>!d.categoryId||!candidates[i].length))throw new ConflictException('Não há estação/recurso compatível para a combinação selecionada');
+      const stationToDemand=new Map<string,number>();
+      const assign=(di:number,seen:Set<string>):boolean=>{for(const sid of candidates[di]){if(seen.has(sid))continue;seen.add(sid);const prev=stationToDemand.get(sid);if(prev===undefined||assign(prev,seen)){stationToDemand.set(sid,di);return true}}return false};
+      const order=active.map((_,i)=>i).sort((i,j)=>candidates[i].length-candidates[j].length||active[i].id.localeCompare(active[j].id));
+      let allocated=0;for(const di of order)if(assign(di,new Set()))allocated++;
+      if(allocated<active.length)throw new ConflictException('Capacidade física da unidade esgotada para a combinação selecionada');
+     }
+    }
+
     const client=await this.resolveClient(tx,input);
     await tx.clientUnitLink.upsert({
      where:{clientId_unitId:{clientId:client.id,unitId:input.unitId}},
@@ -321,7 +408,7 @@ export class BookingCreationService {
      data:{
       id:bookingId,unitId:input.unitId,clientId:client.id,serviceDate,startAt:first.startAt,serviceId:first.serviceId,
       professionalId:first.professionalId,status:'Aguardando confirmação',notes:null,legacyPayload:bookingLegacy,
-      items:{create:prepared.map(({bookingId,...x})=>x)},
+      items:{create:prepared.map(({bookingId,categoryId,clientArea,mustFinishBeforeSameArea,...x})=>x)},
      },
      include:{items:true},
     });

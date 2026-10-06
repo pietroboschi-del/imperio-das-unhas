@@ -2,7 +2,7 @@ import { Body, Controller, Get, Headers, Post, Query, UseGuards } from '@nestjs/
 import { Public } from '../common/public.decorator';
 import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingCreationService } from './booking-creation.service';
-import { WhatsappAgentBookingDto, WhatsappAgentMultiAvailabilityDto } from './whatsapp-agent.dto';
+import { WhatsappAgentBookingDto, WhatsappAgentMultiAvailabilityDto, WhatsappAgentMultiBookingDto } from './whatsapp-agent.dto';
 import { WhatsappAgentGuard } from './whatsapp-agent.guard';
 
 @Controller('api/v1/integrations/whatsapp-agent')
@@ -33,6 +33,11 @@ export class WhatsappAgentController {
   @Post('availability/multi')
   multiAvailability(@Body() body:WhatsappAgentMultiAvailabilityDto){
     return this.availability.multiAvailability(body);
+  }
+
+  @Post('bookings/multi')
+  bookMulti(@Body() body:WhatsappAgentMultiBookingDto,@Headers('idempotency-key') key?:string){
+    return this.creation.createAgentMultiBooking(body,key);
   }
 
   @Post('bookings')
