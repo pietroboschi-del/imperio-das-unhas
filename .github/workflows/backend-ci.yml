@@ -90,6 +90,8 @@ jobs:
         run: npm run test:wa4.1
       - name: WA4.2 agent waitlist creation
         run: npm run test:wa4.2
+      - name: WA4.3 reception notification
+        run: npm run test:wa4.3
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract

@@ -348,6 +348,27 @@ model WaitlistOpportunity {
   @@index([bookingId])
 }
 
+model ManagementTask {
+  id             String   @id
+  title          String
+  dueDate        DateTime? @db.Date
+  priority       String   @default("high")
+  category       String   @default("general")
+  unitId         String
+  assignedUserId String
+  status         String   @default("OPEN")
+  note           String?
+  sourceType     String
+  sourceId       String
+  legacyPayload  Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([sourceType, sourceId, assignedUserId])
+  @@index([unitId, status])
+  @@index([assignedUserId, status])
+}
+
 model AuditEvent {
   id            String   @id
   userId        String?

@@ -47,6 +47,17 @@ export class CoreReadController {
     return rows.map(x=>this.clientView(x));
   }
 
+  @Get('tasks')
+  @UnitScoped()
+  @RequirePermissions('tasks.read')
+  tasks(@Req() req:ImperioRequest){
+    return this.prisma.managementTask.findMany({
+      where:{unitId:req.unitId!,...(req.principal!.networkAdmin?{}:{assignedUserId:req.principal!.userId})},
+      orderBy:[{status:'asc'},{createdAt:'desc'}],
+      take:200,
+    });
+  }
+
   @Get('bookings')
   @UnitScoped()
   @RequirePermissions('agenda.read')

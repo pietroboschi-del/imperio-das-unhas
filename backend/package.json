@@ -59,6 +59,7 @@
     "test:wa3c4": "node test/wa3c4-parity.contract.mjs",
     "test:wa4.1": "node test/wa4.1-waitlist-audit.contract.mjs",
     "test:wa4.2": "node test/wa4.2-agent-waitlist.integration.mjs",
+    "test:wa4.3": "node test/wa4.3-reception-notification.integration.mjs",
     "diagnostic:three-units": "node tools/three-unit-readiness.mjs"
   },
   "dependencies": {

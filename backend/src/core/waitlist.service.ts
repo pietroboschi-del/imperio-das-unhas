@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { isMessagingChannelId } from '../messaging/messaging-channels';
 import { WhatsappAgentWaitlistDto } from './whatsapp-agent.dto';
+import { hasPermissions, permissionSet } from '../auth/permission-policy';
 
 export const WHATSAPP_WAITLIST_SOURCE='WHATSAPP_AGENT';
 
@@ -88,6 +89,21 @@ export class WaitlistService {
      acceptedUnitIds:[body.unitId],
     };
     const row=await tx.waitlistRequest.create({data:{id,unitId:body.unitId,clientId:client?.id||null,status:'WAITING',legacyPayload:legacy}});
+    const recipients=await tx.user.findMany({
+     where:{active:true,OR:[{networkAdmin:true},{unitAccesses:{some:{unitId:body.unitId,active:true}}}]},
+     select:{id:true,networkAdmin:true,permissions:true,unitAccesses:{where:{unitId:body.unitId,active:true},select:{permissions:true}}},
+    });
+    const allowedRecipients=recipients.filter(u=>u.networkAdmin||hasPermissions(permissionSet(u.permissions,u.unitAccesses[0]?.permissions),['tasks.read'])||hasPermissions(permissionSet(u.permissions,u.unitAccesses[0]?.permissions),['agenda.read']));
+    if(allowedRecipients.length){
+     const serviceNames=serviceRows.map(x=>x.serviceName).join(' + ');
+     await tx.managementTask.createMany({data:allowedRecipients.map(u=>({
+      id:'task_waitlist_'+createHash('sha256').update(id+'|'+u.id).digest('hex').slice(0,32),
+      title:'Novo pedido de encaixe',priority:'high',category:'general',unitId:body.unitId,assignedUserId:u.id,status:'OPEN',
+      note:(client?.name||body.clientName?.trim()||'Cliente')+' · '+serviceNames,
+      sourceType:'waitlist',sourceId:id,
+      legacyPayload:{source:WHATSAPP_WAITLIST_SOURCE,requestId:id,clientId:client?.id||null,unitId:body.unitId,serviceIds:legacy.serviceIds,channelId,openAction:'waitlist_request'} as Prisma.InputJsonValue,
+     })),skipDuplicates:true});
+    }
     await tx.auditEvent.create({data:{id:randomUUID(),unitId:body.unitId,action:'waitlist.created_from_whatsapp',entityType:'WaitlistRequest',entityId:id,legacyPayload:{requestId:id,clientId:client?.id||null,unitId:body.unitId,serviceIds:legacy.serviceIds,source:WHATSAPP_WAITLIST_SOURCE,channelId},occurredAt:new Date()}});
     return row;
    });
