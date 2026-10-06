@@ -64,6 +64,7 @@
     "test:wa4.5": "node test/wa4.5-offer-candidate.integration.mjs",
     "test:wa4.6": "node test/wa4.6-trace-state.integration.mjs && node test/wa4.6-state-security.contract.mjs",
     "test:wa4.7": "node test/wa4.7-waitlist-read.integration.mjs && node test/wa4.7-frontend.contract.mjs",
+    "test:wa4-e2e": "node test/wa4-e2e.integration.mjs",
     "diagnostic:three-units": "node tools/three-unit-readiness.mjs"
   },
   "dependencies": {
