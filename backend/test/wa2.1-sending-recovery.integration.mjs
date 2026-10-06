@@ -38,6 +38,8 @@ try{
   await prisma.messagingOutbox.deleteMany();
   await prisma.messagingChannel.updateMany({data:{enabled:false}});
   await prisma.messagingChannel.update({where:{id:'BIG_CENTRO'},data:{enabled:true}});
+  delete process.env.MESSAGING_SENDING_STALE_MS;
+  eq(messagingSendingStaleMs(),300000,'lease possui default conservador de cinco minutos');
   process.env.MESSAGING_SENDING_STALE_MS='300000';
   process.env.WHATSAPP_AUTOMATION_ENABLED='true';
 
@@ -79,7 +81,7 @@ try{
   eq(fake.calls.length,0,'recuperação concorrente não chama provider');
 
   const viaPending=await queue(foundation,'wa2.1-process-pending');
-  await forceState(viaPending.id,'SENDING',new Date(now.getTime()-10*60_000));
+  await forceState(viaPending.id,'SENDING',new Date(Date.now()-10*60_000));
   fake=new FakeMessagingProvider();
   fake.nextProviderMessageId='wa2.1-retry-provider';
   dispatch=new MessagingDispatchService(prisma,fake);
