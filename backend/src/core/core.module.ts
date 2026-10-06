@@ -15,9 +15,11 @@ import { WaitlistService } from './waitlist.service';
 import { WaitlistOpportunityService } from './waitlist-opportunity.service';
 import { WaitlistTraceService } from './waitlist-trace.service';
 import { WaitlistController } from './waitlist.controller';
+import { StockController } from './stock.controller';
+import { StockService } from './stock.service';
 @Module({
  imports:[MessagingModule],
- controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController,StructuralConfigController,UnitPublicProfileController,WhatsappAgentController,WaitlistController],
- providers:[BookingAvailabilityService,BookingCreationService,WhatsappAgentGuard,WaitlistService,WaitlistOpportunityService,WaitlistTraceService],
+ controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController,StructuralConfigController,UnitPublicProfileController,WhatsappAgentController,WaitlistController,StockController],
+ providers:[BookingAvailabilityService,BookingCreationService,WhatsappAgentGuard,WaitlistService,WaitlistOpportunityService,WaitlistTraceService,StockService],
 })
 export class CoreModule {}

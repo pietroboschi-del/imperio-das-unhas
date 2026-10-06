@@ -65,6 +65,11 @@ enum MessagingAutomationStatus {
   CANCELLED
 }
 
+enum StockLocationKind {
+  CENTRAL
+  UNIT
+}
+
 model Unit {
   id           String   @id
   name         String
@@ -81,6 +86,7 @@ model Unit {
   bookings     Booking[]
   bookingItems BookingItem[]
   workstations Workstation[]
+  stockLocation StockLocation?
 
   @@index([active])
 }
@@ -684,6 +690,170 @@ model StockBalanceOpening {
 
   @@unique([productId, locationId])
   @@index([locationId])
+}
+
+model Product {
+  id            String   @id
+  sku           String?  @unique
+  name          String
+  type          String
+  groupName     String?
+  familyId      String?
+  brand         String?
+  unit          String   @default("un")
+  packageQty    Decimal? @db.Decimal(18,4)
+  baseUnit      String?
+  defaultCost   Decimal  @default(0) @db.Decimal(14,4)
+  salePrice     Decimal  @default(0) @db.Decimal(14,2)
+  minStock      Decimal  @default(0) @db.Decimal(18,4)
+  supplier      String?
+  allocations   Json?
+  active        Boolean  @default(true)
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  balances      StockBalance[]
+  movements     StockMovement[]
+  purchaseItems StockPurchaseItem[]
+  transferItems StockTransferItem[]
+
+  @@index([active, type])
+  @@index([familyId])
+}
+
+model StockLocation {
+  id                   String            @id
+  kind                 StockLocationKind
+  unitId               String?           @unique
+  name                 String
+  active               Boolean           @default(true)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  unit                 Unit?             @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  balances             StockBalance[]
+  movementEntries      StockMovement[]   @relation("StockMovementLocation")
+  sourceMovements      StockMovement[]   @relation("StockMovementSource")
+  destinationMovements StockMovement[]   @relation("StockMovementDestination")
+  purchases            StockPurchase[]
+  sourceTransfers      StockTransfer[]   @relation("StockTransferSource")
+  destinationTransfers StockTransfer[]   @relation("StockTransferDestination")
+
+  @@index([kind, active])
+}
+
+model StockBalance {
+  id         String   @id @default(cuid())
+  productId  String
+  locationId String
+  qty        Decimal  @default(0) @db.Decimal(18,4)
+  avgCost    Decimal  @default(0) @db.Decimal(14,4)
+  version    Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  location   StockLocation @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, locationId])
+  @@index([locationId])
+}
+
+model StockMovement {
+  id                    String   @id @default(cuid())
+  type                  String
+  productId             String
+  locationId            String
+  sourceLocationId      String?
+  destinationLocationId String?
+  quantity              Decimal  @db.Decimal(18,4)
+  unitCost              Decimal  @db.Decimal(14,4)
+  beforeQty             Decimal  @db.Decimal(18,4)
+  afterQty              Decimal  @db.Decimal(18,4)
+  performedByUserId     String
+  referenceType         String
+  referenceId           String
+  operationKey          String   @unique
+  reason                String?
+  createdAt             DateTime @default(now())
+  product               Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  location              StockLocation @relation("StockMovementLocation", fields: [locationId], references: [id], onDelete: Restrict)
+  sourceLocation        StockLocation? @relation("StockMovementSource", fields: [sourceLocationId], references: [id], onDelete: Restrict)
+  destinationLocation   StockLocation? @relation("StockMovementDestination", fields: [destinationLocationId], references: [id], onDelete: Restrict)
+
+  @@index([locationId, createdAt])
+  @@index([productId, createdAt])
+  @@index([referenceType, referenceId])
+}
+
+model StockPurchase {
+  id                    String   @id @default(cuid())
+  destinationLocationId String
+  purchaseDate          DateTime @db.Date
+  supplier              String
+  freight               Decimal  @default(0) @db.Decimal(14,2)
+  goodsTotal            Decimal  @db.Decimal(14,2)
+  total                 Decimal  @db.Decimal(14,2)
+  status                String   @default("RECEIVED")
+  note                  String?
+  createdByUserId       String
+  idempotencyKey        String   @unique
+  createdAt             DateTime @default(now())
+  destinationLocation   StockLocation @relation(fields: [destinationLocationId], references: [id], onDelete: Restrict)
+  items                 StockPurchaseItem[]
+
+  @@index([destinationLocationId, purchaseDate])
+}
+
+model StockPurchaseItem {
+  id             String   @id @default(cuid())
+  purchaseId     String
+  productId      String
+  qty            Decimal  @db.Decimal(18,4)
+  unitCost       Decimal  @db.Decimal(14,4)
+  freightShare   Decimal  @db.Decimal(14,4)
+  landedUnitCost Decimal  @db.Decimal(14,4)
+  sortOrder      Int      @default(0)
+  purchase       StockPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product        Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseId, sortOrder])
+  @@index([productId])
+}
+
+model StockTransfer {
+  id                    String   @id @default(cuid())
+  sourceLocationId      String
+  destinationLocationId String
+  transferDate          DateTime @db.Date
+  status                String   @default("SEPARATED")
+  note                  String?
+  createdByUserId       String
+  sentByUserId          String?
+  receivedByUserId      String?
+  sentAt                DateTime?
+  receivedAt            DateTime?
+  idempotencyKey        String   @unique
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  sourceLocation        StockLocation @relation("StockTransferSource", fields: [sourceLocationId], references: [id], onDelete: Restrict)
+  destinationLocation   StockLocation @relation("StockTransferDestination", fields: [destinationLocationId], references: [id], onDelete: Restrict)
+  items                 StockTransferItem[]
+
+  @@index([sourceLocationId, status])
+  @@index([destinationLocationId, status])
+}
+
+model StockTransferItem {
+  id         String   @id @default(cuid())
+  transferId String
+  productId  String
+  qty        Decimal  @db.Decimal(18,4)
+  unitCost   Decimal? @db.Decimal(14,4)
+  sortOrder  Int      @default(0)
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  product    Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([transferId, sortOrder])
+  @@index([productId])
 }
 
 model ProfessionalPayableOpening {
