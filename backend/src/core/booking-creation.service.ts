@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { isMessagingChannelId } from '../messaging/messaging-channels';
+import { BookingAutomationMaterializationService } from '../messaging/booking-automation-materialization.service';
 import { BookingAvailabilityService, PUBLIC_BOOKING_SLOT_MINUTES } from './booking-availability.service';
 import { PublicBookingDto, PublicBookingItemDto } from './public-booking.dto';
 import { WhatsappAgentBookingDto, WhatsappAgentMultiBookingDto } from './whatsapp-agent.dto';
@@ -116,6 +117,7 @@ export class BookingCreationService {
  constructor(
   private readonly prisma:PrismaService,
   private readonly availability:BookingAvailabilityService,
+  private readonly bookingAutomations:BookingAutomationMaterializationService,
  ){}
 
  private publicItems(body:PublicBookingDto):PublicBookingItemDto[]{
@@ -171,6 +173,7 @@ export class BookingCreationService {
   const existing=await this.prisma.booking.findUnique({where:{id:expectedBookingId},include:{items:true}});
   if(existing){
    this.verifyExisting(existing,directHash,true);
+   await this.bookingAutomations.materializeCreatedBooking(existing.id);
    return this.multiBookingView(existing.id,body.date);
   }
 
@@ -297,10 +300,14 @@ export class BookingCreationService {
   const idempotencyHash=input.strictIdempotency?(input.idempotencyHashOverride||hashAgentPayload(input)):null;
 
   const existingBefore=await this.prisma.booking.findUnique({where:{id:bookingId},include:{items:true}});
-  if(existingBefore)return this.verifyExisting(existingBefore,idempotencyHash,input.strictIdempotency);
+  if(existingBefore){
+   const verified=this.verifyExisting(existingBefore,idempotencyHash,input.strictIdempotency);
+   await this.bookingAutomations.materializeCreatedBooking(verified.id);
+   return verified;
+  }
 
   try{
-   return await this.prisma.$transaction(async tx=>{
+   const row=await this.prisma.$transaction(async tx=>{
     assertOperationalWriteEnabled(input.unitId,'Agendamento online central ainda não habilitado neste ambiente');
     const prior=await tx.booking.findUnique({where:{id:bookingId},include:{items:true}});
     if(prior)return this.verifyExisting(prior,idempotencyHash,input.strictIdempotency);
@@ -441,10 +448,16 @@ export class BookingCreationService {
     }});
     return row;
    });
+   await this.bookingAutomations.materializeCreatedBooking(row.id);
+   return row;
   }catch(error){
    if(input.strictIdempotency&&(error as {code?:string})?.code==='P2002'){
     const raced=await this.prisma.booking.findUnique({where:{id:bookingId},include:{items:true}});
-    if(raced)return this.verifyExisting(raced,idempotencyHash,true);
+    if(raced){
+     const verified=this.verifyExisting(raced,idempotencyHash,true);
+     await this.bookingAutomations.materializeCreatedBooking(verified.id);
+     return verified;
+    }
    }
    throw error;
   }

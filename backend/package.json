@@ -66,7 +66,8 @@
     "test:wa4.7": "node test/wa4.7-waitlist-read.integration.mjs && node test/wa4.7-frontend.contract.mjs",
     "test:wa4-e2e": "node test/wa4-e2e.integration.mjs",
     "diagnostic:three-units": "node tools/three-unit-readiness.mjs",
-    "test:wa5.1": "node test/wa5.1-automation.contract.mjs && node test/wa5.1-automation.integration.mjs"
+    "test:wa5.1": "node test/wa5.1-automation.contract.mjs && node test/wa5.1-automation.integration.mjs",
+    "test:wa5.2": "node test/wa5.2-booking-materialization.contract.mjs && node test/wa5.2-booking-materialization.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

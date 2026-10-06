@@ -8,12 +8,17 @@ import type { ImperioRequest } from '../common/request-context';
 import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { BookingItemWriteDto, CreateBlockSeriesDto, CreateBookingDto, CreateClientDto, UpdateBookingDto, UpdateClientDto } from './core-write.dto';
 import { WaitlistOpportunityService } from './waitlist-opportunity.service';
+import { BookingAutomationMaterializationService } from '../messaging/booking-automation-materialization.service';
 
 const TERMINAL_BOOKING=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
 
 @Controller('api/v1')
 export class CoreWriteController {
-  constructor(private readonly prisma: PrismaService,private readonly waitlistOpportunities:WaitlistOpportunityService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly waitlistOpportunities:WaitlistOpportunityService,
+    private readonly bookingAutomations:BookingAutomationMaterializationService,
+  ) {}
 
   private operationId(scope:string,key?:string){
     if(!key)return randomUUID();
@@ -145,6 +150,7 @@ export class CoreWriteController {
     if(!rawItems.length)throw new ConflictException('Informe pelo menos um serviço do agendamento');
     const id=this.operationId(req.unitId!,key),status=body.status||'Agendado',idempotencyHash=this.bookingRequestHash(req.unitId!,body,rawItems,status);
     await this.prisma.$transaction(async tx=>{const existing=await tx.booking.findUnique({where:{id}});if(existing){const legacy=existing.legacyPayload&&typeof existing.legacyPayload==='object'&&!Array.isArray(existing.legacyPayload)?existing.legacyPayload as any:{};if(legacy.idempotencyHash!==idempotencyHash)throw new ConflictException('Idempotency-Key já utilizada para outro agendamento nesta unidade');return}const unit=await tx.unit.findFirst({where:{id:req.unitId!,active:true}});if(!unit)throw new NotFoundException('Unidade não encontrada ou inativa');const items=await this.prepareItems(tx,req.unitId!,body.serviceDate,rawItems,status);await this.lockAndCheck(tx,req.unitId!,body.serviceDate,null,items,status,!!body.blockAllDay);const first=items[0];await tx.booking.create({data:{id,unitId:req.unitId!,clientId:body.clientId||null,serviceId:first.serviceId||null,professionalId:first.professionalId,serviceDate:new Date(body.serviceDate+'T00:00:00.000Z'),startAt:first.startAt,notes:body.notes?.trim()||null,status,blockAllDay:!!body.blockAllDay,legacyPayload:{source:'central_api',multiItem:true,idempotencyHash},items:{create:items.map(x=>({...x,id:x.id}))}}});if(body.clientId)await tx.clientUnitLink.upsert({where:{clientId_unitId:{clientId:body.clientId,unitId:req.unitId!}},create:{clientId:body.clientId,unitId:req.unitId!,source:'booking'},update:{active:true}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.created',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',itemCount:items.length},occurredAt:new Date()}})});
+    await this.bookingAutomations.materializeCreatedBooking(id);
     return this.bookingView(req.unitId!,id);
   }
 

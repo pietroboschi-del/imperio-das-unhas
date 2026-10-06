@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MessagingModule } from '../messaging/messaging.module';
 import { CoreReadController } from './core-read.controller';
 import { CoreWriteController } from './core-write.controller';
 import { FinanceWriteController } from './finance-write.controller';
@@ -15,6 +16,7 @@ import { WaitlistOpportunityService } from './waitlist-opportunity.service';
 import { WaitlistTraceService } from './waitlist-trace.service';
 import { WaitlistController } from './waitlist.controller';
 @Module({
+ imports:[MessagingModule],
  controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController,StructuralConfigController,UnitPublicProfileController,WhatsappAgentController,WaitlistController],
  providers:[BookingAvailabilityService,BookingCreationService,WhatsappAgentGuard,WaitlistService,WaitlistOpportunityService,WaitlistTraceService],
 })
