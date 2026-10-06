@@ -96,6 +96,8 @@ jobs:
         run: npm run test:wa4.4
       - name: WA4.5 future offer candidate
         run: npm run test:wa4.5
+      - name: WA4.6 states and traceability
+        run: npm run test:wa4.6
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract
