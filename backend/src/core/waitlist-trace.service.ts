@@ -22,7 +22,7 @@ export class WaitlistTraceService {
    const allowedOther=rLegacy.acceptsOtherUnits===true;
    if(actualOp.unitId!==unitId&&!allowedOther)throw new ConflictException('Oportunidade fora do escopo permitido do pedido');
    if(TERMINAL_REQUEST.has(req.status)&&state!=='CANCELLED')throw new ConflictException('Pedido de encaixe já encerrado');
-   let reqStatus=req.status,opStatus=actualOp.status,offerState=state;
+   let reqStatus=req.status,opStatus=actualOp.status,offerState:string=state;
    if(state==='CONTACTED'){reqStatus='CONTACTED';opStatus='CONTACTED';offerState='CONTACT_PENDING'}
    else if(state==='OFFERED'){reqStatus='CONTACTED';opStatus='CONTACTED';offerState='OFFERED'}
    else if(state==='ACCEPTED'){reqStatus='CONTACTED';opStatus='CONTACTED';offerState='ACCEPTED'}
@@ -47,7 +47,7 @@ export class WaitlistTraceService {
    const booking=await tx.booking.findFirst({where:{id:bookingId,unitId:op.unitId},include:{items:true}});
    if(!booking)throw new NotFoundException('Booking final não encontrado na unidade da oportunidade');
    if(req.clientId&&booking.clientId!==req.clientId)throw new ConflictException('Booking não pertence à cliente do pedido');
-   const legacy=obj(req.legacyPayload),requiredIds=new Set((Array.isArray(legacy.serviceIds)?legacy.serviceIds:[]).map(String));
+   const legacy=obj(req.legacyPayload),requiredIds=new Set<string>((Array.isArray(legacy.serviceIds)?legacy.serviceIds:[]).map((x:any)=>String(x)));
    const bookedIds=new Set(booking.items.map(x=>String(x.serviceId||'')));
    if(requiredIds.size&&[...requiredIds].some(id=>!bookedIds.has(id)))throw new ConflictException('Booking não atende integralmente os serviços do pedido');
    const commercialValue=booking.items.reduce((sum,x)=>sum+Number(x.unitPrice||0),0),now=new Date();
