@@ -202,7 +202,7 @@ jobs:
             || { echo "Restore smoke found no public tables."; exit 1; }
           echo "Restore smoke public tables: $PUBLIC_TABLES"
 
-          for table in Unit User Client Service Professional; do
+          for table in Unit User; do
             TABLE_EXISTS="$(docker exec "$RESTORE_CONTAINER" \
               psql -U imperio_restore -d imperio_restore -Atqc \
               "SELECT to_regclass('public.\"$table\"') IS NOT NULL;")"
@@ -217,12 +217,20 @@ jobs:
             echo "Restore smoke count $table=$ROW_COUNT"
           done
 
-          BOOKING_COUNT="$(docker exec "$RESTORE_CONTAINER" \
-            psql -U imperio_restore -d imperio_restore -Atqc \
-            "SELECT COUNT(*) FROM public.\"Booking\";")"
-          [[ "$BOOKING_COUNT" =~ ^[0-9]+$ ]] \
-            || { echo "Restore smoke could not count Booking."; exit 1; }
-          echo "Restore smoke count Booking=$BOOKING_COUNT"
+          for table in Client Service Professional Booking; do
+            TABLE_EXISTS="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT to_regclass('public.\"$table\"') IS NOT NULL;")"
+            [[ "$TABLE_EXISTS" == "t" ]] \
+              || { echo "Restore smoke missing required table: $table"; exit 1; }
+
+            ROW_COUNT="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT COUNT(*) FROM public.\"$table\";")"
+            [[ "$ROW_COUNT" =~ ^[0-9]+$ ]] \
+              || { echo "Restore smoke could not count table: $table"; exit 1; }
+            echo "Restore smoke count $table=$ROW_COUNT"
+          done
 
           MIGRATIONS_APPLIED="$(docker exec "$RESTORE_CONTAINER" \
             psql -U imperio_restore -d imperio_restore -Atqc \
