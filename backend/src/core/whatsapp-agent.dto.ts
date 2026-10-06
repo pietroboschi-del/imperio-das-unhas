@@ -1,4 +1,5 @@
-import { IsEmail, IsISO8601, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsEmail, IsISO8601, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, ValidateNested } from 'class-validator';
 
 export class WhatsappAgentBookingDto {
  @IsString() @IsNotEmpty() @MaxLength(128) unitId!:string;
@@ -13,4 +14,18 @@ export class WhatsappAgentBookingDto {
  @IsOptional() @IsEmail() @MaxLength(200) clientEmail?:string;
 
  @IsOptional() @IsString() @MaxLength(64) channelId?:string;
+}
+
+export class WhatsappAgentMultiServiceSpecDto {
+ @IsString() @IsNotEmpty() @MaxLength(128) serviceId!:string;
+ @IsOptional() @IsString() @MaxLength(128) professionalId?:string;
+ @IsOptional() @IsIn(['preferred','required']) preferenceMode?:'preferred'|'required';
+}
+
+export class WhatsappAgentMultiAvailabilityDto {
+ @IsString() @IsNotEmpty() @MaxLength(128) unitId!:string;
+ @Matches(/^\d{4}-\d{2}-\d{2}$/) date!:string;
+ @IsArray() @ArrayMinSize(2) @ArrayMaxSize(5)
+ @ValidateNested({each:true}) @Type(()=>WhatsappAgentMultiServiceSpecDto)
+ services!:WhatsappAgentMultiServiceSpecDto[];
 }

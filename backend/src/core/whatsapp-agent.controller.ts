@@ -2,7 +2,7 @@ import { Body, Controller, Get, Headers, Post, Query, UseGuards } from '@nestjs/
 import { Public } from '../common/public.decorator';
 import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingCreationService } from './booking-creation.service';
-import { WhatsappAgentBookingDto } from './whatsapp-agent.dto';
+import { WhatsappAgentBookingDto, WhatsappAgentMultiAvailabilityDto } from './whatsapp-agent.dto';
 import { WhatsappAgentGuard } from './whatsapp-agent.guard';
 
 @Controller('api/v1/integrations/whatsapp-agent')
@@ -28,6 +28,11 @@ export class WhatsappAgentController {
     @Query('professionalId') professionalId='',
   ){
     return this.availability.availability({unitId,date,serviceId,professionalId:professionalId||undefined});
+  }
+
+  @Post('availability/multi')
+  multiAvailability(@Body() body:WhatsappAgentMultiAvailabilityDto){
+    return this.availability.multiAvailability(body);
   }
 
   @Post('bookings')
