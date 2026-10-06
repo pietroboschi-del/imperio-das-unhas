@@ -1,0 +1,224 @@
+name: Production Logical Backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Optional audit note for this manual backup
+        required: false
+        type: string
+  schedule:
+    # GitHub cron is UTC. Running at 05:00 and 06:00 UTC plus the timezone
+    # gate below keeps exactly one daily backup at 03:00 America/Sao_Paulo,
+    # including a future return of UTC-2 daylight-saving time.
+    - cron: "0 5 * * *"
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-logical-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: encrypted logical backup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production-backup
+
+    steps:
+      - name: Gate 03:00 America/Sao_Paulo
+        id: schedule_gate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          local_hour="$(TZ=America/Sao_Paulo date +%H)"
+          if [[ "$local_hour" == "03" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Scheduled guard: local hour is ${local_hour}; no backup on this UTC slot."
+          fi
+
+      - name: Install age
+        if: steps.schedule_gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age
+
+      - name: Create, validate, hash and encrypt backup
+        id: backup
+        if: steps.schedule_gate.outputs.run == 'true'
+        shell: bash
+        env:
+          BACKUP_BASE_URL: ${{ vars.IMPERIO_BACKUP_BASE_URL }}
+          AGE_RECIPIENT: ${{ vars.IMPERIO_BACKUP_AGE_RECIPIENT }}
+          BACKUP_USERNAME: ${{ secrets.IMPERIO_BACKUP_USERNAME }}
+          BACKUP_PASSWORD: ${{ secrets.IMPERIO_BACKUP_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          set +x
+          umask 077
+
+          [[ -n "${BACKUP_BASE_URL:-}" ]] || { echo "Missing IMPERIO_BACKUP_BASE_URL."; exit 1; }
+          [[ "$BACKUP_BASE_URL" == https://* ]] || { echo "IMPERIO_BACKUP_BASE_URL must use HTTPS."; exit 1; }
+          [[ "$BACKUP_BASE_URL" != *"@"* ]] || { echo "IMPERIO_BACKUP_BASE_URL must not contain credentials."; exit 1; }
+          [[ -n "${AGE_RECIPIENT:-}" ]] || { echo "Missing IMPERIO_BACKUP_AGE_RECIPIENT."; exit 1; }
+          [[ "$AGE_RECIPIENT" =~ ^age1[0-9a-z]+$ ]] || { echo "Invalid age recipient."; exit 1; }
+          [[ -n "${BACKUP_USERNAME:-}" ]] || { echo "Missing IMPERIO_BACKUP_USERNAME."; exit 1; }
+          [[ -n "${BACKUP_PASSWORD:-}" ]] || { echo "Missing IMPERIO_BACKUP_PASSWORD."; exit 1; }
+
+          echo "::add-mask::$BACKUP_USERNAME"
+          echo "::add-mask::$BACKUP_PASSWORD"
+
+          BASE_URL="${BACKUP_BASE_URL%/}"
+          WORK_DIR="$RUNNER_TEMP/imperio-backup"
+          UPLOAD_DIR="$RUNNER_TEMP/imperio-backup-upload"
+          mkdir -p "$WORK_DIR" "$UPLOAD_DIR"
+          chmod 700 "$WORK_DIR" "$UPLOAD_DIR"
+
+          timestamp="$(TZ=America/Sao_Paulo date '+%Y-%m-%dT%H-%M-%S')"
+          generated_at="$(TZ=America/Sao_Paulo date --iso-8601=seconds)"
+          BACKUP_NAME="imperio-postgres-${timestamp}.dump"
+          DUMP_PATH="$WORK_DIR/$BACKUP_NAME"
+          LOGIN_PAYLOAD="$WORK_DIR/login.json"
+          LOGIN_RESPONSE="$WORK_DIR/login-response.json"
+          COOKIE_JAR="$WORK_DIR/cookies.txt"
+          HEADERS_PATH="$WORK_DIR/backup-headers.txt"
+          MANIFEST_PATH="$WORK_DIR/${BACKUP_NAME}.manifest.json"
+
+          cleanup() {
+            for path in \
+              "$DUMP_PATH" \
+              "$LOGIN_PAYLOAD" \
+              "$LOGIN_RESPONSE" \
+              "$COOKIE_JAR" \
+              "$HEADERS_PATH" \
+              "$MANIFEST_PATH"
+            do
+              if [[ -e "$path" ]]; then
+                shred -u "$path" 2>/dev/null || rm -f "$path"
+              fi
+            done
+          }
+          trap cleanup EXIT
+
+          python3 - <<'PY' > "$LOGIN_PAYLOAD"
+          import json
+          import os
+          print(json.dumps({
+              "username": os.environ["BACKUP_USERNAME"],
+              "password": os.environ["BACKUP_PASSWORD"],
+          }))
+          PY
+
+          curl \
+            --proto '=https' \
+            --tlsv1.2 \
+            --fail \
+            --silent \
+            --show-error \
+            --cookie-jar "$COOKIE_JAR" \
+            --header 'Content-Type: application/json' \
+            --data-binary @"$LOGIN_PAYLOAD" \
+            "$BASE_URL/api/v1/auth/login" \
+            --output "$LOGIN_RESPONSE"
+
+          python3 - "$LOGIN_RESPONSE" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], "r", encoding="utf-8") as fh:
+              payload = json.load(fh)
+          user = payload.get("user") or {}
+          if user.get("networkAdmin") is not True:
+              raise SystemExit("Backup account is not a network administrator.")
+          PY
+
+          curl \
+            --proto '=https' \
+            --tlsv1.2 \
+            --fail \
+            --silent \
+            --show-error \
+            --cookie "$COOKIE_JAR" \
+            --dump-header "$HEADERS_PATH" \
+            "$BASE_URL/api/v1/admin/database-backup" \
+            --output "$DUMP_PATH"
+
+          test -s "$DUMP_PATH"
+          grep -qi '^X-Backup-Format: pg_dump-custom' "$HEADERS_PATH"
+
+          python3 - "$DUMP_PATH" <<'PY'
+          import sys
+          with open(sys.argv[1], "rb") as fh:
+              magic = fh.read(5)
+          if magic != b"PGDMP":
+              raise SystemExit("Downloaded file is not a PostgreSQL custom-format dump.")
+          PY
+
+          docker run --rm \
+            -v "$WORK_DIR:/backup:ro" \
+            postgres:18 \
+            pg_restore --list "/backup/$BACKUP_NAME" >/dev/null
+
+          BACKUP_SHA256="$(sha256sum "$DUMP_PATH" | awk '{print $1}')"
+          BACKUP_BYTES="$(stat -c '%s' "$DUMP_PATH")"
+          export BACKUP_SHA256 BACKUP_BYTES BACKUP_NAME generated_at
+
+          python3 - <<'PY' > "$MANIFEST_PATH"
+          import json
+          import os
+          manifest = {
+              "filename": os.environ["BACKUP_NAME"],
+              "generatedAt": os.environ["generated_at"],
+              "timezone": "America/Sao_Paulo",
+              "bytes": int(os.environ["BACKUP_BYTES"]),
+              "sha256": os.environ["BACKUP_SHA256"],
+              "format": "pg_dump-custom",
+              "pgRestoreValidation": "postgres:18 pg_restore --list",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "gitSha": os.environ["GITHUB_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+          }
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+
+          age \
+            --recipient "$AGE_RECIPIENT" \
+            --output "$UPLOAD_DIR/${BACKUP_NAME}.age" \
+            "$DUMP_PATH"
+
+          age \
+            --recipient "$AGE_RECIPIENT" \
+            --output "$UPLOAD_DIR/${BACKUP_NAME}.manifest.json.age" \
+            "$MANIFEST_PATH"
+
+          sha256sum "$UPLOAD_DIR/${BACKUP_NAME}.age" \
+            | sed "s#  .*#  ${BACKUP_NAME}.age#" \
+            > "$UPLOAD_DIR/${BACKUP_NAME}.age.sha256"
+
+          test -s "$UPLOAD_DIR/${BACKUP_NAME}.age"
+          test -s "$UPLOAD_DIR/${BACKUP_NAME}.manifest.json.age"
+          test -s "$UPLOAD_DIR/${BACKUP_NAME}.age.sha256"
+
+          echo "artifact_name=imperio-logical-backup-${timestamp}" >> "$GITHUB_OUTPUT"
+          echo "Backup created, pg_restore validated, SHA-256 recorded in encrypted manifest, and age encryption completed."
+
+      - name: Upload encrypted backup artifact
+        if: steps.schedule_gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.backup.outputs.artifact_name }}
+          path: ${{ runner.temp }}/imperio-backup-upload/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
