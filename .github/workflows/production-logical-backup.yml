@@ -7,6 +7,13 @@ on:
         description: Optional audit note for this manual backup
         required: false
         type: string
+  schedule:
+    # GitHub cron is UTC. Running at 05:00 and 06:00 UTC plus the timezone
+    # gate below keeps exactly one daily backup at 03:00 America/Sao_Paulo,
+    # including a future return of UTC-2 daylight-saving time.
+    - cron: "0 5 * * *"
+    - cron: "0 6 * * *"
+
 permissions:
   contents: read
 
@@ -22,13 +29,23 @@ jobs:
     environment: production-backup
 
     steps:
-      - name: Enable manual backup run
+      - name: Gate 03:00 America/Sao_Paulo
         id: schedule_gate
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]] || { echo "Manual-only workflow."; exit 1; }
-          echo "run=true" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          local_hour="$(TZ=America/Sao_Paulo date +%H)"
+          if [[ "$local_hour" == "03" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Scheduled guard: local hour is ${local_hour}; no backup on this UTC slot."
+          fi
 
       - name: Install age
         if: steps.schedule_gate.outputs.run == 'true'
