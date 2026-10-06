@@ -410,6 +410,7 @@ model MessagingOutbox {
   @@index([bookingId])
   @@index([commandId])
   @@index([channelId, providerMessageId])
+  @@unique([channelId, providerMessageId])
 }
 
 model MessagingInbound {

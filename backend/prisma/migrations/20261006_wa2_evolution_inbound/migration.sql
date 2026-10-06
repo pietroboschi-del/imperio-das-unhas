@@ -34,4 +34,5 @@ CREATE INDEX "MessagingInbound_clientId_receivedAt_idx" ON "MessagingInbound"("c
 CREATE INDEX "MessagingInbound_bookingId_idx" ON "MessagingInbound"("bookingId");
 CREATE INDEX "MessagingInbound_commandId_idx" ON "MessagingInbound"("commandId");
 CREATE INDEX "MessagingInbound_processingStatus_receivedAt_idx" ON "MessagingInbound"("processingStatus","receivedAt");
+CREATE UNIQUE INDEX "MessagingOutbox_channelId_providerMessageId_key" ON "MessagingOutbox"("channelId","providerMessageId");
 ALTER TABLE "MessagingInbound" ADD CONSTRAINT "MessagingInbound_channelId_fkey" FOREIGN KEY ("channelId") REFERENCES "MessagingChannel"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

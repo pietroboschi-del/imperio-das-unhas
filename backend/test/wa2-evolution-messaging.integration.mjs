@@ -60,7 +60,7 @@ try{
   eq(await prisma.auditEvent.count({where:{action:'communication.failed',entityId:failed.id}}),1,'falha audita communication.failed');
 
   const concurrentMessage=await foundation.queueMessage({channelId:'BIG_CENTRO',unitId:'big',idempotencyKey:'wa2-concurrency',messageType:'TEST',trigger:'WA2_TEST',payload:{number:'5531999990003',text:'concorrencia'}});
-  fake=new FakeMessagingProvider();fake.delayMs=150;dispatch=new MessagingDispatchService(prisma,fake);
+  fake=new FakeMessagingProvider();fake.delayMs=150;fake.nextProviderMessageId='wa2-concurrent-provider';dispatch=new MessagingDispatchService(prisma,fake);
   const concurrent=await Promise.all([dispatch.processOne(concurrentMessage.id),dispatch.processOne(concurrentMessage.id)]);
   eq(fake.calls.length,1,'duas tentativas paralelas fazem uma chamada real');eq((await prisma.messagingOutbox.findUniqueOrThrow({where:{id:concurrentMessage.id}})).status,'SENT','concorrência deixa SENT');ok(concurrent.some(x=>x.outcome==='SENT')&&concurrent.some(x=>x.outcome==='SKIPPED'),'um claim vence');
 

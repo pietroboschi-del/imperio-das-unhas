@@ -5,6 +5,7 @@ const schema=read('../prisma/schema.prisma'),migration=read('../prisma/migration
 ok(schema.includes('model MessagingInbound')&&schema.includes('deduplicationKey       String                            @unique'),'inbound persistente tem deduplicação única');
 ok(schema.includes('enum MessagingInboundType')&&['TEXT','IMAGE','DOCUMENT','UNKNOWN'].every(x=>schema.includes('  '+x)),'tipos inbound mínimos definidos');
 ok(schema.includes('enum MessagingInboundProcessingStatus')&&schema.includes('RECEIVED'),'status de processamento persistente definido');
+ok(schema.includes('@@unique([channelId, providerMessageId])')&&migration.includes('MessagingOutbox_channelId_providerMessageId_key'),'status webhook possui vínculo providerMessageId não ambíguo por canal');
 ok(!/\bDROP\b|\bRENAME\b/i.test(migration),'migration WA2 é aditiva');
 ok(config.includes('EVOLUTION_API_BASE_URL')&&config.includes('EVOLUTION_API_KEY')&&config.includes('EVOLUTION_INSTANCE_CENTRAL')&&config.includes('EVOLUTION_INSTANCE_BIG_CENTRO')&&config.includes('EVOLUTION_INSTANCE_SHOPPING_CONTAGEM'),'configuração Evolution vem do ambiente');
 ok(config.includes("EVOLUTION_WEBHOOK_ENABLED||'false'"),'webhook nasce OFF');
