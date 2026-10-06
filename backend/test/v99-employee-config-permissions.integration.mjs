@@ -29,7 +29,7 @@ async function main(){
   await waitHealth();
   const auth={cookie:'imperio_session='+sessionToken,'x-csrf-token':csrfToken,'content-type':'application/json','x-unit-id':'centro'};
   let r=await fetch(base+'/api/v1/auth/me',{headers:{cookie:'imperio_session='+sessionToken}});ok(r.ok,'funcionária entra');
-  const me=await r.json();ok(me.networkAdmin===false,'funcionária não é networkAdmin');
+  const me=await r.json();ok(me.user?.networkAdmin===false,'funcionária não é networkAdmin');
 
   for(const p of ['/api/v1/config/categories','/api/v1/config/services','/api/v1/config/professionals','/api/v1/config/workstations']){
    r=await fetch(base+p,{headers:{cookie:'imperio_session='+sessionToken,'x-unit-id':'centro'}});ok(r.ok,'funcionária acessa '+p);
