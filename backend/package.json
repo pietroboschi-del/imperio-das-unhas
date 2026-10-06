@@ -26,7 +26,7 @@
     "test:cutover-normalization": "node test/v98a-cutover-normalization.contract.mjs",
     "test:money": "node test/v98a-decimal-money.test.mjs",
     "test": "npm run test:contracts && npm run test:reconciliation && npm run test:import-contract && npm run test:cutover && npm run test:cutover-normalization && npm run test:money && npm run test:client-batches && npm run test:avec-client-export && npm run test:cross-site-cookie && npm run test:xlsx-legacy-layout && npm run test:admin-recovery && npm run test:v98b",
-    "ci": "npm run prisma:generate && npm run prisma:migrate && npm run build && npm test && npm run test:integration && npm run test:security-integration",
+    "ci": "npm run prisma:generate && npm run prisma:migrate && npm run build && npm run test:wa5.1 && npm test && npm run test:integration && npm run test:security-integration",
     "reconcile:exports": "node tools/reconcile-exports.mjs",
     "test:v98b": "node --experimental-strip-types test/v98b-security-contract.test.mjs && node --experimental-strip-types test/v98b-permission-policy.test.mjs && node --experimental-strip-types test/v98b-legacy-permissions.test.mjs && node --experimental-strip-types test/v98b-three-units.test.mjs",
     "test:security-integration": "node test/v98b-security.integration.mjs",
@@ -65,7 +65,8 @@
     "test:wa4.6": "node test/wa4.6-trace-state.integration.mjs && node test/wa4.6-state-security.contract.mjs",
     "test:wa4.7": "node test/wa4.7-waitlist-read.integration.mjs && node test/wa4.7-frontend.contract.mjs",
     "test:wa4-e2e": "node test/wa4-e2e.integration.mjs",
-    "diagnostic:three-units": "node tools/three-unit-readiness.mjs"
+    "diagnostic:three-units": "node tools/three-unit-readiness.mjs",
+    "test:wa5.1": "node test/wa5.1-automation.contract.mjs && node test/wa5.1-automation.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

@@ -56,6 +56,15 @@ enum MessagingInboundProcessingStatus {
   FAILED
 }
 
+enum MessagingAutomationStatus {
+  PENDING
+  READY
+  ENQUEUED
+  DONE
+  FAILED
+  CANCELLED
+}
+
 model Unit {
   id           String   @id
   name         String
@@ -465,6 +474,36 @@ model MessagingInbound {
   @@index([bookingId])
   @@index([commandId])
   @@index([processingStatus, receivedAt])
+}
+
+model MessagingAutomation {
+  id             String                    @id @default(cuid())
+  unitId         String
+  clientId       String?
+  bookingId      String?
+  sourceType     String
+  sourceId       String
+  automationType String
+  status         MessagingAutomationStatus @default(PENDING)
+  scheduledAt    DateTime
+  idempotencyKey String                    @unique
+  requestHash    String
+  logicalKey     String
+  generation     Int                       @default(1)
+  payload        Json?
+  lastError      String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @default(now()) @updatedAt
+  cancelledAt    DateTime?
+  doneAt         DateTime?
+
+  @@unique([logicalKey, generation])
+  @@index([status, scheduledAt])
+  @@index([unitId, status, scheduledAt])
+  @@index([bookingId, status])
+  @@index([clientId, createdAt])
+  @@index([sourceType, sourceId])
+  @@index([logicalKey, status])
 }
 
 model MigrationEnvelope {
