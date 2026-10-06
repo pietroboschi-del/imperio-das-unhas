@@ -1,23 +1,24 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query, UseGuards } from '@nestjs/common';
 import { Public } from '../common/public.decorator';
 import { BookingAvailabilityService } from './booking-availability.service';
+import { BookingCreationService } from './booking-creation.service';
+import { WhatsappAgentBookingDto } from './whatsapp-agent.dto';
 import { WhatsappAgentGuard } from './whatsapp-agent.guard';
 
 @Controller('api/v1/integrations/whatsapp-agent')
 @Public()
 @UseGuards(WhatsappAgentGuard)
 export class WhatsappAgentController {
-  constructor(private readonly availability:BookingAvailabilityService){}
+  constructor(
+    private readonly availability:BookingAvailabilityService,
+    private readonly creation:BookingCreationService,
+  ){}
 
   @Get('units')
-  units(){
-    return this.availability.activeUnits();
-  }
+  units(){return this.availability.activeUnits()}
 
   @Get('catalog')
-  catalog(@Query('unitId') unitId=''){
-    return this.availability.catalog(unitId);
-  }
+  catalog(@Query('unitId') unitId=''){return this.availability.catalog(unitId)}
 
   @Get('availability')
   slots(
@@ -27,5 +28,10 @@ export class WhatsappAgentController {
     @Query('professionalId') professionalId='',
   ){
     return this.availability.availability({unitId,date,serviceId,professionalId:professionalId||undefined});
+  }
+
+  @Post('bookings')
+  book(@Body() body:WhatsappAgentBookingDto,@Headers('idempotency-key') key?:string){
+    return this.creation.createAgentBooking(body,key);
   }
 }

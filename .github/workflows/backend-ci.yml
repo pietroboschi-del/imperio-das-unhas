@@ -76,6 +76,8 @@ jobs:
         run: npm run test:wa2.1
       - name: WA3A server-side availability
         run: npm run test:wa3a
+      - name: WA3B authoritative agent booking
+        run: npm run test:wa3b
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract
