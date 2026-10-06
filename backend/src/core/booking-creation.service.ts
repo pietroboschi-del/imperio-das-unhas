@@ -369,7 +369,7 @@ export class BookingCreationService {
   if(!client){
    client=await tx.client.create({data:{
     id:randomUUID(),name,phone:normalizedPhone,email,registrationUnitId:input.unitId,active:true,
-    legacyPayload:{source:input.source,operationalProfile:input.clientProfile||{}},
+    legacyPayload:{source:input.source,operationalProfile:input.clientProfile||{}} as Prisma.InputJsonValue,
    }});
    return client;
   }
