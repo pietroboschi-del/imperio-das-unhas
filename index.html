@@ -7000,8 +7000,8 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function centralCsrf(){try{return csrf()}catch(e){return ''}}
  function operationKey(scope){try{return scope+'_'+crypto.randomUUID()}catch(e){return scope+'_'+Date.now()+'_'+Math.random().toString(36).slice(2)}}
  async function centralRequest(path,opt={}){
-  let uid=centralUnitId();if(!uid)throw new Error('Selecione uma unidade');
-  let headers={Accept:'application/json','X-Unit-Id':uid,...(opt.body?{'Content-Type':'application/json'}:{}),...(opt.key?{'Idempotency-Key':opt.key}:{}),...(opt.headers||{})},token=centralCsrf();
+  let uid=centralUnitId();if(!uid&&!opt.global)throw new Error('Selecione uma unidade');
+  let headers={Accept:'application/json',...(uid?{'X-Unit-Id':uid}:{}),...(opt.body?{'Content-Type':'application/json'}:{}),...(opt.key?{'Idempotency-Key':opt.key}:{}),...(opt.headers||{})},token=centralCsrf();
   if(token)headers['X-CSRF-Token']=token;
   let res=await fetch(endpoint()+path,{credentials:'include',method:opt.method||'GET',headers,body:opt.body?JSON.stringify(opt.body):undefined}),txt=await res.text(),data=null;
   try{data=txt?JSON.parse(txt):null}catch(e){data={message:txt}}
@@ -7009,8 +7009,8 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  }
  const centralApi=Object.freeze({
   status(){return {enabled:centralEnabled(),localUnitId:localUnitId(),unitId:centralUnitId(),endpoint:endpoint(),scope:'all_units',sourceOfTruth:centralEnabled()?'postgresql_central':'legacy_local'}},
-  enable(){return setCentralEnabled(true)},disable(){return setCentralEnabled(false)},
-  units(){return centralRequest('/api/v1/units')},services(){return centralRequest('/api/v1/services')},professionals(){return centralRequest('/api/v1/professionals')},
+  enable(){setCentralEnabled(true);hydrateCentralUnits(true).catch(e=>toast('Unidades centrais indisponíveis: '+e.message));return true},disable(){centralUnitsHydrated=false;return setCentralEnabled(false)},
+  units(){return centralRequest('/api/v1/units',{global:true})},services(){return centralRequest('/api/v1/services')},professionals(){return centralRequest('/api/v1/professionals')},
   clients(q=''){return centralRequest('/api/v1/clients'+(q?'?q='+encodeURIComponent(q):''))},
   bookings(date=''){return centralRequest('/api/v1/bookings'+(date?'?date='+encodeURIComponent(date):''))},
   createClient(body,key=operationKey('client')){return centralRequest('/api/v1/clients',{method:'POST',body,key})},
@@ -7021,6 +7021,23 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   addCommandService(id,body,key=operationKey('command_item')){return centralRequest('/api/v1/commands/'+encodeURIComponent(id)+'/items',{method:'POST',body,key})},
   receivePayment(id,body,key=operationKey('payment')){return centralRequest('/api/v1/commands/'+encodeURIComponent(id)+'/payments',{method:'POST',body,key})}
  });
+
+ let centralUnitsHydration=null,centralUnitsHydrated=false;
+ function validateCentralUnits(rows){
+  if(!Array.isArray(rows))throw new Error('Resposta de unidades inválida');
+  const canonical=new Set(['centro','big','shopping-contagem']),seen=new Set(),validated=[];
+  for(const x of rows){if(!x||x.active===false)continue;let id=String(x.id||'').trim(),name=String(x.name||'').trim();if(!canonical.has(id))throw new Error('ID de unidade central inválido: '+id);if(seen.has(id))throw new Error('Unidade central duplicada: '+id);if(!name)throw new Error('Nome de unidade central ausente: '+id);seen.add(id);validated.push({id,name,timezone:String(x.timezone||'America/Sao_Paulo'),active:true})}
+  return validated
+ }
+ async function hydrateCentralUnits(force=false){
+  if(!centralEnabled())return false;
+  if(centralUnitsHydrated&&!force)return true;
+  if(centralUnitsHydration&&!force)return centralUnitsHydration;
+  centralUnitsHydration=(async()=>{let rows=validateCentralUnits(await centralApi.units());if(!rows.length)throw new Error('Nenhuma unidade ativa disponível para este usuário');let current=centralUnitId(),existing=new Map((db.units||[]).map(u=>[String(u.centralId||CENTRAL_UNIT_MAP[u.id]||u.id),u]));db.units=rows.map(x=>{let prev=existing.get(x.id)||{};return {...prev,id:toLocalUnitId(x.id),centralId:x.id,name:x.name,timezone:x.timezone,active:true}});centralUnitsHydrated=true;if(typeof buildAdminNav==='function')buildAdminNav();if(current&&typeof unitPicker!=='undefined'){let local=toLocalUnitId(current);if(db.units.some(u=>u.id===local))unitPicker.value=local}return true})().finally(()=>{centralUnitsHydration=null});
+  return centralUnitsHydration
+ }
+ const legacyBuildAdminNav=window.buildAdminNav||((typeof buildAdminNav==='function')?buildAdminNav:null);
+ if(legacyBuildAdminNav){let wrapped=function(){let out=legacyBuildAdminNav.apply(this,arguments);if(centralEnabled()&&!centralUnitsHydrated&&!centralUnitsHydration)hydrateCentralUnits().catch(e=>toast('Unidades centrais indisponíveis: '+e.message));return out};window.buildAdminNav=wrapped;try{buildAdminNav=wrapped}catch(e){}}
 
  function mergeCentralClients(rows){
   for(const x of rows||[]){let c=db.clients.find(v=>v.id===x.id);if(!c){c={id:x.id,last:'—',next:'—',visits:0,origin:'Central',createdAt:localDateISO()};db.clients.push(c)}normalizeClient(c);Object.assign(c,{name:x.name||c.name||'',phone:x.phone||'',email:x.email||'',registrationUnit:toLocalUnitId(x.registrationUnitId)||c.registrationUnit||'',central:true})}

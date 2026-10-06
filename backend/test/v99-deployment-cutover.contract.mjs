@@ -21,7 +21,8 @@ ok(docker.includes('npm run prisma:migrate && npm start'),'container aplica migr
 ok(docker.indexOf('apt-get install -y --no-install-recommends ca-certificates openssl')<docker.indexOf('RUN npm run prisma:generate'),'build instala OpenSSL antes de gerar Prisma Client');
 ok(docker.includes('HEALTHCHECK')&&docker.includes('/api/v1/health'),'container possui healthcheck');
 ok(env.includes('COOKIE_SECURE=true'),'cookie seguro em produção');
-ok(env.includes('OPERATIONAL_WRITES_ENABLED=true')&&env.includes('OPERATIONAL_WRITES_UNITS=centro'),'template inicial limita escrita ao Centro');
+ok(env.includes('OPERATIONAL_WRITES_ENABLED=true')&&env.includes('OPERATIONAL_WRITES_UNITS=centro,big,shopping-contagem'),'template documenta escrita nas três unidades canônicas');
+ok(!env.includes('big-shopping'),'template não usa ID não canônico big-shopping');
 ok(env.includes('MIGRATION_IMPORT_ENABLED=false')&&env.includes('OPENAPI_ENABLED=false'),'recursos sensíveis desligados no template');
 ok(gate.includes('OPERATIONAL_WRITES_UNITS')&&gate.includes('allow.length&&unitId&&!allow.includes(unitId)'),'gate implementa allowlist opcional');
 ok(core.includes('assertOperationalWriteEnabled(req.unitId!)'),'core write usa gate por unidade');

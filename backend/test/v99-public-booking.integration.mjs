@@ -10,7 +10,7 @@ async function main(){
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
  await prisma.service.createMany({data:[{id:'long',name:'Alongamento',price:'120',durationMin:90},{id:'short',name:'Manicure',price:'50',durationMin:30}]});
  await prisma.professional.create({data:{id:'p-all',name:'Profissional Multiunidade',units:{create:['big','centro','shopping-contagem'].map(unitId=>({unitId}))}}});
- const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem'},stdio:['ignore','pipe','pipe']});
  try{await health();
   const units=[['centro','10'],['big','11'],['shopping-contagem','12']];
   for(let i=0;i<units.length;i++){const [u,h]=units[i];const r=await book(u,`2026-10-06T${h}:00`,`3199999000${i}`,`site-${u}`);ok(r.ok,'site booking '+u);ok(await prisma.booking.count({where:{unitId:u}})===1,'central booking '+u)}

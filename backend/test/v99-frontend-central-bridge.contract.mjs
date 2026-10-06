@@ -26,6 +26,12 @@ ok(html.includes("let wrapped=function auditClientBridge(id=''){if(!centralEnabl
 ok(html.includes("let wrapped=function(){if(!centralEnabled())return legacySaveReservation.apply(this,arguments)"),'fallback de agenda preserva retorno síncrono legado');
 ok(!html.includes("let wrapped=async function(id=''){if(!centralEnabled())return legacySaveClient"),'cliente não converte fallback legado em Promise');
 ok(!html.includes("let wrapped=async function(){if(!centralEnabled())return legacySaveReservation"),'agenda não converte fallback legado em Promise');
+ok(html.includes("units(){return centralRequest('/api/v1/units',{global:true})}"),'unidades centrais carregam sem depender de unidade previamente selecionada');
+ok(html.includes("function validateCentralUnits(rows)"),'resposta de unidades é validada antes da hidratação');
+ok(html.includes("new Set(['centro','big','shopping-contagem'])"),'hidratação aceita apenas IDs canônicos');
+ok(html.includes("db.units=rows.map"),'API central hidrata db.units globalmente');
+ok(html.includes("centralUnitsHydrated=true;if(typeof buildAdminNav==='function')buildAdminNav()"),'renderização ocorre após hidratação');
+ok(!html.includes('big-shopping'),'ID não canônico big-shopping ausente');
 ok(html.includes("function auditClientBridge"),'wrapper de cliente mantém marcador de auditoria detectável');
 
 console.log(JSON.stringify({ok:true,tests,feature:'v99_frontend_central_bridge'}));
