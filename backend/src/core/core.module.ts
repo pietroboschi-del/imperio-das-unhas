@@ -11,8 +11,9 @@ import { BookingCreationService } from './booking-creation.service';
 import { WhatsappAgentController } from './whatsapp-agent.controller';
 import { WhatsappAgentGuard } from './whatsapp-agent.guard';
 import { WaitlistService } from './waitlist.service';
+import { WaitlistOpportunityService } from './waitlist-opportunity.service';
 @Module({
  controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController,StructuralConfigController,UnitPublicProfileController,WhatsappAgentController],
- providers:[BookingAvailabilityService,BookingCreationService,WhatsappAgentGuard,WaitlistService],
+ providers:[BookingAvailabilityService,BookingCreationService,WhatsappAgentGuard,WaitlistService,WaitlistOpportunityService],
 })
 export class CoreModule {}

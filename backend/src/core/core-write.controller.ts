@@ -7,12 +7,13 @@ import { UnitScoped } from '../common/unit-scope.decorator';
 import type { ImperioRequest } from '../common/request-context';
 import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { BookingItemWriteDto, CreateBlockSeriesDto, CreateBookingDto, CreateClientDto, UpdateBookingDto, UpdateClientDto } from './core-write.dto';
+import { WaitlistOpportunityService } from './waitlist-opportunity.service';
 
 const TERMINAL_BOOKING=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
 
 @Controller('api/v1')
 export class CoreWriteController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService,private readonly waitlistOpportunities:WaitlistOpportunityService) {}
 
   private operationId(scope:string,key?:string){
     if(!key)return randomUUID();
@@ -177,10 +178,23 @@ export class CoreWriteController {
   @RequirePermissions('agenda.manage')
   async updateBooking(@Req() req:ImperioRequest,@Param('id') id:string,@Body() body:UpdateBookingDto){
     assertOperationalWriteEnabled(req.unitId!);
+    const before=await this.prisma.booking.findFirst({where:{id,unitId:req.unitId!},include:{items:{orderBy:{sortOrder:'asc'}}}});
+    if(!before)throw new NotFoundException('Agendamento não encontrado nesta unidade');
     await this.prisma.$transaction(async tx=>{const current=await tx.booking.findFirst({where:{id,unitId:req.unitId!},include:{items:{orderBy:{sortOrder:'asc'}}}});if(!current)throw new NotFoundException('Agendamento não encontrado nesta unidade');const currentServiceDate=current.serviceDate.toISOString().slice(0,10),serviceDate=body.serviceDate||currentServiceDate,status=body.status||current.status,effectiveBlockAllDay=body.blockAllDay===undefined?current.blockAllDay:body.blockAllDay;let items:any[]=current.items;
       if(serviceDate!==currentServiceDate&&!body.items?.length)throw new ConflictException('Para alterar a data, envie também todos os itens do agendamento com os novos horários');
       if(body.items?.length){items=await this.prepareItems(tx,req.unitId!,serviceDate,body.items,status);await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status,effectiveBlockAllDay);await tx.bookingItem.deleteMany({where:{bookingId:id}});await tx.bookingItem.createMany({data:items.map(x=>({...x,bookingId:id}))});}else if((status!==current.status||body.serviceDate!==undefined||body.blockAllDay!==undefined)&&!TERMINAL_BOOKING.includes(status)){await this.lockAndCheck(tx,req.unitId!,serviceDate,id,items,status,effectiveBlockAllDay)}
       const first=items[0]||null;await tx.booking.update({where:{id},data:{serviceDate:new Date(serviceDate+'T00:00:00.000Z'),status,notes:body.notes===undefined?current.notes:(body.notes.trim()||null),startAt:first?.startAt||current.startAt,serviceId:first?first.serviceId:(current.serviceId||null),professionalId:first?.professionalId||current.professionalId,...(body.blockAllDay===undefined?{}:{blockAllDay:body.blockAllDay}),...(body.blockException===undefined?{}:{blockException:body.blockException}),version:{increment:1}}});await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'booking.updated',entityType:'Booking',entityId:id,legacyPayload:{source:'central_api',status,itemCount:items.length},occurredAt:new Date()}})});
+    const after=await this.prisma.booking.findFirst({where:{id,unitId:req.unitId!},include:{items:{orderBy:{sortOrder:'asc'}}}});
+    const oldDate=before.serviceDate.toISOString().slice(0,10);
+    const terminalBefore=TERMINAL_BOOKING.includes(before.status),terminalAfter=after?TERMINAL_BOOKING.includes(after.status):false;
+    const beforeSig=before.items.map(x=>[x.professionalId,x.startAt.toISOString(),x.durationMin,x.serviceId||''].join('|')).sort().join('~');
+    const afterSig=(after?.items||[]).map(x=>[x.professionalId,x.startAt.toISOString(),x.durationMin,x.serviceId||''].join('|')).sort().join('~');
+    const rescheduled=!!after&&(oldDate!==after.serviceDate.toISOString().slice(0,10)||beforeSig!==afterSig);
+    if(!terminalBefore&&terminalAfter){
+      await this.waitlistOpportunities.reevaluateForAvailabilityEvent({unitId:req.unitId!,date:oldDate,sourceType:'CANCELLATION',sourceBookingId:id,sourceReferenceId:id});
+    }else if(rescheduled){
+      await this.waitlistOpportunities.reevaluateForAvailabilityEvent({unitId:req.unitId!,date:oldDate,sourceType:'RESCHEDULE',sourceBookingId:id,sourceReferenceId:id});
+    }
     return this.bookingView(req.unitId!,id);
   }
 }
