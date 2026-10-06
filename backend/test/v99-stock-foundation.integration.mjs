@@ -17,7 +17,7 @@ async function makeUser(id,username,unitIds,permissions=['stock.read','stock.man
 async function clean(){
  await prisma.stockMovement.deleteMany();await prisma.stockTransferItem.deleteMany();await prisma.stockTransfer.deleteMany();await prisma.stockPurchaseItem.deleteMany();await prisma.stockPurchase.deleteMany();await prisma.stockBalance.deleteMany();await prisma.stockLocation.deleteMany();await prisma.product.deleteMany();
  await prisma.stockBalanceOpening.deleteMany({where:{id:{startsWith:'stock-ci-'}}});await prisma.auditEvent.deleteMany({where:{OR:[{action:{startsWith:'stock.'}},{entityId:{startsWith:'stock-ci-'}}]}});
- await prisma.session.deleteMany({where:{userId:{in:['stock-multi','stock-centro','stock-read','stock-owner']}}});await prisma.userUnitAccess.deleteMany({where:{userId:{in:['stock-multi','stock-centro','stock-read','stock-owner']}}});await prisma.user.deleteMany({where:{id:{in:['stock-multi','stock-centro','stock-read','stock-owner']}});
+ await prisma.session.deleteMany({where:{userId:{in:['stock-multi','stock-centro','stock-read','stock-owner']}}});await prisma.userUnitAccess.deleteMany({where:{userId:{in:['stock-multi','stock-centro','stock-read','stock-owner']}}});await prisma.user.deleteMany({where:{id:{in:['stock-multi','stock-centro','stock-read','stock-owner']}}});
 }
 const idem=(x)=>({'idempotency-key':'stock-ci-'+x});
 
