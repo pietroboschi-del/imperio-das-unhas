@@ -2400,6 +2400,55 @@ function printCommissionReceiptV45(id){let pay=(db.commissionPayments||[]).find(
 </head><body><div class="box"><pre>${escapeHtml(txt)}</pre><div class="muted">Gerado pelo Império das Unhas · ${escapeHtml(currentUserName())}</div><button onclick="window.print()" style="margin-top:20px;padding:10px 16px">Imprimir / Salvar PDF</button></div>
 
 
+
+<script>
+/* ===== V99 · PROFESSIONAL UNIT HYDRATION GATE ===== */
+(function(){
+ const CENTRAL_TO_LOCAL=Object.freeze({centro:'u3',big:'u1','shopping-contagem':'u2'});
+ const ORDER=Object.freeze(['centro','big','shopping-contagem']);
+ function principal(){
+  try{return JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'null')}catch(e){return null}
+ }
+ function canManageProfessionals(){
+  let p=principal();if(!p)return false;if(p.networkAdmin===true)return true;
+  let values=Array.isArray(p.permissions)?p.permissions:Object.entries(p.permissions||{}).filter(([,v])=>v===true).map(([k])=>k);
+  return values.includes('professionals.manage')||values.includes('*')
+ }
+ function hydrateUnits(rows){
+  let current=Array.isArray(db.units)?db.units:[],byId=new Map(current.map(x=>[x.id,x])),remote=new Map((rows||[]).map(x=>[String(x.id),x]));
+  let hydrated=[];
+  for(const centralId of ORDER){
+   let u=remote.get(centralId);if(!u)continue;
+   let localId=CENTRAL_TO_LOCAL[centralId],old=byId.get(localId)||{};
+   hydrated.push({...old,id:localId,centralId,name:u.name||old.name||centralId,publicName:old.publicName||u.name||centralId,address:old.address||'',active:u.active!==false,show:old.show!==false,online:old.online!==false})
+  }
+  for(const x of current)if(!hydrated.some(u=>u.id===x.id)&&!Object.values(CENTRAL_TO_LOCAL).includes(x.id))hydrated.push(x);
+  db.units=hydrated;
+  return hydrated
+ }
+ const baseOpenPro=window.openProForm||((typeof openProForm==='function')?openProForm:null);
+ if(!baseOpenPro||baseOpenPro.__v99UnitHydration)return;
+ let wrapped=function(){
+  if(!canManageProfessionals()||!window.__imperioCentralApi?.units)return baseOpenPro.apply(this,arguments);
+  let self=this,args=arguments;
+  return (async()=>{
+   try{
+    let rows=await window.__imperioCentralApi.units();
+    let units=hydrateUnits(rows);
+    if(!units.filter(u=>u.active!==false).length)throw new Error('Nenhuma unidade ativa retornada pelo backend central');
+    return baseOpenPro.apply(self,args)
+   }catch(e){
+    toast('Unidades das profissionais indisponíveis: '+(e?.message||e));
+    return false
+   }
+  })()
+ };
+ wrapped.__v99UnitHydration=true;
+ window.openProForm=wrapped;try{openProForm=wrapped}catch(e){}
+ window.__imperioProfessionalUnitHydration={canManageProfessionals,hydrateUnits,order:[...ORDER],source:'/api/v1/units'};
+})();
+</script>
+
 </body></html>`);w.document.close()}
 function openCommissionReceipt(id){let pay=(db.commissionPayments||[]).find(x=>x.id===id);if(!pay)return;let p=db.pros.find(x=>x.id===pay.professionalId),u=db.units.find(x=>x.id===pay.unitId);modal('Recibo de pagamento',`<div style="border:1px solid var(--line);border-radius:14px;padding:20px;background:#fff"><div class="eyebrow">RECIBO DE PAGAMENTO DE COMISSÃO</div><h2 style="margin:6px 0 18px">${escapeHtml(p?.name||pay.professionalName||'Profissional')}</h2><div class="booking-summary"><div class="row"><span>Data do pagamento</span><b>${formatDateBR(pay.paidDate)}</b></div><div class="row"><span>Período trabalhado</span><b>${formatDateBR(pay.periodFrom)} a ${formatDateBR(pay.periodTo)}</b></div><div class="row"><span>Unidade</span><b>${escapeHtml(u?.name||'')}</b></div><div class="row"><span>Valor recebido</span><b>${money(pay.amount)}</b></div><div class="row"><span>Forma</span><b>${escapeHtml(pay.paymentMethod||'')}</b></div><div class="row"><span>Conta de saída</span><b>${escapeHtml(pay.accountName||'')}</b></div></div>${pay.note?`<div class="inline-note" style="margin-top:12px"><b>Observação:</b> ${escapeHtml(pay.note)}</div>`:''}<div style="margin-top:28px;border-top:1px solid #bbb;padding-top:18px;text-align:center;color:var(--muted)">Assinatura da profissional</div></div>`,`<button class="btn btn-ghost" onclick="copyCommissionReceiptV45('${id}')">Copiar</button><button class="btn btn-soft" onclick="printCommissionReceiptV45('${id}')">Imprimir / Salvar PDF</button><button class="btn btn-primary" onclick="closeModal()">Concluir</button>`)}
 

@@ -31,6 +31,12 @@ async function main(){
   let r=await fetch(base+'/api/v1/auth/me',{headers:{cookie:'imperio_session='+sessionToken}});ok(r.ok,'funcionária entra');
   const me=await r.json();ok(me.user?.networkAdmin===false,'funcionária não é networkAdmin');
 
+  r=await fetch(base+'/api/v1/units',{headers:{cookie:'imperio_session='+sessionToken}});
+  ok(r.ok,'funcionária acessa unidades centrais');
+  const units=await r.json(),unitMap=new Map(units.map(x=>[x.id,x.name]));
+  assert.deepEqual([...unitMap.keys()].filter(x=>['centro','big','shopping-contagem'].includes(x)).sort(),['big','centro','shopping-contagem']);tests++;
+  ok(unitMap.get('centro')==='Centro de Contagem'&&unitMap.get('big')==='Big Shopping'&&unitMap.get('shopping-contagem')==='Shopping Contagem','três unidades aparecem com nomes canônicos');
+
   for(const p of ['/api/v1/config/categories','/api/v1/config/services','/api/v1/config/professionals','/api/v1/config/workstations']){
    r=await fetch(base+p,{headers:{cookie:'imperio_session='+sessionToken,'x-unit-id':'centro'}});ok(r.ok,'funcionária acessa '+p);
   }
@@ -40,9 +46,21 @@ async function main(){
   r=await fetch(base+'/api/v1/config/services',{method:'POST',headers:auth,body:JSON.stringify({id:ids.svc,name:'Serviço Funcionária CI',categoryId:ids.cat,categoryName:'Categoria Funcionária CI',price:90,durationMin:50,active:true,config:{show:true,online:true,clientArea:'hands',mustFinishBeforeSameArea:true,proRules:{}}})});ok(r.ok,'serviço salva');
   let service=await r.json();ok(service.config.clientArea==='hands'&&service.config.mustFinishBeforeSameArea===true,'regras estruturais do serviço recarregam');
 
-  r=await fetch(base+'/api/v1/config/professionals',{method:'POST',headers:auth,body:JSON.stringify({id:ids.pro,name:'Profissional Funcionária CI',publicName:'Pro CI',active:true,unitIds:['centro','big','shopping-contagem'],config:{schedule:{'centro-1':{work:true,start:'09:00',end:'18:00'},'big-2':{work:true,start:'10:00',end:'19:00'}}},serviceRules:{[ids.svc]:{enabled:true,duration:40,commission:50,price:95,online:true}}})});ok(r.ok,'profissional multiunidade salva');
+  r=await fetch(base+'/api/v1/config/professionals',{method:'POST',headers:auth,body:JSON.stringify({id:ids.pro,name:'Profissional Funcionária CI',publicName:'Pro CI',active:true,unitIds:['centro','big','shopping-contagem'],config:{schedule:{'centro-1':{work:true,start:'09:00',end:'18:00'},'big-2':{work:true,start:'10:00',end:'19:00'},'shopping-contagem-3':{work:true,start:'11:00',end:'20:00'}}},serviceRules:{[ids.svc]:{enabled:true,duration:40,commission:50,price:95,online:true}}})});ok(r.ok,'profissional multiunidade salva');
   const pro=await r.json();assert.deepEqual([...pro.unitIds].sort(),['big','centro','shopping-contagem']);tests++;
   ok(pro.config.schedule['centro-1'].start==='09:00'&&pro.serviceRules[ids.svc].duration===40&&Number(pro.serviceRules[ids.svc].price)===95,'escala e overrides recarregam');
+
+  r=await fetch(base+'/api/v1/config/professionals',{headers:{cookie:'imperio_session='+sessionToken,'x-unit-id':'centro'}});
+  ok(r.ok,'profissionais recarregam após salvar');
+  const reloaded=(await r.json()).find(x=>x.id===ids.pro);
+  assert.ok(reloaded);tests++;
+  assert.deepEqual([...reloaded.unitIds].sort(),['big','centro','shopping-contagem']);tests++;
+  ok(
+   reloaded.config.schedule['centro-1'].start==='09:00'&&reloaded.config.schedule['centro-1'].end==='18:00'&&
+   reloaded.config.schedule['big-2'].start==='10:00'&&reloaded.config.schedule['big-2'].end==='19:00'&&
+   reloaded.config.schedule['shopping-contagem-3'].start==='11:00'&&reloaded.config.schedule['shopping-contagem-3'].end==='20:00',
+   'refresh mantém escalas independentes por unidade'
+  );
 
   r=await fetch(base+'/api/v1/config/workstations',{method:'POST',headers:auth,body:JSON.stringify({id:ids.ws,unitId:'big',name:'Estação Funcionária CI',allowedCategoryIds:[ids.cat],active:true,config:{}})});ok(r.ok,'workstation salva');
   const ws=await r.json();ok(ws.unitId==='big'&&ws.allowedCategoryIds.includes(ids.cat),'allowedCategoryIds recarrega sem mistura de unidade');
