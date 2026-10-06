@@ -2,8 +2,9 @@ import { Body, Controller, Get, Headers, Post, Query, UseGuards } from '@nestjs/
 import { Public } from '../common/public.decorator';
 import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingCreationService } from './booking-creation.service';
-import { WhatsappAgentBookingDto, WhatsappAgentMultiAvailabilityDto, WhatsappAgentMultiBookingDto } from './whatsapp-agent.dto';
+import { WhatsappAgentBookingDto, WhatsappAgentMultiAvailabilityDto, WhatsappAgentMultiBookingDto, WhatsappAgentWaitlistDto } from './whatsapp-agent.dto';
 import { WhatsappAgentGuard } from './whatsapp-agent.guard';
+import { WaitlistService } from './waitlist.service';
 
 @Controller('api/v1/integrations/whatsapp-agent')
 @Public()
@@ -12,6 +13,7 @@ export class WhatsappAgentController {
   constructor(
     private readonly availability:BookingAvailabilityService,
     private readonly creation:BookingCreationService,
+    private readonly waitlist:WaitlistService,
   ){}
 
   @Get('units')
@@ -33,6 +35,11 @@ export class WhatsappAgentController {
   @Post('availability/multi')
   multiAvailability(@Body() body:WhatsappAgentMultiAvailabilityDto){
     return this.availability.multiAvailability(body);
+  }
+
+  @Post('waitlist')
+  createWaitlist(@Body() body:WhatsappAgentWaitlistDto,@Headers('idempotency-key') key?:string){
+    return this.waitlist.createFromWhatsapp(body,key);
   }
 
   @Post('bookings/multi')
