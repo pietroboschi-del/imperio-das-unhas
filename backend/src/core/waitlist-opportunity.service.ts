@@ -101,7 +101,10 @@ export class WaitlistOpportunityService {
      legacyPayload:{...reqLegacy,opportunityActive:true,opportunityId:id,opportunityUnitId:event.unitId,opportunityDate:event.date,opportunityStartTime:c.option.localStart,opportunityEndTime:c.option.localEnd,opportunityClass:classification,opportunitySourceType:event.sourceType} as Prisma.InputJsonValue,
      version:{increment:1},
     }});
-    if(!old)await tx.auditEvent.create({data:{id:randomUUID(),unitId:c.request.unitId,action:'waitlist.opportunity_found',entityType:'WaitlistOpportunity',entityId:id,legacyPayload:{requestId:c.request.id,offeredUnitId:event.unitId,serviceIds:legacy.serviceIds,sourceType:event.sourceType,sourceBookingId:event.sourceBookingId||null,classification},occurredAt:new Date()}});
+    if(!old){
+     await tx.auditEvent.create({data:{id:randomUUID(),unitId:c.request.unitId,action:'waitlist.opportunity_found',entityType:'WaitlistOpportunity',entityId:id,legacyPayload:{requestId:c.request.id,offeredUnitId:event.unitId,serviceIds:legacy.serviceIds,sourceType:event.sourceType,sourceBookingId:event.sourceBookingId||null,classification},occurredAt:new Date()}});
+     await tx.auditEvent.create({data:{id:randomUUID(),unitId:c.request.unitId,action:'waitlist.offer_candidate_ready',entityType:'WaitlistOpportunity',entityId:id,legacyPayload:{requestId:c.request.id,offeredUnitId:event.unitId,serviceIds:legacy.serviceIds,offerState:'CONTACT_PENDING',source:'WA4'},occurredAt:new Date()}});
+    }
    });
    created.push({id,requestId:c.request.id,unitId:event.unitId,classification,...c.option});
   }

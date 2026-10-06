@@ -61,6 +61,7 @@
     "test:wa4.2": "node test/wa4.2-agent-waitlist.integration.mjs",
     "test:wa4.3": "node test/wa4.3-reception-notification.integration.mjs",
     "test:wa4.4": "node test/wa4.4-opportunity-match.integration.mjs && node test/wa4.4-booking-trigger.contract.mjs",
+    "test:wa4.5": "node test/wa4.5-offer-candidate.integration.mjs",
     "diagnostic:three-units": "node tools/three-unit-readiness.mjs"
   },
   "dependencies": {
