@@ -6,6 +6,9 @@ export const PUBLIC_BOOKING_SLOT_MINUTES=15;
 const TERMINAL_BOOKING_STATUSES=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
 
 type AvailabilityQuery={unitId:string;date:string;serviceId:string;professionalId?:string};
+export type MultiServicePreferenceMode='preferred'|'required';
+export type MultiServiceSpec={serviceId:string;professionalId?:string;preferenceMode?:MultiServicePreferenceMode};
+export type MultiAvailabilityQuery={unitId:string;date:string;services:MultiServiceSpec[]};
 
 function obj(value:any){return value&&typeof value==='object'&&!Array.isArray(value)?value:{}}
 function clockMinute(value:string){
@@ -92,6 +95,7 @@ export class BookingAvailabilityService {
         priceMode:String(config.priceMode||'fixed'),publicDescription:String(config.publicDescription||config.description||''),
         coverImage:String(config.coverImage||''),gallery:Array.isArray(config.gallery)?config.gallery.filter((x:any)=>typeof x==='string'):[],
         websiteOrder:Number(config.websiteOrder||0),clientArea:String(config.clientArea||'none'),
+        mustFinishBeforeSameArea:config.mustFinishBeforeSameArea===true,
       }));
     const publicServiceIds=new Set(services.map(s=>s.id));
     const professionals=links.map(({professional:p})=>{
@@ -128,6 +132,110 @@ export class BookingAvailabilityService {
       const catalog=await this.catalog(unit.id);
       return {...unit,bookingEnabled:catalog.bookingEnabled};
     }));
+  }
+
+  async multiAvailability(input:MultiAvailabilityQuery){
+    const unitId=String(input.unitId||'').trim(),date=String(input.date||'').trim();
+    if(!unitId||!validDateText(date))throw new ConflictException('unitId e date válidos são obrigatórios');
+    if(!Array.isArray(input.services)||input.services.length<2||input.services.length>5)throw new ConflictException('Informe entre 2 e 5 serviços');
+    const catalog=await this.catalog(unitId);
+    if(!catalog.bookingEnabled)return {unitId,date,bookingEnabled:false,timezone:catalog.unit.timezone,slotMinutes:PUBLIC_BOOKING_SLOT_MINUTES,visits:[]};
+    const ids=input.services.map(x=>String(x.serviceId||''));
+    if(new Set(ids).size!==ids.length)throw new ConflictException('Não repita o mesmo serviço na composição');
+    const serviceMap=new Map(catalog.services.map(x=>[x.id,x]));
+    for(const id of ids)if(!serviceMap.has(id))throw new NotFoundException('Serviço indisponível para agendamento online: '+id);
+    const day=scheduleDay(date),now=localNow(catalog.unit.timezone),serviceDate=new Date(date+'T00:00:00.000Z');
+    if(date<now.date)return {unitId,date,bookingEnabled:true,timezone:catalog.unit.timezone,slotMinutes:PUBLIC_BOOKING_SLOT_MINUTES,visits:[]};
+
+    const workstations=await this.prisma.workstation.findMany({where:{unitId,active:true},select:{id:true,name:true,allowedCategoryIds:true},orderBy:{id:'asc'}});
+    const stationRows=workstations.map(w=>({id:w.id,name:w.name,categories:Array.isArray(w.allowedCategoryIds)?w.allowedCategoryIds.map(String):[]}));
+    const existing=await this.prisma.bookingItem.findMany({
+      where:{unitId,booking:{serviceDate,status:{notIn:TERMINAL_BOOKING_STATUSES}}},
+      select:{id:true,professionalId:true,startAt:true,durationMin:true,service:{select:{id:true,categoryId:true}}},
+    });
+    const allDay=await this.prisma.booking.findMany({where:{unitId,serviceDate,blockAllDay:true,status:{notIn:TERMINAL_BOOKING_STATUSES}},select:{professionalId:true,items:{select:{professionalId:true}}}});
+    const blocked=new Set<string>();for(const b of allDay){if(b.professionalId)blocked.add(b.professionalId);for(const x of b.items)blocked.add(x.professionalId)}
+    const occupied=new Map<string,Array<{start:number;end:number}>>();
+    for(const x of existing){const a=x.startAt.getTime(),z=a+x.durationMin*60000;if(!occupied.has(x.professionalId))occupied.set(x.professionalId,[]);occupied.get(x.professionalId)!.push({start:a,end:z})}
+
+    const specs=input.services.map((request,index)=>{
+      const service=serviceMap.get(request.serviceId)!;
+      let pros=(catalog.professionals as any[]).filter(p=>p.serviceRules?.[request.serviceId]&&!blocked.has(p.id));
+      const mode=request.preferenceMode||'preferred',preferred=String(request.professionalId||'');
+      if(mode==='required'&&preferred)pros=pros.filter(p=>p.id===preferred);
+      pros.sort((a,b)=>(preferred?(a.id===preferred?-1:b.id===preferred?1:0):0)||String(a.publicName).localeCompare(String(b.publicName))||a.id.localeCompare(b.id));
+      return {request,index,service,pros,mode,preferred};
+    }).sort((a,b)=>Number(b.service.mustFinishBeforeSameArea)-Number(a.service.mustFinishBeforeSameArea)||a.index-b.index);
+    if(specs.some(x=>!x.pros.length))return {unitId,date,bookingEnabled:true,timezone:catalog.unit.timezone,slotMinutes:PUBLIC_BOOKING_SLOT_MINUTES,visits:[]};
+
+    const windows:any[]=[];for(const sp of specs)for(const p of sp.pros){const r=obj(p.schedule)[unitId+'-'+day],a=clockMinute(String(r?.start||'')),z=clockMinute(String(r?.end||''));if(r?.work===true&&Number.isFinite(a)&&Number.isFinite(z)&&z>a)windows.push({a,z})}
+    if(!windows.length)return {unitId,date,bookingEnabled:true,timezone:catalog.unit.timezone,slotMinutes:PUBLIC_BOOKING_SLOT_MINUTES,visits:[]};
+    let searchStart=Math.min(...windows.map(x=>x.a)),searchEnd=Math.max(...windows.map(x=>x.z));
+    if(date===now.date)searchStart=Math.max(searchStart,Math.ceil(now.minute/PUBLIC_BOOKING_SLOT_MINUTES)*PUBLIC_BOOKING_SLOT_MINUTES);
+
+    const compatibleClient=(assigned:any[],candidate:any)=>{
+      for(const a of assigned){
+        if(a.clientArea==='none'||candidate.clientArea==='none'||a.clientArea!==candidate.clientArea)continue;
+        const overlap=a.startMin<candidate.endMin&&a.endMin>candidate.startMin;
+        if(a.mustFinishBeforeSameArea&&!candidate.mustFinishBeforeSameArea&&candidate.startMin<a.endMin)return false;
+        if(candidate.mustFinishBeforeSameArea&&!a.mustFinishBeforeSameArea&&a.startMin<candidate.endMin)return false;
+        if(overlap)return false;
+      }return true;
+    };
+    const capacityOk=(assigned:any[])=>{
+      if(!assigned.length)return true;
+      const demands=[
+        ...existing.map(x=>({id:'existing:'+x.id,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.service?.categoryId||''})),
+        ...assigned.map((x:any,i:number)=>({id:'candidate:'+i,start:x.startAtMs,end:x.endAtMs,categoryId:x.categoryId||''})),
+      ];
+      const marks=[...new Set(demands.flatMap(x=>[x.start,x.end]))].sort((a,b)=>a-b);
+      for(let mi=0;mi<marks.length-1;mi++){
+        const a=marks[mi],z=marks[mi+1],active=demands.filter(x=>x.start<z&&x.end>a);
+        if(!active.length)continue;
+        const candidates=active.map(d=>stationRows.filter(st=>st.categories.includes(d.categoryId)).map(st=>st.id));
+        if(active.some((d,i)=>!d.categoryId||!candidates[i].length))return false;
+        const stationToDemand=new Map<string,number>();
+        const assign=(di:number,seen:Set<string>):boolean=>{for(const sid of candidates[di]){if(seen.has(sid))continue;seen.add(sid);const prev=stationToDemand.get(sid);if(prev===undefined||assign(prev,seen)){stationToDemand.set(sid,di);return true}}return false};
+        const order=active.map((_,i)=>i).sort((i,j)=>candidates[i].length-candidates[j].length||active[i].id.localeCompare(active[j].id));
+        let count=0;for(const di of order)if(assign(di,new Set()))count++;
+        if(count<active.length)return false;
+      }return true;
+    };
+
+    const visits:any[]=[];
+    for(let anchor=searchStart;anchor<searchEnd;anchor+=PUBLIC_BOOKING_SLOT_MINUTES){
+      let states:any[]=[{assigned:[],maxEnd:anchor,preferencePenalty:0}];
+      for(let si=0;si<specs.length;si++){
+        const sp=specs[si],next:any[]=[];
+        for(const state of states){
+          const starts:number[]=[];
+          if(si===0)starts.push(anchor);else for(let m=anchor;m<searchEnd;m+=PUBLIC_BOOKING_SLOT_MINUTES)starts.push(m);
+          for(const p of sp.pros){
+            const rule=p.serviceRules[sp.service.id],duration=Math.max(1,Number(rule.durationMin||sp.service.durationMin));
+            const sch=obj(p.schedule)[unitId+'-'+day],wa=clockMinute(String(sch?.start||'')),wz=clockMinute(String(sch?.end||''));
+            if(sch?.work!==true||!Number.isFinite(wa)||!Number.isFinite(wz))continue;
+            for(const m of starts){
+              const end=m+duration;if(m<wa||end>wz||end>searchEnd)continue;
+              const startAt=localDateTimeToUtc(date,minuteClock(m),catalog.unit.timezone),endAt=localDateTimeToUtc(date,minuteClock(end),catalog.unit.timezone),ams=startAt.getTime(),zms=endAt.getTime();
+              if((occupied.get(p.id)||[]).some(x=>x.start<zms&&x.end>ams))continue;
+              if(state.assigned.some((x:any)=>x.professionalId===p.id&&x.startMin<end&&x.endMin>m))continue;
+              const cand={serviceId:sp.service.id,serviceName:sp.service.name,professionalId:p.id,professionalName:p.publicName||p.name,startAt:startAt.toISOString(),endAt:endAt.toISOString(),localStart:minuteClock(m),localEnd:minuteClock(end),startAtMs:ams,endAtMs:zms,startMin:m,endMin:end,durationMin:duration,price:rule.price,clientArea:sp.service.clientArea,mustFinishBeforeSameArea:sp.service.mustFinishBeforeSameArea,categoryId:sp.service.categoryId};
+              if(!compatibleClient(state.assigned,cand))continue;
+              const assigned=state.assigned.concat(cand);if(!capacityOk(assigned))continue;
+              next.push({assigned,maxEnd:Math.max(state.maxEnd,end),preferencePenalty:state.preferencePenalty+(sp.preferred&&p.id!==sp.preferred?1:0)});
+            }
+          }
+        }
+        next.sort((a,b)=>(a.maxEnd-anchor)-(b.maxEnd-anchor)||a.preferencePenalty-b.preferencePenalty||JSON.stringify(a.assigned.map((x:any)=>[x.startMin,x.professionalId,x.serviceId])).localeCompare(JSON.stringify(b.assigned.map((x:any)=>[x.startMin,x.professionalId,x.serviceId]))));
+        states=next.slice(0,80);if(!states.length)break;
+      }
+      if(states.length){
+        const best=states[0],ordered=best.assigned.slice().sort((a:any,b:any)=>a.startMin-b.startMin||a.serviceId.localeCompare(b.serviceId));
+        visits.push({visitStartAt:localDateTimeToUtc(date,minuteClock(anchor),catalog.unit.timezone).toISOString(),visitEndAt:localDateTimeToUtc(date,minuteClock(best.maxEnd),catalog.unit.timezone).toISOString(),localStart:minuteClock(anchor),localEnd:minuteClock(best.maxEnd),visitDurationMin:best.maxEnd-anchor,preferencePenalty:best.preferencePenalty,items:ordered});
+      }
+    }
+    visits.sort((a,b)=>a.visitDurationMin-b.visitDurationMin||a.preferencePenalty-b.preferencePenalty||a.visitStartAt.localeCompare(b.visitStartAt)||JSON.stringify(a.items).localeCompare(JSON.stringify(b.items)));
+    return {unitId,date,bookingEnabled:true,timezone:catalog.unit.timezone,slotMinutes:PUBLIC_BOOKING_SLOT_MINUTES,visits:visits.slice(0,60)};
   }
 
   async availability(input:AvailabilityQuery){

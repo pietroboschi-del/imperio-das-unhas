@@ -53,6 +53,7 @@
     "test:wa2.1": "node test/wa2.1-sending-recovery.integration.mjs",
     "test:wa3a": "node test/wa3a-booking-availability.integration.mjs",
     "test:wa3b": "node test/wa3b-agent-booking.integration.mjs",
+    "test:wa3c1": "node test/wa3c1-multi-availability.integration.mjs",
     "diagnostic:three-units": "node tools/three-unit-readiness.mjs"
   },
   "dependencies": {
