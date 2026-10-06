@@ -207,7 +207,8 @@ export class BookingCreationService {
    id:true,unitId:true,clientId:true,status:true,
    items:{orderBy:{sortOrder:'asc'},select:{startAt:true,durationMin:true,unitPrice:true,service:{select:{id:true,name:true}},professional:{select:{id:true,name:true,publicName:true}}}},
   }});
-  const starts=detail.items.map(x=>x.startAt.getTime()),ends=detail.items.map(x=>x.startAt.getTime()+x.durationMin*60000);
+  if(detail.items.some(x=>x.durationMin==null))throw new ConflictException('Agendamento histórico possui item sem duração confiável; revise antes de operar');
+  const starts=detail.items.map(x=>x.startAt.getTime()),ends=detail.items.map(x=>x.startAt.getTime()+Number(x.durationMin)*60000);
   return {
    bookingId:detail.id,unitId:detail.unitId,clientId:detail.clientId,status:detail.status,date,
    visitStartAt:new Date(Math.min(...starts)).toISOString(),visitEndAt:new Date(Math.max(...ends)).toISOString(),
@@ -384,6 +385,7 @@ export class BookingCreationService {
       select:{startAt:true,durationMin:true},
      });
      for(const x of candidates){
+      if(x.durationMin==null)throw new ConflictException('Agenda contém item histórico sem duração confiável; revise antes de gravar');
       const xs=x.startAt.getTime(),xe=xs+x.durationMin*60000;
       if(xs<end&&xe>start)throw new ConflictException('Horário não está mais disponível');
      }
@@ -405,7 +407,7 @@ export class BookingCreationService {
       select:{id:true,startAt:true,durationMin:true,service:{select:{categoryId:true}}},
      });
      const demands=[
-      ...existingDemands.map(x=>({id:'existing:'+x.id,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.service?.categoryId||''})),
+      ...existingDemands.map(x=>{if(x.durationMin==null)throw new ConflictException('Agenda contém item histórico sem duração confiável; revise antes de calcular capacidade');return {id:'existing:'+x.id,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.service?.categoryId||''}}),
       ...prepared.map((x:any,i:number)=>({id:'candidate:'+i,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.categoryId||''})),
      ];
      const marks=[...new Set(demands.flatMap(x=>[x.start,x.end]))].sort((a,b)=>a-b);

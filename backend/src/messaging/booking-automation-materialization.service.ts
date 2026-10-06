@@ -46,7 +46,8 @@ export class BookingAutomationMaterializationService {
     }
 
     const starts=booking.items.map(item=>item.startAt.getTime());
-    const ends=booking.items.map(item=>item.startAt.getTime()+item.durationMin*60_000);
+    if(booking.items.some(item=>item.durationMin==null))throw new Error('BookingItem sem duração histórica confiável; automação não materializada');
+    const ends=booking.items.map(item=>item.startAt.getTime()+Number(item.durationMin)*60_000);
     const visitStartAt=new Date(Math.min(...starts));
     const visitEndAt=new Date(Math.max(...ends));
     const legacy=obj(booking.legacyPayload);
