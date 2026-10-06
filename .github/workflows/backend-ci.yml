@@ -86,6 +86,8 @@ jobs:
         run: npm run test:wa3c3
       - name: WA3C.4 regressions and parity
         run: npm run test:wa3c4
+      - name: WA4.1 existing waitlist audit
+        run: npm run test:wa4.1
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract
