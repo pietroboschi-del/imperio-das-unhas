@@ -73,7 +73,8 @@
     "test:wa5.5": "node test/wa5.5-waitlist-offer.contract.mjs && node test/wa5.5-waitlist-offer.integration.mjs",
     "test:wa5.6": "node test/wa5.6-post-service.contract.mjs && node test/wa5.6-post-service.integration.mjs",
     "test:wa5.7": "node test/wa5.7-automation-outbox.contract.mjs && node test/wa5.7-automation-outbox.integration.mjs",
-    "test:wa5.8": "node test/wa5.8-e2e-security.contract.mjs && node test/wa5.8-e2e.integration.mjs"
+    "test:wa5.8": "node test/wa5.8-e2e-security.contract.mjs && node test/wa5.8-e2e.integration.mjs",
+    "test:employee-config-readiness": "node test/v99-employee-config-readiness.contract.mjs && node test/v99-employee-config-permissions.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

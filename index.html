@@ -5423,7 +5423,7 @@ window.__imperioV76={schema:V76_SCHEMA,migrationId:V76_MIGRATION_ID,migrate,fisc
  function stationSnapshot(s){if(!s)return null;return {id:s.id,unitId:s.unitId,name:s.name,allowedCategoryIds:[...(s.allowedCategoryIds||[])],active:s.active!==false,createdAt:s.createdAt||'',updatedAt:s.updatedAt||''}}
  function ensure(){let changed=false;if(typeof IMPERIO_ARRAY_COLLECTIONS!=='undefined'&&!IMPERIO_ARRAY_COLLECTIONS.includes('workstations'))IMPERIO_ARRAY_COLLECTIONS.push('workstations');if(!Array.isArray(db.workstations)){db.workstations=[];changed=true}return changed}
  function migrate(){let changed=ensure();db.migrationHistory=Array.isArray(db.migrationHistory)?db.migrationHistory:[];if(!db.migrationHistory.some(x=>migId(x)===MIGRATION_ID)){db.migrationHistory.push({id:MIGRATION_ID,version:V77_SCHEMA,status:'applied',appliedAt:now(),note:'Cadastro individual de estações por unidade/categorias e motor gerencial de matching físico; nenhuma estação inventada e nenhum bloqueio de Agenda.'});changed=true}if(Number(db.schemaVersion||0)<V77_SCHEMA){db.schemaVersion=V77_SCHEMA;db.schemaMigratedAt=now();changed=true}if(changed)save({render:false});return changed}
- function canManage(){let u=window.__imperioV63?.currentUser?.();return !!u&&u.active!==false&&u.role==='admin'}
+ function canManage(){let u=window.__imperioV63?.currentUser?.();return (!!u&&u.active!==false&&u.role==='admin')||window.__imperioStructuralCatalogManage?.()===true}
  function audit(action,label,station,before,after){try{return window.__imperioV64?.persistEvent?.({module:'settings',action,actionLabel:label,entityType:'workstation',entityId:station?.id||after?.id||before?.id||'',unitId:station?.unitId||after?.unitId||before?.unitId||'',before,after,summary:station?.name||after?.name||before?.name||'Estação de trabalho',sourceFunction:'V77 Estações de trabalho',sourceId:station?.id||after?.id||before?.id||'',severity:'normal'})}catch(e){return false}}
  function validateStationInput(data,idValue=''){let unit=unitById(data?.unitId),name=String(data?.name||'').trim(),cats=[...new Set((data?.allowedCategoryIds||[]).filter(cid=>(db.categories||[]).some(c=>c.id===cid)))];if(!name)return {ok:false,message:'Informe o nome da estação'};if(!unit)return {ok:false,message:'Selecione uma unidade válida'};if(!cats.length)return {ok:false,message:'Selecione pelo menos uma categoria compatível'};let dup=(db.workstations||[]).find(s=>s.id!==idValue&&s.unitId===unit.id&&String(s.name||'').trim().toLowerCase()===name.toLowerCase());if(dup)return {ok:false,message:'Já existe uma estação com esse nome nesta unidade'};return {ok:true,data:{unitId:unit.id,name,allowedCategoryIds:cats,active:data?.active!==false}}}
  function upsertWorkstation(data,idValue=''){if(!canManage())return {ok:false,message:'Apenas Administração pode alterar estações'};ensure();let v=validateStationInput(data,idValue);if(!v.ok)return v;let a=actor(),existing=(db.workstations||[]).find(s=>s.id===idValue),before=stationSnapshot(existing);if(existing){existing.unitId=v.data.unitId;existing.name=v.data.name;existing.allowedCategoryIds=v.data.allowedCategoryIds;existing.active=v.data.active;existing.updatedAt=now();existing.updatedByUserId=a.id||'';existing.updatedByUserName=a.name||'';audit('UPDATE_WORKSTATION','Alteração de estação de trabalho',existing,before,stationSnapshot(existing));save({render:false});return {ok:true,station:existing,created:false}}let s={id:id('ws_'),unitId:v.data.unitId,name:v.data.name,allowedCategoryIds:v.data.allowedCategoryIds,active:v.data.active,createdAt:now(),updatedAt:now(),createdByUserId:a.id||'',createdByUserName:a.name||'',updatedByUserId:a.id||'',updatedByUserName:a.name||''};db.workstations.push(s);audit('CREATE_WORKSTATION','Criação de estação de trabalho',s,null,stationSnapshot(s));save({render:false});return {ok:true,station:s,created:true}}
@@ -7293,6 +7293,28 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  function production(){try{let h=String(location?.hostname||'').toLowerCase();return !!h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'}catch(e){return false}}
  function principal(){try{return JSON.parse(sessionStorage.getItem(PRINCIPAL_KEY)||'null')}catch(e){return null}}
  function ready(){return production()&&!!principal()&&!!window.__imperioCentralApi}
+ function catalogManageAllowed(){
+  let p=principal();if(!p)return false;if(p.networkAdmin===true)return true;
+  let values=Array.isArray(p.permissions)?p.permissions:Object.entries(p.permissions||{}).filter(([,v])=>v===true).map(([k])=>k);
+  return values.includes('catalog.manage')||values.includes('*')
+ }
+ window.__imperioStructuralCatalogManage=catalogManageAllowed;
+ function pruneStructuralNav(){
+  try{
+   let nav=document.querySelector('.v63-settings-nav');if(!nav||window.__imperioV63?.currentUser?.()?.role==='admin')return;
+   [...nav.querySelectorAll('button')].forEach(btn=>{let action=String(btn.getAttribute('onclick')||'');if(!action.includes('v89OpenCategoriesSettings')&&!action.includes('v77OpenWorkstationsSettings')&&!action.includes('v77OpenWorkstations'))btn.remove()})
+  }catch(e){}
+ }
+ function patchServiceStructuralActions(){
+  try{
+   if(typeof page!=='undefined'&&page!=='services'||!ready()||!catalogManageAllowed())return false;
+   let host=typeof adminPage!=='undefined'?adminPage:document.getElementById('adminPage');if(!host||host.querySelector?.('#v99StructuralServiceActions'))return false;
+   let head=host.querySelector?.('.page-head');if(!head)return false;
+   let box=document.createElement('div');box.id='v99StructuralServiceActions';box.style.display='flex';box.style.gap='8px';box.style.flexWrap='wrap';
+   box.innerHTML='<button class="btn btn-ghost" onclick="v89OpenCategoriesSettings()">Categorias</button><button class="btn btn-ghost" onclick="v77OpenWorkstationsSettings()">Estações</button>';
+   let primary=head.querySelector?.('.btn-primary');if(primary)head.insertBefore(box,primary);else head.appendChild(box);return true
+  }catch(e){return false}
+ }
  function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
  function csrf(){try{return sessionStorage.getItem(CSRF_KEY)||''}catch(e){return ''}}
  async function request(path,opt={}){
@@ -7347,7 +7369,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   return true
  }
  const oldCatSettings=window.v89OpenCategoriesSettings,oldCatSave=window.v89SaveCategory,oldCatToggle=window.v89ToggleCategory,oldCatMove=window.v89MoveCategory;
- if(oldCatSettings)window.v89OpenCategoriesSettings=function(){if(!ready())return oldCatSettings.apply(this,arguments);let self=this,args=arguments;return (async()=>{await refreshStructural();return oldCatSettings.apply(self,args)})().catch(e=>toast('Categorias centrais indisponíveis: '+e.message))};
+ if(oldCatSettings)window.v89OpenCategoriesSettings=function(){if(!ready())return oldCatSettings.apply(this,arguments);if(!catalogManageAllowed()){toast('Sem permissão para gerenciar o catálogo');return false}let self=this,args=arguments;return (async()=>{await refreshStructural();let out=oldCatSettings.apply(self,args);pruneStructuralNav();return out})().catch(e=>toast('Categorias centrais indisponíveis: '+e.message))};
  if(oldCatSave)window.v89SaveCategory=function(id=''){
   if(!ready())return oldCatSave.apply(this,arguments);
   return (async()=>{let name=document.getElementById('v89CatName')?.value.trim()||'',description=document.getElementById('v89CatDescription')?.value||'',area=document.getElementById('v89CatArea')?.value||'',leadRaw=document.getElementById('v89CatLead')?.value??'';if(!name){toast('Informe o nome da categoria');return false}let serviceDefaults={};if(area)serviceDefaults.clientArea=area;if(leadRaw!=='')serviceDefaults.mustFinishBeforeSameArea=leadRaw==='1';let current=(db.categories||[]).find(c=>c.id===id),categoryId=id||('cat_'+Date.now().toString(36)),sortOrder=current?Number(current.order||0):Math.max(0,...(db.categories||[]).map(c=>Number(c.order||0)))+10,body={id:categoryId,name,description,sortOrder,active:current?.active!==false,config:{serviceDefaults}};await request(id?'/api/v1/config/categories/'+encodeURIComponent(id):'/api/v1/config/categories',{method:id?'PATCH':'POST',body});await syncCategories();closeModal();oldCatSettings();toast(id?'Categoria atualizada no banco central ✓':'Categoria cadastrada no banco central ✓');return true})().catch(e=>{toast('Categoria não salva: '+e.message);return false})
@@ -7356,13 +7378,18 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  if(oldCatMove)window.v89MoveCategory=function(id,dir){if(!ready())return oldCatMove.apply(this,arguments);return (async()=>{let rows=(db.categories||[]).slice().sort((a,b)=>Number(a.order||0)-Number(b.order||0)||String(a.name||'').localeCompare(String(b.name||''),'pt-BR')),i=rows.findIndex(x=>x.id===id),j=i+(Number(dir)<0?-1:1);if(i<0||j<0||j>=rows.length)return false;let a=rows[i],b=rows[j],ao=Number(a.order||((i+1)*10)),bo=Number(b.order||((j+1)*10));await request('/api/v1/config/categories/'+encodeURIComponent(a.id),{method:'PATCH',body:{...categoryPayload(a),sortOrder:bo}});await request('/api/v1/config/categories/'+encodeURIComponent(b.id),{method:'PATCH',body:{...categoryPayload(b),sortOrder:ao}});await syncCategories();oldCatSettings();return true})().catch(e=>{toast('Ordem não alterada: '+e.message);return false})};
 
  const oldWsSettings=window.v77OpenWorkstationsSettings,oldWsOpen=window.v77OpenWorkstation,oldWsSave=window.v77SaveWorkstation;
- if(oldWsSettings)window.v77OpenWorkstationsSettings=function(){if(!ready())return oldWsSettings.apply(this,arguments);let self=this,args=arguments;return (async()=>{await refreshStructural();return oldWsSettings.apply(self,args)})().catch(e=>toast('Estações centrais indisponíveis: '+e.message))};
+ if(oldWsSettings)window.v77OpenWorkstationsSettings=function(){if(!ready())return oldWsSettings.apply(this,arguments);if(!catalogManageAllowed()){toast('Sem permissão para gerenciar o catálogo');return false}let self=this,args=arguments;return (async()=>{await refreshStructural();let out=oldWsSettings.apply(self,args);pruneStructuralNav();return out})().catch(e=>toast('Estações centrais indisponíveis: '+e.message))};
  if(oldWsOpen)window.v77OpenWorkstation=function(id=''){if(!ready())return oldWsOpen.apply(this,arguments);let self=this,args=arguments;return (async()=>{await refreshStructural();return oldWsOpen.apply(self,args)})().catch(e=>toast('Não foi possível carregar unidades/estações: '+e.message))};
  if(oldWsSave)window.v77SaveWorkstation=function(id=''){
   if(!ready())return oldWsSave.apply(this,arguments);
   return (async()=>{let name=document.getElementById('v77WsName')?.value.trim()||'',localUnit=document.getElementById('v77WsUnit')?.value||'',unitId=LOCAL_TO_CENTRAL[localUnit]||localUnit,cats=[...document.querySelectorAll('.v77-ws-category:checked')].map(x=>x.value),active=!!document.getElementById('v77WsActive')?.checked;if(!name){toast('Informe o nome da estação');return false}if(!unitId){toast('Selecione uma unidade válida');return false}if(!cats.length){toast('Selecione pelo menos uma categoria compatível');return false}let wid=id||('ws_'+Date.now().toString(36)),body={id:wid,unitId,name,allowedCategoryIds:cats,active,config:{}};await request(id?'/api/v1/config/workstations/'+encodeURIComponent(id):'/api/v1/config/workstations',{method:id?'PATCH':'POST',body});await syncWorkstations();closeModal();oldWsSettings();toast(id?'Estação atualizada no banco central ✓':'Estação cadastrada no banco central ✓');return true})().catch(e=>{toast('Estação não salva: '+e.message);return false})
  };
- window.__imperioStructuralCentral={ready,refresh:refreshStructural,syncCategories,syncWorkstations,sourceOfTruth:'postgresql'};
+ const structuralRenderServices=window.renderServices||((typeof renderServices==='function')?renderServices:null);
+ if(structuralRenderServices&&!structuralRenderServices.__v99StructuralActions){
+  let wrapped=function(){let out=structuralRenderServices.apply(this,arguments);patchServiceStructuralActions();return out};
+  wrapped.__v99StructuralActions=true;window.renderServices=wrapped;try{renderServices=wrapped}catch(e){}
+ }
+ window.__imperioStructuralCentral={ready,refresh:refreshStructural,syncCategories,syncWorkstations,catalogManageAllowed,patchServiceStructuralActions,sourceOfTruth:'postgresql'};
 })();
 
 /* ===== V99 · PUBLIC BOOKING CENTRAL CATALOG ===== */
