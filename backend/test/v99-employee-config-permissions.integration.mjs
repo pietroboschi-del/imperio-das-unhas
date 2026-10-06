@@ -17,6 +17,7 @@ async function main(){
  }});
  await prisma.session.create({data:{userId:user.id,tokenHash:sha(sessionToken),csrfHash:sha(csrfToken),status:'ACTIVE',expiresAt:new Date(Date.now()+3600000)}});
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.upsert({where:{id},create:{id,name},update:{name,active:true}});
+ await prisma.userUnitAccess.createMany({data:['big','centro','shopping-contagem'].map(unitId=>({userId:user.id,unitId,role:'OPERATOR',permissions:[],active:true}))});
  await prisma.auditEvent.deleteMany({where:{entityId:{in:Object.values(ids)}}}).catch(()=>{});
  await prisma.professionalUnit.deleteMany({where:{professionalId:ids.pro}}).catch(()=>{});
  await prisma.professional.deleteMany({where:{id:ids.pro}}).catch(()=>{});
@@ -77,6 +78,7 @@ async function main(){
   await prisma.serviceCategory.deleteMany({where:{id:ids.cat}}).catch(()=>{});
   await prisma.auditEvent.deleteMany({where:{entityId:{in:Object.values(ids)}}}).catch(()=>{});
   await prisma.session.deleteMany({where:{userId:user.id}}).catch(()=>{});
+  await prisma.userUnitAccess.deleteMany({where:{userId:user.id}}).catch(()=>{});
   await prisma.user.deleteMany({where:{id:user.id}}).catch(()=>{});
   await prisma.$disconnect();
  }
