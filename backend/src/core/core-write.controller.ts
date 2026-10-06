@@ -9,6 +9,7 @@ import { assertOperationalWriteEnabled } from '../common/operational-write-gate'
 import { BookingItemWriteDto, CreateBlockSeriesDto, CreateBookingDto, CreateClientDto, UpdateBookingDto, UpdateClientDto } from './core-write.dto';
 import { WaitlistOpportunityService } from './waitlist-opportunity.service';
 import { BookingAutomationMaterializationService } from '../messaging/booking-automation-materialization.service';
+import { BookingAutomationLifecycleService } from '../messaging/booking-automation-lifecycle.service';
 
 const TERMINAL_BOOKING=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
 
@@ -18,6 +19,7 @@ export class CoreWriteController {
     private readonly prisma: PrismaService,
     private readonly waitlistOpportunities:WaitlistOpportunityService,
     private readonly bookingAutomations:BookingAutomationMaterializationService,
+    private readonly bookingAutomationLifecycle:BookingAutomationLifecycleService,
   ) {}
 
   private operationId(scope:string,key?:string){
@@ -198,8 +200,10 @@ export class CoreWriteController {
     const rescheduled=!!after&&(oldDate!==after.serviceDate.toISOString().slice(0,10)||beforeSig!==afterSig);
     if(!terminalBefore&&terminalAfter){
       await this.waitlistOpportunities.reevaluateForAvailabilityEvent({unitId:req.unitId!,date:oldDate,sourceType:'CANCELLATION',sourceBookingId:id,sourceReferenceId:id});
+      await this.bookingAutomationLifecycle.cancelForBooking(id,'BOOKING_CANCELLED');
     }else if(rescheduled){
       await this.waitlistOpportunities.reevaluateForAvailabilityEvent({unitId:req.unitId!,date:oldDate,sourceType:'RESCHEDULE',sourceBookingId:id,sourceReferenceId:id});
+      await this.bookingAutomationLifecycle.replaceForReschedule(id);
     }
     return this.bookingView(req.unitId!,id);
   }

@@ -18,6 +18,11 @@ export class BookingAutomationMaterializationService {
   ){}
 
   async materializeCreatedBooking(bookingId:string){
+    return this.materializeBookingGeneration(bookingId,1,'BOOKING_CREATED');
+  }
+
+  async materializeBookingGeneration(bookingId:string,generation:number,sourceType='BOOKING_RESCHEDULED'){
+    if(!Number.isInteger(generation)||generation<1)throw new Error('generation inválida para materialização');
     const booking=await this.prisma.booking.findUnique({
       where:{id:bookingId},
       select:{
@@ -60,16 +65,15 @@ export class BookingAutomationMaterializationService {
     const created=[];
     for(const spec of specs){
       const logicalKey='booking:'+booking.id+':'+spec.automationType;
-      const generation=1;
       const row=await this.automations.create({
         unitId:booking.unitId,
         clientId:booking.clientId,
         bookingId:booking.id,
-        sourceType:'BOOKING_CREATED',
+        sourceType,
         sourceId:booking.id,
         automationType:spec.automationType,
         scheduledAt:spec.scheduledAt,
-        idempotencyKey:'wa5:booking-created:'+booking.id+':'+spec.automationType+':g'+generation,
+        idempotencyKey:'wa5:booking:'+booking.id+':'+spec.automationType+':g'+generation,
         logicalKey,
         generation,
         payload:spec.payload as Prisma.InputJsonValue,

@@ -104,6 +104,8 @@ jobs:
         run: npm run test:wa4-e2e
       - name: WA5.2 booking automation materialization
         run: npm run test:wa5.2
+      - name: WA5.3 booking automation lifecycle
+        run: npm run test:wa5.3
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract

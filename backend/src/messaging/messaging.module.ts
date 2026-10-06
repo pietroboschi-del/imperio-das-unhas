@@ -4,6 +4,7 @@ import { MessagingDispatchService } from './messaging-dispatch.service';
 import { MessagingInboundService } from './messaging-inbound.service';
 import { MessagingAutomationService } from './messaging-automation.service';
 import { BookingAutomationMaterializationService } from './booking-automation-materialization.service';
+import { BookingAutomationLifecycleService } from './booking-automation-lifecycle.service';
 import { EvolutionInstanceResolver } from './evolution-config';
 import { EvolutionMessagingProvider } from './evolution-messaging.provider';
 import { EvolutionWebhookParser } from './evolution-webhook.parser';
@@ -19,12 +20,13 @@ import { MESSAGING_PROVIDER } from './messaging.provider';
     MessagingInboundService,
     MessagingAutomationService,
     BookingAutomationMaterializationService,
+    BookingAutomationLifecycleService,
     EvolutionInstanceResolver,
     EvolutionMessagingProvider,
     EvolutionWebhookParser,
     EvolutionWebhookGuard,
     {provide:MESSAGING_PROVIDER,useExisting:EvolutionMessagingProvider},
   ],
-  exports:[MessagingFoundationService,MessagingDispatchService,MessagingInboundService,MessagingAutomationService,BookingAutomationMaterializationService],
+  exports:[MessagingFoundationService,MessagingDispatchService,MessagingInboundService,MessagingAutomationService,BookingAutomationMaterializationService,BookingAutomationLifecycleService],
 })
 export class MessagingModule {}
