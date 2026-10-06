@@ -78,6 +78,7 @@ jobs:
           [[ -n "${BACKUP_PASSWORD:-}" ]] || { echo "Missing IMPERIO_BACKUP_PASSWORD."; exit 1; }
 
           echo "::add-mask::$BACKUP_USERNAME"
+          echo "::add-mask::$BACKUP_PASSWORD"
 
           BASE_URL="${BACKUP_BASE_URL%/}"
           WORK_DIR="$RUNNER_TEMP/imperio-backup"
