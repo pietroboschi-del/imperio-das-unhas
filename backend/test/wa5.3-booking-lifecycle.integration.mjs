@@ -30,7 +30,7 @@ try{
  const base=new MessagingAutomationService(prisma),mat=new BookingAutomationMaterializationService(prisma,base),life=new BookingAutomationLifecycleService(prisma,mat,base);
 
  await createBooking(bookingId,'centro');await mat.materializeCreatedBooking(bookingId);
- assert.equal((await generations(bookingId)).length,3);
+ assert.equal((await generations(bookingId)).length,4);
 
  await prisma.$transaction(async tx=>{
    await tx.bookingItem.updateMany({where:{bookingId},data:{startAt:new Date('2030-07-02T14:00:00.000Z')}});
@@ -38,10 +38,10 @@ try{
  });
  await life.replaceForReschedule(bookingId);
  let rows=await generations(bookingId);
- assert.equal(rows.filter(x=>x.generation===1&&x.status==='CANCELLED').length,3,'geração antiga cancelada');
- assert.equal(rows.filter(x=>x.generation===2&&x.status==='PENDING').length,3,'nova geração criada uma vez');
+ assert.equal(rows.filter(x=>x.generation===1&&x.status==='CANCELLED').length,4,'geração antiga cancelada');
+ assert.equal(rows.filter(x=>x.generation===2&&x.status==='PENDING').length,4,'nova geração criada uma vez');
  await life.replaceForReschedule(bookingId);
- rows=await generations(bookingId);assert.equal(rows.length,6,'replay do mesmo reagendamento não duplica');
+ rows=await generations(bookingId);assert.equal(rows.length,8,'replay do mesmo reagendamento não duplica');
 
  await prisma.$transaction(async tx=>{
    await tx.bookingItem.updateMany({where:{bookingId},data:{startAt:new Date('2030-07-03T15:00:00.000Z')}});
@@ -49,19 +49,19 @@ try{
  });
  await Promise.all([life.replaceForReschedule(bookingId),life.replaceForReschedule(bookingId)]);
  rows=await generations(bookingId);
- assert.equal(rows.filter(x=>x.generation===2&&x.status==='CANCELLED').length,3);
- assert.equal(rows.filter(x=>x.generation===3&&x.status==='PENDING').length,3,'concorrência converge em uma geração atual');
+ assert.equal(rows.filter(x=>x.generation===2&&x.status==='CANCELLED').length,4);
+ assert.equal(rows.filter(x=>x.generation===3&&x.status==='PENDING').length,4,'concorrência converge em uma geração atual');
 
  await prisma.booking.update({where:{id:bookingId},data:{status:'Cancelado',version:{increment:1}}});
  await life.cancelForBooking(bookingId);
  rows=await generations(bookingId);
  assert.equal(rows.filter(x=>x.status==='PENDING').length,0,'cancelamento elimina automações ativas');
  await life.cancelForBooking(bookingId);
- assert.equal((await generations(bookingId)).length,9,'replay de cancelamento não duplica');
+ assert.equal((await generations(bookingId)).length,12,'replay de cancelamento não duplica');
 
  await createBooking(bigId,'big');await mat.materializeCreatedBooking(bigId);
  const bigRows=await generations(bigId);assert.ok(bigRows.every(x=>x.unitId==='big'));
- assert.equal(bigRows.length,3,'multiunidade permanece isolada');
+ assert.equal(bigRows.length,4,'multiunidade permanece isolada');
  assert.equal(await prisma.messagingOutbox.count({where:{bookingId:{in:[bookingId,bigId]}}}),0,'WA5.3 não cria Outbox');
 
  console.log(JSON.stringify({ok:true,feature:'wa5_3_booking_lifecycle',replay:true,concurrency:true,multipleReschedules:true,cancelAfterReschedule:true,multiService:true,multiUnit:true,outbox:false}));

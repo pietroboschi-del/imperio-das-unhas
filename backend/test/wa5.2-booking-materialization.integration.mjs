@@ -39,10 +39,10 @@ try{
   await makeBooking(bookingId,'centro',2);
   const first=await materializer.materializeCreatedBooking(bookingId);
   assert.equal(first.skipped,false);
-  assert.deepEqual(first.types.sort(),['APPOINTMENT_REMINDER','BOOKING_CONFIRMATION','SIGNAL_REQUEST'].sort());
+  assert.deepEqual(first.types.sort(),['APPOINTMENT_REMINDER','BOOKING_CONFIRMATION','SIGNAL_REMINDER','SIGNAL_REQUEST'].sort());
   let rows=await prisma.messagingAutomation.findMany({where:{bookingId},orderBy:{automationType:'asc'}});
-  assert.equal(rows.length,3,'multi-serviço gera três automações do booking, não por item');
-  assert.equal(new Set(rows.map(x=>x.automationType)).size,3);
+  assert.equal(rows.length,4,'multi-serviço gera automações do booking, não por item');
+  assert.equal(new Set(rows.map(x=>x.automationType)).size,4);
   assert.ok(rows.every(x=>x.unitId==='centro'&&x.clientId===clientId&&x.bookingId===bookingId));
   const confirmation=rows.find(x=>x.automationType==='BOOKING_CONFIRMATION');
   assert.equal(confirmation.payload.itemCount,2,'payload deriva dos BookingItems reais');
@@ -50,8 +50,8 @@ try{
 
   await materializer.materializeCreatedBooking(bookingId);
   rows=await prisma.messagingAutomation.findMany({where:{bookingId}});
-  assert.equal(rows.length,3,'replay não duplica automações');
-  assert.equal(await prisma.auditEvent.count({where:{entityType:'MessagingAutomation',action:'automation.created',entityId:{in:rows.map(x=>x.id)}}}),3,'replay não duplica auditoria');
+  assert.equal(rows.length,4,'replay não duplica automações');
+  assert.equal(await prisma.auditEvent.count({where:{entityType:'MessagingAutomation',action:'automation.created',entityId:{in:rows.map(x=>x.id)}}}),4,'replay não duplica auditoria');
 
   const bigId=prefix+'-big',centroId=prefix+'-centro';
   await makeBooking(bigId,'big',1);
@@ -62,7 +62,7 @@ try{
   const centroRows=await prisma.messagingAutomation.findMany({where:{bookingId:centroId}});
   assert.ok(bigRows.every(x=>x.unitId==='big'));
   assert.ok(centroRows.every(x=>x.unitId==='centro'));
-  assert.equal(bigRows.length,3);assert.equal(centroRows.length,3);
+  assert.equal(bigRows.length,4);assert.equal(centroRows.length,4);
 
   assert.equal(await prisma.messagingOutbox.count(),beforeOutbox,'WA5.2 cria zero Outbox');
   assert.equal(String(process.env.WHATSAPP_AUTOMATION_ENABLED||'false').toLowerCase(),'false','automação outbound permanece OFF');

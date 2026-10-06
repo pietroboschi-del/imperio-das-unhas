@@ -4,7 +4,9 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MessagingAutomationService } from './messaging-automation.service';
 
 const SKIP_STATUSES=new Set(['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou','Concluído','Bloqueado']);
-const INITIAL_AUTOMATION_TYPES=['BOOKING_CONFIRMATION','SIGNAL_REQUEST','APPOINTMENT_REMINDER'] as const;
+const HOUR_MS=60*60*1000;
+const DAY_MS=24*HOUR_MS;
+const INITIAL_AUTOMATION_TYPES=['BOOKING_CONFIRMATION','SIGNAL_REQUEST','SIGNAL_REMINDER','APPOINTMENT_REMINDER'] as const;
 
 function obj(value:unknown){
   return value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{};
@@ -34,6 +36,10 @@ export class BookingAutomationMaterializationService {
       },
     });
     if(!booking)throw new NotFoundException('Agendamento não encontrado para materialização de automações');
+    const unit=await this.prisma.unit.findUnique({where:{id:booking.unitId},select:{timezone:true}});
+    if(!unit?.timezone)throw new NotFoundException('Timezone canônico da unidade não encontrado');
+    new Intl.DateTimeFormat('en-US',{timeZone:unit.timezone}).format(new Date());
+
     const serviceItems=booking.items.filter(item=>!!item.serviceId);
     if(!booking.clientId||booking.items.length===0||serviceItems.length===0||SKIP_STATUSES.has(booking.status)){
       return {bookingId:booking.id,created:[],skipped:true};
@@ -45,6 +51,7 @@ export class BookingAutomationMaterializationService {
     const visitEndAt=new Date(Math.max(...ends));
     const legacy=obj(booking.legacyPayload);
     const serviceIds=serviceItems.map(item=>String(item.serviceId));
+    const now=new Date();
     const payloadBase={
       bookingVersion:booking.version,
       bookingStatus:booking.status,
@@ -54,13 +61,35 @@ export class BookingAutomationMaterializationService {
       professionalIds:booking.items.map(item=>item.professionalId),
       visitStartAt:visitStartAt.toISOString(),
       visitEndAt:visitEndAt.toISOString(),
+      businessTimezone:unit.timezone,
     } satisfies Record<string,Prisma.JsonValue>;
 
-    const specs=[
-      {automationType:'BOOKING_CONFIRMATION',scheduledAt:booking.createdAt,payload:{...payloadBase,phase:'INITIAL_CONFIRMATION'}},
-      {automationType:'SIGNAL_REQUEST',scheduledAt:booking.createdAt,payload:{...payloadBase,phase:'SIGNAL_LOGICAL_ONLY',financialDecision:'DEFERRED_TO_WA6'}},
-      {automationType:'APPOINTMENT_REMINDER',scheduledAt:visitStartAt,payload:{...payloadBase,phase:'REMINDER_PLACEHOLDER_WA5_2'}},
-    ] as const;
+    const specs:Array<{automationType:string;scheduledAt:Date;payload:Prisma.InputJsonValue}>=[
+      {automationType:'BOOKING_CONFIRMATION',scheduledAt:now,payload:{...payloadBase,phase:'INITIAL_CONFIRMATION'} as Prisma.InputJsonValue},
+      {automationType:'SIGNAL_REQUEST',scheduledAt:now,payload:{...payloadBase,phase:'SIGNAL_LOGICAL_ONLY',financialDecision:'DEFERRED_TO_WA6'} as Prisma.InputJsonValue},
+    ];
+
+    const signalReminderAt=new Date(now.getTime()+DAY_MS);
+    if(signalReminderAt.getTime()<visitStartAt.getTime()){
+      specs.push({
+        automationType:'SIGNAL_REMINDER',
+        scheduledAt:signalReminderAt,
+        payload:{...payloadBase,phase:'SIGNAL_REMINDER_LOGICAL_ONLY',financialDecision:'DEFERRED_TO_WA6',cancelWhenSignalConfirmed:true} as Prisma.InputJsonValue,
+      });
+    }
+
+    const leadMs=visitStartAt.getTime()-now.getTime();
+    const appointmentReminderAt=
+      leadMs>=DAY_MS?new Date(visitStartAt.getTime()-DAY_MS):
+      leadMs>2*HOUR_MS?new Date(visitStartAt.getTime()-2*HOUR_MS):
+      null;
+    if(appointmentReminderAt&&appointmentReminderAt.getTime()>=now.getTime()){
+      specs.push({
+        automationType:'APPOINTMENT_REMINDER',
+        scheduledAt:appointmentReminderAt,
+        payload:{...payloadBase,phase:'APPOINTMENT_REMINDER',leadRuleHours:leadMs>=DAY_MS?24:2} as Prisma.InputJsonValue,
+      });
+    }
 
     const created=[];
     for(const spec of specs){
@@ -76,10 +105,10 @@ export class BookingAutomationMaterializationService {
         idempotencyKey:'wa5:booking:'+booking.id+':'+spec.automationType+':g'+generation,
         logicalKey,
         generation,
-        payload:spec.payload as Prisma.InputJsonValue,
+        payload:spec.payload,
       });
       created.push(row);
     }
-    return {bookingId:booking.id,created,skipped:false,types:[...INITIAL_AUTOMATION_TYPES]};
+    return {bookingId:booking.id,created,skipped:false,types:created.map(row=>row.automationType),supportedTypes:[...INITIAL_AUTOMATION_TYPES]};
   }
 }
