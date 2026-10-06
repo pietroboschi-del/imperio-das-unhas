@@ -14,6 +14,7 @@ const gate=read('src/common/operational-write-gate.ts');
 const core=read('src/core/core-write.controller.ts');
 const finance=read('src/core/finance-write.controller.ts');
 const publicBooking=read('src/core/public-booking.controller.ts');
+const bookingCreation=read('src/core/booking-creation.service.ts');
 const release=JSON.parse(read('OFFICIAL_RELEASE.json'));
 const rollback=read('PRODUCTION_BACKUP_ROLLBACK.md');
 const recovery=read('PRODUCTION_RECOVERY.md');
@@ -31,7 +32,7 @@ ok(env.includes('MIGRATION_IMPORT_ENABLED=false')&&env.includes('OPENAPI_ENABLED
 ok(gate.includes('OPERATIONAL_WRITES_UNITS')&&gate.includes('allow.length&&unitId&&!allow.includes(unitId)'),'gate implementa allowlist opcional');
 ok(core.includes('assertOperationalWriteEnabled(req.unitId!)'),'core write usa gate por unidade');
 ok(finance.includes('assertOperationalWriteEnabled(req.unitId!)'),'finance write usa gate por unidade');
-ok(publicBooking.includes("assertOperationalWriteEnabled(b.unitId,'Agendamento online central ainda não habilitado neste ambiente')"),'site usa gate por unidade');
+ok(publicBooking.includes('this.creation.createPublicBooking')&&bookingCreation.includes("assertOperationalWriteEnabled(input.unitId,'Agendamento online central ainda não habilitado neste ambiente')"),'site delega à criação canônica que usa gate por unidade');
 
 ok(release.releaseId==='official-three-units-2026-10-01','release oficial possui identificador único');
 ok(release.repository==='pietroboschi-del/imperio-das-unhas'&&release.branch==='official-three-units-integration','release aponta para repositório e branch oficiais');
