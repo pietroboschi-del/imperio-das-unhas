@@ -6,6 +6,9 @@ import {BookingAvailabilityService} from '../dist/src/core/booking-availability.
 import {WaitlistService} from '../dist/src/core/waitlist.service.js';
 import {WaitlistOpportunityService} from '../dist/src/core/waitlist-opportunity.service.js';
 import {CoreWriteController} from '../dist/src/core/core-write.controller.js';
+import {MessagingAutomationService} from '../dist/src/messaging/messaging-automation.service.js';
+import {BookingAutomationMaterializationService} from '../dist/src/messaging/booking-automation-materialization.service.js';
+import {BookingAutomationLifecycleService} from '../dist/src/messaging/booking-automation-lifecycle.service.js';
 
 const prisma=new PrismaClient();
 let checks=0;
@@ -90,7 +93,10 @@ try{
  const availability=new BookingAvailabilityService(prisma);
  const matcher=new WaitlistOpportunityService(prisma,availability);
  const waitlist=new WaitlistService(prisma);
- const writes=new CoreWriteController(prisma,matcher);
+ const automationService=new MessagingAutomationService(prisma);
+ const bookingAutomationMaterializer=new BookingAutomationMaterializationService(prisma,automationService);
+ const bookingAutomationLifecycle=new BookingAutomationLifecycleService(prisma,bookingAutomationMaterializer,automationService);
+ const writes=new CoreWriteController(prisma,matcher,bookingAutomationMaterializer,bookingAutomationLifecycle);
  const specs=[
   {serviceId:'wa4e2e-maint',professionalId:'wa4e2e-a',preferenceMode:'required'},
   {serviceId:'wa4e2e-mani',professionalId:'wa4e2e-b',preferenceMode:'required'},
