@@ -140,4 +140,27 @@ new Function(html.slice(scriptBody,scriptClose));tests++;
 
 ok(html.includes("remoteItems=Array.isArray(x.items)?x.items:[]"),'agenda central consome Booking.items sem fallback sintético');
 ok(!html.includes("Array.isArray(x.items)&&x.items.length?x.items:[{serviceId:x.serviceId"),'agenda central não reduz cabeçalho legado a item sintético');
+
+const paymentFinalizeStart=html.indexOf("const legacyFinalizeCommandV99=");
+const paymentFinalizeEnd=html.indexOf("const legacySaveReopenCashV99=",paymentFinalizeStart);
+ok(paymentFinalizeStart>=0&&paymentFinalizeEnd>paymentFinalizeStart,'finalização central de pagamentos localizada');
+const paymentFinalizeSource=html.slice(paymentFinalizeStart,paymentFinalizeEnd);
+ok(paymentFinalizeSource.includes('centralApi.receivePayment(c.id,{')&&paymentFinalizeSource.includes('centralPaymentIdempotencyKey(c.id,p.id)'), 'cada forma de pagamento central reutiliza uma chave estável entre tentativas');
+const paymentKeyStart=html.indexOf('function centralPaymentIdempotencyKey(');
+const paymentKeyEnd=html.indexOf('\n',paymentKeyStart);
+ok(paymentKeyStart>=0&&paymentKeyEnd>paymentKeyStart,'helper de idempotência de pagamento central localizado');
+const paymentKey=new Function(html.slice(paymentKeyStart,paymentKeyEnd)+';return centralPaymentIdempotencyKey;')();
+ok(paymentKey('command-a','draft-a')===paymentKey('command-a','draft-a'),'retry do mesmo rascunho preserva a chave');
+ok(paymentKey('command-a','draft-a')!==paymentKey('command-a','draft-b'),'formas distintas de pagamento têm chaves distintas');
+const draftIdsStart=html.indexOf('function ensurePaymentDraftIds(c)');
+const draftIdsEnd=html.indexOf('\n',draftIdsStart);
+ok(draftIdsStart>=0&&draftIdsEnd>draftIdsStart,'normalizador de IDs do rascunho localizado');
+let generatedPaymentId=0;
+const ensurePaymentDraftIds=new Function('operationKey',html.slice(draftIdsStart,draftIdsEnd)+';return ensurePaymentDraftIds;')(()=>`generated_${++generatedPaymentId}`);
+const legacyPaymentDraft={paymentDraft:[{id:'same'},{id:'same'},{id:''}]};
+ensurePaymentDraftIds(legacyPaymentDraft);
+const normalizedPaymentIds=legacyPaymentDraft.paymentDraft.map(x=>x.id);
+ok(new Set(normalizedPaymentIds).size===3&&normalizedPaymentIds.every(Boolean),'linhas antigas sem ID ou com ID duplicado recebem chaves distintas');
+ensurePaymentDraftIds(legacyPaymentDraft);
+ok(JSON.stringify(legacyPaymentDraft.paymentDraft.map(x=>x.id))===JSON.stringify(normalizedPaymentIds),'IDs normalizados permanecem estáveis nos retries');
 console.log(JSON.stringify({ok:true,tests,feature:'v99_frontend_central_bridge'}));
