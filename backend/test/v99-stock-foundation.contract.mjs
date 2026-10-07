@@ -13,7 +13,8 @@ ok(!migration.includes("INSERT INTO \"Unit\"")||!migration.includes("'central'")
 ok(service.includes("LEGACY_LOCATION_MAP")&&service.includes("u1:'big'")&&service.includes("u2:'shopping-contagem'")&&service.includes("u3:'centro'"),'opening balance legacy locations map explicitly');
 ok(service.includes("Apenas administrador da rede pode aplicar saldos de abertura"),'opening balance cutover is admin-only');
 ok(service.includes("type:'OPENING_BALANCE'")&&service.includes("referenceType:'STOCK_BALANCE_OPENING'"),'opening application is traceable');
-ok(service.includes("type:'PURCHASE'")&&service.includes("landed=line.unitCost+share/line.qty"),'purchase preserves freight-in-landed-cost rule');
+ok(service.includes("type:'PURCHASE'")&&service.includes("landedDecimal=D(line.unitCost+share/line.qty)"),'purchase preserves freight-in-landed-cost rule');
+ok(service.includes("shareDecimal=line.sortOrder===lines.length-1?D(freight).minus(allocatedFreight):D(proportionalShare)")&&service.includes("allocatedFreight=allocatedFreight.plus(shareDecimal)"),'purchase closes freight rounding residual on final item');
 ok(service.includes("((before*oldCost)+(line.qty*landed))/after"),'purchase recalculates weighted average cost');
 ok(service.includes("type:'CONSUMPTION'")&&service.includes("Saldo insuficiente para consumo"),'consumption decreases stock and rejects insufficient balance');
 ok(service.includes("type:'INVENTORY_ADJUSTMENT'")&&service.includes("beforeQty")&&service.includes("afterQty"),'inventory adjustment is auditable');
