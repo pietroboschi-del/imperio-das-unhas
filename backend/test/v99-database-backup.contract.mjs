@@ -6,6 +6,7 @@ const moduleFile=fs.readFileSync(new URL('../src/backup/backup.module.ts',import
 const app=fs.readFileSync(new URL('../src/app.module.ts',import.meta.url),'utf8');
 const docker=fs.readFileSync(new URL('../Dockerfile',import.meta.url),'utf8');
 const html=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+const workflow=fs.readFileSync(new URL('../../.github/workflows/production-logical-backup.yml',import.meta.url),'utf8');
 
 ok(controller.includes("@Controller('api/v1/admin/database-backup')"),'endpoint dedicado existe');
 ok(controller.includes('@NetworkAdmin()'),'backup exige administrador de rede');
@@ -21,4 +22,10 @@ ok(html.includes('/api/v1/admin/database-backup'),'frontend chama apenas endpoin
 ok(html.includes('Baixar backup lógico (.dump)'),'botão de backup é exposto ao administrador');
 ok(html.includes('URL.createObjectURL(blob)')&&html.includes("a.download=filename"),'arquivo é baixado no computador do administrador');
 ok(!controller.includes('pg_restore')&&!controller.includes('prisma:migrate'),'endpoint não restaura nem altera schema');
+ok(workflow.includes('pg_restore --list')&&workflow.includes('--exit-on-error'),'workflow valida a lista e restaura o dump com falha imediata');
+ok(workflow.includes('--network none')&&workflow.includes('RESTORE_CONTAINER=')&&workflow.includes('trap cleanup EXIT'),'restore smoke usa PostgreSQL isolado e limpeza por trap');
+ok(workflow.includes('for table in Unit User; do')&&workflow.includes('for table in Client Service Professional Booking; do'),'restore smoke valida tabelas essenciais e registros mínimos');
+ok(workflow.includes('finished_at IS NOT NULL AND rolled_back_at IS NULL')&&workflow.includes('MIGRATIONS_UNRESOLVED'),'restore smoke verifica migrations aplicadas e sem estado pendente');
+ok(workflow.includes('restoreSmokeValidation')&&workflow.includes('retention-days: 30'),'manifest registra restore smoke e artifact mantém retenção');
+ok(workflow.includes('echo "::add-mask::$BACKUP_USERNAME"')&&workflow.includes('echo "::add-mask::$BACKUP_PASSWORD"')&&!workflow.includes('set -x'),'workflow mascara credenciais e mantém trace shell desligado');
 console.log(JSON.stringify({ok:true,tests,feature:'free_logical_database_backup'}));

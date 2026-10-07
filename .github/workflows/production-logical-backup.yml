@@ -78,6 +78,7 @@ jobs:
           [[ -n "${BACKUP_PASSWORD:-}" ]] || { echo "Missing IMPERIO_BACKUP_PASSWORD."; exit 1; }
 
           echo "::add-mask::$BACKUP_USERNAME"
+          echo "::add-mask::$BACKUP_PASSWORD"
 
           BASE_URL="${BACKUP_BASE_URL%/}"
           WORK_DIR="$RUNNER_TEMP/imperio-backup"
@@ -94,8 +95,12 @@ jobs:
           COOKIE_JAR="$WORK_DIR/cookies.txt"
           HEADERS_PATH="$WORK_DIR/backup-headers.txt"
           MANIFEST_PATH="$WORK_DIR/${BACKUP_NAME}.manifest.json"
+          RESTORE_CONTAINER="imperio-backup-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 
           cleanup() {
+            if [[ -n "${RESTORE_CONTAINER:-}" ]]; then
+              docker rm -f "$RESTORE_CONTAINER" >/dev/null 2>&1 || true
+            fi
             for path in \
               "$DUMP_PATH" \
               "$LOGIN_PAYLOAD" \
@@ -169,6 +174,94 @@ jobs:
             postgres:18 \
             pg_restore --list "/backup/$BACKUP_NAME" >/dev/null
 
+          echo "Starting isolated PostgreSQL restore smoke test."
+          docker rm -f "$RESTORE_CONTAINER" >/dev/null 2>&1 || true
+          docker run --detach \
+            --name "$RESTORE_CONTAINER" \
+            --network none \
+            -e POSTGRES_USER=imperio_restore \
+            -e POSTGRES_DB=imperio_restore \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            postgres:18 >/dev/null
+
+          RESTORE_READY=false
+          for attempt in $(seq 1 30); do
+            if docker exec "$RESTORE_CONTAINER" \
+              pg_isready -U imperio_restore -d imperio_restore >/dev/null 2>&1
+            then
+              RESTORE_READY=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "$RESTORE_READY" != "true" ]]; then
+            docker logs "$RESTORE_CONTAINER" >&2 || true
+            echo "Temporary PostgreSQL did not become ready."
+            exit 1
+          fi
+
+          docker cp "$DUMP_PATH" "$RESTORE_CONTAINER:/tmp/backup.dump" >/dev/null
+          docker exec "$RESTORE_CONTAINER" \
+            pg_restore \
+            --exit-on-error \
+            --no-owner \
+            --no-acl \
+            -U imperio_restore \
+            -d imperio_restore \
+            /tmp/backup.dump
+
+          PUBLIC_TABLES="$(docker exec "$RESTORE_CONTAINER" \
+            psql -U imperio_restore -d imperio_restore -Atqc \
+            "SELECT COUNT(*) FROM pg_tables WHERE schemaname='public';")"
+          [[ "$PUBLIC_TABLES" =~ ^[0-9]+$ && "$PUBLIC_TABLES" -gt 0 ]] \
+            || { echo "Restore smoke found no public tables."; exit 1; }
+          echo "Restore smoke public tables: $PUBLIC_TABLES"
+
+          for table in Unit User; do
+            TABLE_EXISTS="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT to_regclass('public.\"$table\"') IS NOT NULL;")"
+            [[ "$TABLE_EXISTS" == "t" ]] \
+              || { echo "Restore smoke missing required table: $table"; exit 1; }
+            ROW_COUNT="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT COUNT(*) FROM public.\"$table\";")"
+            [[ "$ROW_COUNT" =~ ^[0-9]+$ && "$ROW_COUNT" -gt 0 ]] \
+              || { echo "Restore smoke expected non-empty table: $table"; exit 1; }
+            echo "Restore smoke count $table=$ROW_COUNT"
+          done
+
+          for table in Client Service Professional Booking; do
+            TABLE_EXISTS="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT to_regclass('public.\"$table\"') IS NOT NULL;")"
+            [[ "$TABLE_EXISTS" == "t" ]] \
+              || { echo "Restore smoke missing required table: $table"; exit 1; }
+            ROW_COUNT="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT COUNT(*) FROM public.\"$table\";")"
+            [[ "$ROW_COUNT" =~ ^[0-9]+$ ]] \
+              || { echo "Restore smoke could not count table: $table"; exit 1; }
+            echo "Restore smoke count $table=$ROW_COUNT"
+          done
+
+          MIGRATIONS_APPLIED="$(docker exec "$RESTORE_CONTAINER" \
+            psql -U imperio_restore -d imperio_restore -Atqc \
+            "SELECT COUNT(*) FROM public.\"_prisma_migrations\" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;")"
+          [[ "$MIGRATIONS_APPLIED" =~ ^[0-9]+$ && "$MIGRATIONS_APPLIED" -gt 0 ]] \
+            || { echo "Restore smoke found no applied Prisma migrations."; exit 1; }
+          MIGRATIONS_UNRESOLVED="$(docker exec "$RESTORE_CONTAINER" \
+            psql -U imperio_restore -d imperio_restore -Atqc \
+            "SELECT COUNT(*) FROM public.\"_prisma_migrations\" WHERE finished_at IS NULL AND rolled_back_at IS NULL;")"
+          [[ "$MIGRATIONS_UNRESOLVED" == "0" ]] \
+            || { echo "Restore smoke found unresolved Prisma migrations: $MIGRATIONS_UNRESOLVED"; exit 1; }
+          echo "Restore smoke Prisma migrations applied=$MIGRATIONS_APPLIED unresolved=0"
+
+          docker rm -f "$RESTORE_CONTAINER" >/dev/null
+          RESTORE_CONTAINER=""
+          echo "Restore smoke: PASS; temporary PostgreSQL removed."
+
           BACKUP_SHA256="$(sha256sum "$DUMP_PATH" | awk '{print $1}')"
           BACKUP_BYTES="$(stat -c '%s' "$DUMP_PATH")"
           export BACKUP_SHA256 BACKUP_BYTES BACKUP_NAME generated_at
@@ -184,6 +277,7 @@ jobs:
               "sha256": os.environ["BACKUP_SHA256"],
               "format": "pg_dump-custom",
               "pgRestoreValidation": "postgres:18 pg_restore --list",
+              "restoreSmokeValidation": "postgres:18 isolated restore PASS",
               "repository": os.environ["GITHUB_REPOSITORY"],
               "gitSha": os.environ["GITHUB_SHA"],
               "runId": os.environ["GITHUB_RUN_ID"],
@@ -210,7 +304,7 @@ jobs:
           test -s "$UPLOAD_DIR/${BACKUP_NAME}.age.sha256"
 
           echo "artifact_name=imperio-logical-backup-${timestamp}" >> "$GITHUB_OUTPUT"
-          echo "Backup created, pg_restore validated, SHA-256 recorded in encrypted manifest, and age encryption completed."
+          echo "Backup created, pg_restore validated, isolated restore smoke passed, SHA-256 recorded in encrypted manifest, and age encryption completed."
 
       - name: Upload encrypted backup artifact
         if: steps.schedule_gate.outputs.run == 'true'
