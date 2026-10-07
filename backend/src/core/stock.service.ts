@@ -114,12 +114,16 @@ export class StockService {
       const prior=await tx.stockPurchase.findUnique({where:{idempotencyKey:idem},include:{items:true}});if(prior)return prior;
       const products=await this.productsByIds(tx,raw.map((x:any)=>String(x.productId)));
       const lines:{productId:string;qty:number;unitCost:number;sortOrder:number}[]=raw.map((x:any,i:number)=>({productId:String(x.productId),qty:Number(x.qty),unitCost:Number(x.unitCost),sortOrder:i}));if(lines.some((x:{productId:string;qty:number;unitCost:number;sortOrder:number})=>!(x.qty>0)||x.unitCost<0||!Number.isFinite(x.unitCost)))throw new ConflictException('Quantidade/custo inválido na compra');
-      const goods=lines.reduce((s:number,x:{productId:string;qty:number;unitCost:number;sortOrder:number})=>s+x.qty*x.unitCost,0),freight=Math.max(0,Number(body.freight||0)),total=goods+freight,purchaseId=randomUUID();
+      const goods=lines.reduce((s:number,x:{productId:string;qty:number;unitCost:number;sortOrder:number})=>s+x.qty*x.unitCost,0),freightInput=Math.max(0,Number(body.freight||0)),freight=n(D(freightInput,2)),total=goods+freight,purchaseId=randomUUID();
       const row=await tx.stockPurchase.create({data:{id:purchaseId,destinationLocationId:locationId,purchaseDate:dateOnly(body.purchaseDate),supplier:String(body.supplier||'').trim()||'Não informado',freight:D(freight,2),goodsTotal:D(goods,2),total:D(total,2),note:String(body.note||'').trim()||null,createdByUserId:p.userId,idempotencyKey:idem}});
+      let allocatedFreight=D(0);
       for(const line of lines){
         products.get(line.productId);
-        const share=goods>0?freight*(line.qty*line.unitCost/goods):freight/lines.length,landed=line.unitCost+share/line.qty;
-        await tx.stockPurchaseItem.create({data:{purchaseId,productId:line.productId,qty:D(line.qty),unitCost:D(line.unitCost),freightShare:D(share),landedUnitCost:D(landed),sortOrder:line.sortOrder}});
+        const proportionalShare=goods>0?freight*(line.qty*line.unitCost/goods):freight/lines.length;
+        const shareDecimal=line.sortOrder===lines.length-1?D(freight).minus(allocatedFreight):D(proportionalShare);
+        allocatedFreight=allocatedFreight.plus(shareDecimal);
+        const share=n(shareDecimal),landedDecimal=D(line.unitCost+share/line.qty),landed=n(landedDecimal);
+        await tx.stockPurchaseItem.create({data:{purchaseId,productId:line.productId,qty:D(line.qty),unitCost:D(line.unitCost),freightShare:shareDecimal,landedUnitCost:landedDecimal,sortOrder:line.sortOrder}});
         const bal=await this.balanceLocked(tx,line.productId,locationId),before=n(bal.qty),oldCost=n(bal.avgCost),after=before+line.qty,avg=after?((before*oldCost)+(line.qty*landed))/after:landed;
         await tx.stockBalance.update({where:{id:bal.id},data:{qty:D(after),avgCost:D(avg),version:{increment:1}}});
         await tx.stockMovement.create({data:this.movementData({type:'PURCHASE',productId:line.productId,locationId,quantity:line.qty,unitCost:landed,beforeQty:before,afterQty:after,userId:p.userId,referenceType:'PURCHASE',referenceId:purchaseId,operationKey:idem+':'+line.sortOrder,reason:'Compra recebida'})});
