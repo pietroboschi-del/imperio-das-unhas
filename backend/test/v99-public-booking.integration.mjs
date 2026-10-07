@@ -7,7 +7,17 @@ const port=Number(process.env.PUBLIC_BOOKING_TEST_PORT||3104),base='http://127.0
 let childStdout='',childStderr='',childError=null,childExit=null;
 async function health(){for(let i=0;i<60;i++){if(childError)throw childError;if(childExit)throw Error(`backend exited before health: code=${childExit.code} signal=${childExit.signal} stderr=${childStderr.trim()} stdout=${childStdout.trim()}`);try{if((await fetch(base+'/api/v1/health')).ok)return}catch{}await sleep(500)}throw Error(`backend start timeout: stderr=${childStderr.trim()} stdout=${childStdout.trim()}`)}
 async function book(unit,start,phone,key,service='long'){return fetch(base+'/api/v1/public/bookings',{method:'POST',headers:{'content-type':'application/json','idempotency-key':key},body:JSON.stringify({unitId:unit,serviceId:service,professionalId:'p-all',startAt:start,clientName:'Cliente Site',clientPhone:phone})})}
+async function cleanupStockLocationDependencies(){
+ await prisma.stockMovement.deleteMany();
+ await prisma.stockTransferItem.deleteMany();
+ await prisma.stockTransfer.deleteMany();
+ await prisma.stockPurchaseItem.deleteMany();
+ await prisma.stockPurchase.deleteMany();
+ await prisma.stockBalance.deleteMany();
+ await prisma.stockLocation.deleteMany();
+}
 async function main(){
+ await cleanupStockLocationDependencies();
  await prisma.auditEvent.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.serviceCategory.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.unit.deleteMany();
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
  await prisma.service.createMany({data:[
@@ -56,6 +66,6 @@ async function main(){
   r=await book('big','2026-10-06T16:00','3199999080','all-day-blocked','short');ok(r.status===409,'bloqueio de dia inteiro rejeita POST público');
   ok(await prisma.auditEvent.count({where:{action:'booking.created_online'}})===9,'online bookings audited');
   console.log(JSON.stringify({ok:true,tests:n,feature:'public_booking_three_units'}));
- }finally{if(server.exitCode===null&&server.signalCode===null){server.kill('SIGTERM');await Promise.race([once(server,'exit'),sleep(3000)]).catch(()=>{})}await prisma.$disconnect()}
+ }finally{if(server.exitCode===null&&server.signalCode===null){server.kill('SIGTERM');await Promise.race([once(server,'exit'),sleep(3000)]).catch(()=>{})}await cleanupStockLocationDependencies().catch(()=>{});await prisma.$disconnect()}
 }
 main().catch(async e=>{console.error(e.stack||e);await prisma.$disconnect().catch(()=>{});process.exit(1)});
