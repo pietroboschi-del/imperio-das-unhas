@@ -44,6 +44,29 @@ async function main(){
   r=await req('/api/v1/stock/products',{headers:ch});ok(r.ok,'restricted user reads global products');eq((await r.json()).filter(x=>x.id.startsWith('stock-ci-')).length,3,'product catalog is global, not duplicated per unit');
   r=await req('/api/v1/stock/products',{method:'POST',headers:rh,body:{id:'forbidden',name:'No',type:'INPUT'}});eq(r.status,403,'stock.read cannot manage product');
 
+  // Freight rounding regression: three equal-value lines must close exactly to the persisted header freight.
+  for(const body of [
+    {id:'stock-ci-freight-a',sku:'FREIGHT-A-CI',name:'Frete A',type:'INPUT',unit:'un',defaultCost:1,allocations:{cat:100},active:true},
+    {id:'stock-ci-freight-b',sku:'FREIGHT-B-CI',name:'Frete B',type:'INPUT',unit:'un',defaultCost:1,allocations:{cat:100},active:true},
+    {id:'stock-ci-freight-c',sku:'FREIGHT-C-CI',name:'Frete C',type:'INPUT',unit:'un',defaultCost:1,allocations:{cat:100},active:true},
+  ]){r=await req('/api/v1/stock/products',{method:'POST',headers:mh,body});ok(r.ok,'freight regression product '+body.id)}
+  r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-freight-residual')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor Frete',destinationLocationId:'central',freight:1,items:[
+    {productId:'stock-ci-freight-a',qty:1,unitCost:1},
+    {productId:'stock-ci-freight-b',qty:1,unitCost:1},
+    {productId:'stock-ci-freight-c',qty:1,unitCost:1},
+  ]}});ok(r.ok,'freight residual purchase');let freightPurchase=await r.json();
+  eq(Number(freightPurchase.goodsTotal),3,'freight regression preserves goodsTotal');
+  eq(Number(freightPurchase.freight),1,'freight regression persists header freight');
+  eq(Number(freightPurchase.total),4,'freight regression total equals goods plus freight');
+  eq(Number(freightPurchase.items[0].freightShare),.3333,'first freight share rounds normally');
+  eq(Number(freightPurchase.items[1].freightShare),.3333,'second freight share rounds normally');
+  eq(Number(freightPurchase.items[2].freightShare),.3334,'last freight share receives rounding residual');
+  eq(freightPurchase.items.reduce((s,x)=>s+Number(x.freightShare),0).toFixed(4),'1.0000','persisted freight shares close exactly to header freight');
+  for(const item of freightPurchase.items){
+    const freightBal=await prisma.stockBalance.findUniqueOrThrow({where:{productId_locationId:{productId:item.productId,locationId:'central'}}});
+    eq(Number(freightBal.avgCost),Number(item.landedUnitCost),'average cost uses persisted landed cost '+item.productId);
+  }
+
   // Purchase with proportional freight: goods 200; each line receives 10 freight.
   r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-central-1')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor CI',destinationLocationId:'central',freight:20,items:[{productId:'stock-ci-a',qty:10,unitCost:10},{productId:'stock-ci-b',qty:5,unitCost:20}]}});ok(r.ok,'central purchase');let purchase=await r.json();
   eq(Number(purchase.items[0].freightShare),10,'freight proportional item A');eq(Number(purchase.items[0].landedUnitCost),11,'landed cost A');
