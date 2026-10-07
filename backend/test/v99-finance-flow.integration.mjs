@@ -53,7 +53,7 @@ async function main(){
  ok(saleMovements.length===1,'venda cria exatamente um StockMovement SALE');
  ok(saleMovements[0].locationId==='centro'&&Number(saleMovements[0].quantity)===-2,'movimento SALE usa unidade canônica da comanda e quantidade negativa correta');
  ok(Number(saleMovements[0].unitCost)===7.5&&Number(saleMovements[0].beforeQty)===5&&Number(saleMovements[0].afterQty)===3,'movimento SALE preserva custo e before/after');
- ok(saleMovements[0].referenceType==='OPEN_COMMAND'&&saleMovements[0].referenceId===saleCmd.id&&saleMovements[0].performedByUserId===ua.user.id,'movimento SALE é rastreável à comanda e usuário');
+ ok(saleMovements[0].referenceType==='OPEN_COMMAND'&&saleMovements[0].referenceId===saleCmd.id&&saleMovements[0].performedByUserId===u.id,'movimento SALE é rastreável à comanda e usuário');
  r=await fetch(base+`/api/v1/commands/${saleCmd.id}/payments`,{method:'POST',headers:{...h,'idempotency-key':'pay-stock-sale'},body:JSON.stringify({method:'DIRECT_PROFESSIONAL',amount:20})});ok(r.ok,'replay da quitação é idempotente');
  saleBalance=await prisma.stockBalance.findUniqueOrThrow({where:{productId_locationId:{productId:'finance-prod-sale',locationId:'centro'}}});ok(Number(saleBalance.qty)===3&&await prisma.stockMovement.count({where:{type:'SALE',referenceId:saleCmd.id}})===1,'replay não duplica baixa nem movimento');
  r=await fetch(base+`/api/v1/commands/${saleCmd.id}/payments`,{method:'POST',headers:{...h,'x-unit-id':'big','idempotency-key':'pay-stock-cross-unit'},body:JSON.stringify({method:'DIRECT_PROFESSIONAL',amount:20})});ok(r.status===403,'usuário de outra unidade não consegue forçar localização da venda');
