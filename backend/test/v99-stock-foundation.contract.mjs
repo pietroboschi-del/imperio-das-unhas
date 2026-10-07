@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const root=new URL('../',import.meta.url),read=p=>fs.readFileSync(new URL(p,root),'utf8');
 let tests=0;const ok=(v,m)=>{tests++;assert.ok(v,m)};
-const schema=read('prisma/schema.prisma'),service=read('src/core/stock.service.ts'),controller=read('src/core/stock.controller.ts'),module=read('src/core/core.module.ts'),html=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8'),migration=read('prisma/migrations/20261006_v99_stock_foundation/migration.sql');
+const schema=read('prisma/schema.prisma'),service=read('src/core/stock.service.ts'),controller=read('src/core/stock.controller.ts'),finance=read('src/core/finance-write.controller.ts'),module=read('src/core/core.module.ts'),html=fs.readFileSync(new URL('../../index.html',import.meta.url),'utf8'),migration=read('prisma/migrations/20261006_v99_stock_foundation/migration.sql');
 
 for(const model of ['Product','StockLocation','StockBalance','StockMovement','StockPurchase','StockPurchaseItem','StockTransfer','StockTransferItem'])ok(schema.includes('model '+model+' {'),'schema has '+model);
 ok(schema.includes('enum StockLocationKind')&&schema.includes('CENTRAL')&&schema.includes('UNIT'),'stock location kind explicit');
@@ -31,4 +31,30 @@ ok(html.includes("centralApi.createStockPurchase")&&html.includes("centralApi.st
 ok(html.includes("centralApi.createStockTransfer")&&html.includes("centralApi.sendStockTransfer")&&html.includes("centralApi.receiveStockTransfer"),'frontend transfer lifecycle writes central');
 ok(html.includes("if(!centralAuthenticated())return legacySaveStockPurchaseV99"),'legacy write only remains outside authenticated central mode');
 ok(html.includes("Este fluxo auxiliar legado não grava estoque no modo central"),'legacy auxiliary stock writers are blocked in central mode');
+ok(finance.includes('private async applyCommandStockSale')&&finance.includes("if(remaining.eq(0)){await this.applyCommandStockSale"),'command close applies stock sale inside payment transaction');
+ok(finance.includes("where:{id:unitId,unitId,kind:'UNIT',active:true}")&&finance.includes('locationId:unitId'),'command sale derives stock location from authenticated command unit');
+ok(finance.includes('FOR UPDATE')&&finance.includes("type:'SALE'")&&finance.includes('quantity:qty.negated()'),'command sale locks balance and writes negative SALE movement');
+ok(finance.includes("referenceType:'OPEN_COMMAND'")&&finance.includes('referenceId:cmd.id')&&finance.includes('performedByUserId:userId'),'command sale movement is auditable and linked to command/user');
+ok(finance.includes("return 'sale_'+createHash('sha256').update(commandId+'|SALE|'"),'command sale has stable operation key independent of payment retry key');
+ok(finance.includes('after.lt(0)')&&finance.includes('Saldo insuficiente para venda de '),'command sale rejects insufficient balance before negative stock');
+
+const legacySaleStart=html.indexOf('const _finalizeCommandPaymentV42=finalizeCommandPayment;'),legacySaleEnd=html.indexOf('// Insumos e CMV entram automaticamente',legacySaleStart);
+ok(legacySaleStart>=0&&legacySaleEnd>legacySaleStart,'legacy sale wrapper located');
+const legacySaleSource=html.slice(legacySaleStart,legacySaleEnd);
+ok(legacySaleSource.includes('suppressStock=window.__imperioSuppressLegacyStockSale===true')&&legacySaleSource.includes('if(!suppressStock&&!wasPaid')&&legacySaleSource.includes("stockRecordMovement('SALE'"),'legacy SALE side effect is explicitly guardable in central mode');
+let localStockCalls=0,localSaveCalls=0,localDb={clientCommands:[{id:'cmd-stock-central',status:'Aberta',unitId:'u3',lines:[{id:'l1',type:'product',productId:'p1',qty:1,stockCostSnapshot:5}]}],stockProducts:[{id:'p1',name:'Produto',defaultCost:5}]};
+const legacyHarness=new Function('window','db','stockProduct','stockQty','toast','stockBalanceRec','stockRecordMovement','save','finalizeCommandPayment',legacySaleSource+';return finalizeCommandPayment;');
+const suppressedFinalize=legacyHarness({__imperioSuppressLegacyStockSale:true},localDb,id=>localDb.stockProducts.find(p=>p.id===id),()=>{localStockCalls++;return 1},()=>{},()=>{localStockCalls++;return {qty:1,avgCost:5}},()=>{localStockCalls++},()=>{localSaveCalls++},()=>{localDb.clientCommands[0].status='Pago'});
+suppressedFinalize('cmd-stock-central');
+ok(localStockCalls===0&&localSaveCalls===0,'central suppression prevents local balance, SALE movement and stock save');
+
+const centralFinalizeStart=html.indexOf('const legacyFinalizeCommandV99=window.finalizeCommandPayment'),centralFinalizeEnd=html.indexOf('const legacySaveReopenCashV99',centralFinalizeStart);
+ok(centralFinalizeStart>=0&&centralFinalizeEnd>centralFinalizeStart,'central finalize wrapper located');
+const centralFinalizeSource=html.slice(centralFinalizeStart,centralFinalizeEnd);
+ok(centralFinalizeSource.includes('window.__imperioSuppressLegacyStockSale=true;try{legacyFinalizeCommandV99.apply(this,arguments)}finally{window.__imperioSuppressLegacyStockSale=false}'),'central finalize preserves legacy responsibilities while suppressing only local stock sale');
+ok(centralFinalizeSource.indexOf('await centralApi.receivePayment')<centralFinalizeSource.indexOf('window.__imperioSuppressLegacyStockSale=true'),'legacy finalizer runs only after central payment succeeds');
+ok(centralFinalizeSource.includes("catch(e){toast('Comanda não finalizada no banco central: '+e.message);return false}")&&!centralFinalizeSource.includes("catch(e){return legacyFinalizeCommandV99"),'central API failure never falls back to legacy stock finalization');
+ok(centralFinalizeSource.includes('await refreshCentralStock()')&&html.includes('db.stockBalances=(balances||[]).map'),'successful finalization refreshes stock projection from PostgreSQL');
+ok(centralFinalizeSource.includes("sales=(db.stockMovements||[]).filter(m=>m.type==='SALE'&&m.ref===c.id)")&&centralFinalizeSource.includes("reason:'central_stock_sale_projection'"),'local CMV projection is rebuilt from central SALE movements without local stock write');
+
 console.log(JSON.stringify({ok:true,tests,feature:'central_stock_foundation_contract'}));
