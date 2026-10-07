@@ -1,10 +1,11 @@
-import { Body, ConflictException, Controller, Get, NotFoundException, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, ConflictException, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Req } from '@nestjs/common';
 import { IsArray, IsBoolean, IsInt, IsObject, IsOptional, IsString, MinLength } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequirePermissions } from '../common/permissions.decorator';
 import type { ImperioRequest } from '../common/request-context';
+import { evaluateAccess } from '../auth/permission-policy';
 
 const obj=(v:unknown):Record<string,any>=>v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,any>:{};
 
@@ -29,6 +30,22 @@ class ActiveDto{ @IsBoolean() active!:boolean; }
 @Controller('api/v1/config')
 export class StructuralConfigController{
   constructor(private readonly prisma:PrismaService){}
+
+  private assertWorkstationUnitAccess(principal:ImperioRequest['principal'],unitIds:Iterable<string>){
+    if(!principal)throw new ForbiddenException('Sessão não resolvida');
+    const affected=[...new Set([...unitIds].map(String).map(x=>x.trim()).filter(Boolean))];
+    for(const unitId of affected){
+      const decision=evaluateAccess({
+        networkAdmin:principal.networkAdmin,
+        globalPermissions:principal.permissions,
+        unitAccesses:principal.unitAccesses,
+        unitScoped:true,
+        unitId,
+        requiredPermissions:['catalog.manage'],
+      });
+      if(!decision.allowed)throw new ForbiddenException('Usuário sem acesso à unidade '+unitId);
+    }
+  }
 
   private categoryView(row:any){
     return {
@@ -100,19 +117,20 @@ export class StructuralConfigController{
     return rows.map(x=>this.workstationView(x));
   }
 
-  private async writeWorkstation(dto:WorkstationConfigDto,userId:string|undefined,id?:string){
+  private async writeWorkstation(dto:WorkstationConfigDto,principal:ImperioRequest['principal'],id?:string){
     const workstationId=String(id||dto.id||randomUUID()).trim(),unitId=String(dto.unitId||'').trim(),categoryIds=[...new Set((dto.allowedCategoryIds||[]).map(String).filter(Boolean))];
     if(!unitId)throw new ConflictException('Selecione uma unidade válida');
     if(!categoryIds.length)throw new ConflictException('Selecione pelo menos uma categoria compatível');
-    const [unit,categories]=await Promise.all([
-      this.prisma.unit.findUnique({where:{id:unitId},select:{id:true,active:true}}),
-      this.prisma.serviceCategory.count({where:{id:{in:categoryIds}}}),
-    ]);
-    if(!unit?.active)throw new ConflictException('Unidade inválida ou inativa');
-    if(categories!==categoryIds.length)throw new ConflictException('Uma ou mais categorias não existem no banco central');
     return this.prisma.$transaction(async tx=>{
       const existing=await tx.workstation.findUnique({where:{id:workstationId}});
       if(id&&!existing)throw new NotFoundException('Estação não encontrada');
+      this.assertWorkstationUnitAccess(principal,[...(existing?[existing.unitId]:[]),unitId]);
+      const [unit,categories]=await Promise.all([
+        tx.unit.findUnique({where:{id:unitId},select:{id:true,active:true}}),
+        tx.serviceCategory.count({where:{id:{in:categoryIds}}}),
+      ]);
+      if(!unit?.active)throw new ConflictException('Unidade inválida ou inativa');
+      if(categories!==categoryIds.length)throw new ConflictException('Uma ou mais categorias não existem no banco central');
       const duplicate=await tx.workstation.findFirst({where:{unitId,name:dto.name.trim(),id:{not:workstationId}},select:{id:true}});
       if(duplicate)throw new ConflictException('Já existe uma estação com esse nome nesta unidade');
       const legacy={...obj(existing?.legacyPayload),...obj(dto.config)};
@@ -122,24 +140,24 @@ export class StructuralConfigController{
         update:{unitId,name:dto.name.trim(),allowedCategoryIds:categoryIds as Prisma.InputJsonValue,active:dto.active??existing?.active??true,legacyPayload:legacy as Prisma.InputJsonValue,version:{increment:1}},
         include:{unit:true},
       });
-      await this.audit(tx,userId,existing?'workstation.config.updated':'workstation.config.created','Workstation',workstationId,unitId,{structuralConfiguration:true,active:row.active,allowedCategoryIds:categoryIds});
+      await this.audit(tx,principal?.userId,existing?'workstation.config.updated':'workstation.config.created','Workstation',workstationId,unitId,{structuralConfiguration:true,active:row.active,allowedCategoryIds:categoryIds});
       return this.workstationView(row);
     });
   }
-
   @Post('workstations')
   @RequirePermissions('catalog.manage')
-  createWorkstation(@Body() dto:WorkstationConfigDto,@Req() req:ImperioRequest){return this.writeWorkstation(dto,req.principal?.userId);}
+  createWorkstation(@Body() dto:WorkstationConfigDto,@Req() req:ImperioRequest){return this.writeWorkstation(dto,req.principal);}
 
   @Patch('workstations/:id')
   @RequirePermissions('catalog.manage')
-  updateWorkstation(@Param('id') id:string,@Body() dto:WorkstationConfigDto,@Req() req:ImperioRequest){return this.writeWorkstation(dto,req.principal?.userId,id);}
+  updateWorkstation(@Param('id') id:string,@Body() dto:WorkstationConfigDto,@Req() req:ImperioRequest){return this.writeWorkstation(dto,req.principal,id);}
 
   @Patch('workstations/:id/active')
   @RequirePermissions('catalog.manage')
   async workstationActive(@Param('id') id:string,@Body() dto:ActiveDto,@Req() req:ImperioRequest){
     return this.prisma.$transaction(async tx=>{
       const current=await tx.workstation.findUnique({where:{id},include:{unit:true}});if(!current)throw new NotFoundException('Estação não encontrada');
+      this.assertWorkstationUnitAccess(req.principal,[current.unitId]);
       const row=await tx.workstation.update({where:{id},data:{active:dto.active,version:{increment:1}},include:{unit:true}});
       await this.audit(tx,req.principal?.userId,'workstation.config.active_changed','Workstation',id,row.unitId,{structuralConfiguration:true,active:dto.active});
       return this.workstationView(row);

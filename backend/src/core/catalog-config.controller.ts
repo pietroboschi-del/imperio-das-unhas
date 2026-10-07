@@ -1,10 +1,11 @@
-import { Body, ConflictException, Controller, Get, NotFoundException, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, ConflictException, Controller, ForbiddenException, Get, NotFoundException, Param, Patch, Post, Req } from '@nestjs/common';
 import { ArrayMinSize, IsArray, IsBoolean, IsInt, IsNumber, IsObject, IsOptional, IsString, Min, MinLength } from 'class-validator';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequirePermissions } from '../common/permissions.decorator';
 import type { ImperioRequest } from '../common/request-context';
+import { evaluateAccess } from '../auth/permission-policy';
 
 const obj=(v:unknown):Record<string,any>=>v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,any>:{};
 const rule=(v:unknown)=>{
@@ -42,6 +43,28 @@ class ActiveDto{ @IsBoolean() active!:boolean; }
 @Controller('api/v1/config')
 export class CatalogConfigController{
   constructor(private readonly prisma:PrismaService){}
+
+  private assertProfessionalUnitAccess(principal:ImperioRequest['principal'],unitIds:Iterable<string>){
+    if(!principal)throw new ForbiddenException('Sessão não resolvida');
+    const affected=[...new Set([...unitIds].map(String).map(x=>x.trim()).filter(Boolean))];
+    for(const unitId of affected){
+      const decision=evaluateAccess({
+        networkAdmin:principal.networkAdmin,
+        globalPermissions:principal.permissions,
+        unitAccesses:principal.unitAccesses,
+        unitScoped:true,
+        unitId,
+        requiredPermissions:['professionals.manage'],
+      });
+      if(!decision.allowed)throw new ForbiddenException('Usuário sem acesso à unidade '+unitId);
+    }
+  }
+
+  private scheduleUnitIds(config:unknown){
+    const schedule=obj(obj(config).schedule),unitIds=new Set<string>();
+    for(const key of Object.keys(schedule)){const match=key.match(/^(.+)-\d+$/);if(match?.[1])unitIds.add(match[1]);}
+    return [...unitIds];
+  }
 
   private serviceView(row:any){
     return {
@@ -137,21 +160,24 @@ export class CatalogConfigController{
     const rows=await this.prisma.professional.findMany({select:{id:true},orderBy:[{name:'asc'},{id:'asc'}]});
     return Promise.all(rows.map(x=>this.professionalView(x.id)));
   }
-  private async writeProfessional(dto:ProfessionalConfigDto,userId:string|undefined,id?:string){
-    const professionalId=String(id||dto.id||randomUUID()).trim(),unitIds=[...new Set(dto.unitIds.map(String))].sort(),rules=obj(dto.serviceRules);
-    const units=await this.prisma.unit.count({where:{id:{in:unitIds},active:true}});
-    if(units!==unitIds.length)throw new ConflictException('Uma ou mais unidades da profissional são inválidas ou inativas');
-    const serviceIds=Object.keys(rules);
-    if(serviceIds.length){
-      const count=await this.prisma.service.count({where:{id:{in:serviceIds}}});
-      if(count!==serviceIds.length)throw new ConflictException('Um ou mais serviços vinculados não existem no banco central');
-    }
+  private async writeProfessional(dto:ProfessionalConfigDto,principal:ImperioRequest['principal'],id?:string){
+    const professionalId=String(id||dto.id||randomUUID()).trim(),unitIds=[...new Set(dto.unitIds.map(String))].sort(),rules=obj(dto.serviceRules),serviceIds=Object.keys(rules);
     await this.prisma.$transaction(async tx=>{
-      const existing=await tx.professional.findUnique({where:{id:professionalId}});
+      const existing=await tx.professional.findUnique({where:{id:professionalId},include:{units:{select:{unitId:true}}}});
       if(id&&!existing)throw new NotFoundException('Profissional não encontrada');
       if(!id&&existing)throw new ConflictException('Já existe profissional com este identificador');
-      const old=obj(existing?.legacyPayload),incoming=obj(dto.config),enabledServices=serviceIds.filter(sid=>rule(rules[sid]).enabled).sort();
-      const legacy={...old,...incoming,services:enabledServices};
+      const old=obj(existing?.legacyPayload),incoming=obj(dto.config),affectedUnits=new Set<string>(unitIds);
+      for(const link of existing?.units||[])affectedUnits.add(link.unitId);
+      for(const unitId of this.scheduleUnitIds(incoming))affectedUnits.add(unitId);
+      if(Object.prototype.hasOwnProperty.call(incoming,'schedule'))for(const unitId of this.scheduleUnitIds(old))affectedUnits.add(unitId);
+      this.assertProfessionalUnitAccess(principal,affectedUnits);
+      const units=await tx.unit.count({where:{id:{in:unitIds},active:true}});
+      if(units!==unitIds.length)throw new ConflictException('Uma ou mais unidades da profissional são inválidas ou inativas');
+      if(serviceIds.length){
+        const count=await tx.service.count({where:{id:{in:serviceIds}}});
+        if(count!==serviceIds.length)throw new ConflictException('Um ou mais serviços vinculados não existem no banco central');
+      }
+      const enabledServices=serviceIds.filter(sid=>rule(rules[sid]).enabled).sort(),legacy={...old,...incoming,services:enabledServices};
       if(existing)await tx.professional.update({where:{id:professionalId},data:{name:dto.name.trim(),publicName:dto.publicName?.trim()||dto.name.trim(),active:dto.active,legacyPayload:legacy as Prisma.InputJsonValue,version:{increment:1}}});
       else await tx.professional.create({data:{id:professionalId,name:dto.name.trim(),publicName:dto.publicName?.trim()||dto.name.trim(),active:dto.active,legacyPayload:legacy as Prisma.InputJsonValue}});
       await tx.professionalUnit.deleteMany({where:{professionalId}});
@@ -165,22 +191,25 @@ export class CatalogConfigController{
           await tx.service.update({where:{id:service.id},data:{legacyPayload:{...legacyService,proRules} as Prisma.InputJsonValue,version:{increment:1}}});
         }
       }
-      await tx.auditEvent.create({data:{id:randomUUID(),userId:userId||null,action:existing?'professional.config.updated':'professional.config.created',entityType:'Professional',entityId:professionalId,legacyPayload:{structuralConfiguration:true,unitIds,active:dto.active,serviceIds:enabledServices},occurredAt:new Date()}});
+      await tx.auditEvent.create({data:{id:randomUUID(),userId:principal?.userId||null,action:existing?'professional.config.updated':'professional.config.created',entityType:'Professional',entityId:professionalId,legacyPayload:{structuralConfiguration:true,unitIds,active:dto.active,serviceIds:enabledServices},occurredAt:new Date()}});
     });
     return this.professionalView(professionalId);
   }
   @Post('professionals')
   @RequirePermissions('professionals.manage')
-  createProfessional(@Body() dto:ProfessionalConfigDto,@Req() req:ImperioRequest){return this.writeProfessional(dto,req.principal?.userId);}
+  createProfessional(@Body() dto:ProfessionalConfigDto,@Req() req:ImperioRequest){return this.writeProfessional(dto,req.principal);}
   @Patch('professionals/:id')
   @RequirePermissions('professionals.manage')
-  updateProfessional(@Param('id') id:string,@Body() dto:ProfessionalConfigDto,@Req() req:ImperioRequest){return this.writeProfessional(dto,req.principal?.userId,id);}
+  updateProfessional(@Param('id') id:string,@Body() dto:ProfessionalConfigDto,@Req() req:ImperioRequest){return this.writeProfessional(dto,req.principal,id);}
   @Patch('professionals/:id/active')
   @RequirePermissions('professionals.manage')
   async professionalActive(@Param('id') id:string,@Body() dto:ActiveDto,@Req() req:ImperioRequest){
-    const row=await this.prisma.professional.findUnique({where:{id}});if(!row)throw new NotFoundException('Profissional não encontrada');
-    await this.prisma.professional.update({where:{id},data:{active:dto.active,version:{increment:1}}});
-    await this.prisma.auditEvent.create({data:{id:randomUUID(),userId:req.principal?.userId||null,action:'professional.config.active_changed',entityType:'Professional',entityId:id,legacyPayload:{structuralConfiguration:true,active:dto.active},occurredAt:new Date()}});
+    await this.prisma.$transaction(async tx=>{
+      const row=await tx.professional.findUnique({where:{id},include:{units:{select:{unitId:true}}}});if(!row)throw new NotFoundException('Profissional não encontrada');
+      this.assertProfessionalUnitAccess(req.principal,row.units.map(x=>x.unitId));
+      await tx.professional.update({where:{id},data:{active:dto.active,version:{increment:1}}});
+      await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal?.userId||null,action:'professional.config.active_changed',entityType:'Professional',entityId:id,legacyPayload:{structuralConfiguration:true,active:dto.active},occurredAt:new Date()}});
+    });
     return this.professionalView(id);
   }
 }
