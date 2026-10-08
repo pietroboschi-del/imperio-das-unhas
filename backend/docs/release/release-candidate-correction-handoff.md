@@ -139,3 +139,17 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - FIX: final inventory assertion now checks professional identity visibility, while preserving the earlier detailed professional persistence assertions.
 - NEXT_EXACT_TASK: publish this assertion-scope correction and wait for browser #18.
 - PRODUCTION_MUTATIONS: NONE.
+
+## SUBCHECKPOINT 3B — COMPLETE (2026-10-08)
+- CURRENT_HEAD: 7916016874e02755b3cf943ae74c0b2decc1cb92.
+- LAST_COMPLETED_SUBCHECKPOINT: 3B — COMPLETE.
+- CI_BROWSER: Three-unit browser E2E (isolated) #18, run 37800479572, SUCCESS at HEAD 7916016874e02755b3cf943ae74c0b2decc1cb92.
+- CI_MAIN: V98 Backend CI #563, run 37800479638, IN PROGRESS at time of this handoff update.
+- EVIDENCE: real Chromium, isolated frontend/backend/PostgreSQL, visible login, authenticated central `networkAdmin`, canonical unit switching, professionals screen, category creation, service creation, professional creation/edit/reload persistence, schedule persistence, service eligibility persistence, workstation creation and final reload visibility all executed through browser UI.
+- FILES_CHANGED_SINCE_3B_START: `index.html`; `backend/test/v99-frontend-central-bridge.contract.mjs`; `backend/test/three-unit-ui-e2e.py`; this handoff.
+- FIXES: V67 permission guard now projects only central `networkAdmin` into legacy admin guards; central services async refresh preserves structural service actions; browser E2E selector/reload handling hardened without API-only shortcuts.
+- TESTS_PASSED: `npm run test:frontend-central-bridge`; `node test/v99-professional-units-schedule-ui.contract.mjs`; `python3 -m py_compile backend/test/three-unit-ui-e2e.py`; browser isolated #18 SUCCESS.
+- NEXT_SUBCHECKPOINT: 3C — cliente global + agenda cross-unit + histórico.
+- NEXT_EXACT_TASK: start 3C from HEAD 7916016874e02755b3cf943ae74c0b2decc1cb92 after checking V98 Backend CI #563 result; do not repeat 3A or 3B browser setup/professional/config diagnosis.
+- DO_NOT_REPEAT: Checkpoints 1/2/3A; 3B login, canonical unit selector, professional button, category/service/professional/workstation browser closure.
+- PRODUCTION_MUTATIONS: NONE.
