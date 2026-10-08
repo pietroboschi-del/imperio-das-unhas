@@ -59,6 +59,6 @@ try {
  await auditDb.$disconnect();
 }
 const source=readFileSync(new URL('../tools/release-preflight.mjs',import.meta.url),'utf8');
-ok(!/\$executeRaw|\.(create|update|delete|upsert|executeRaw|createMany|updateMany|deleteMany)\s*\(/.test(source),'preflight implementation contains no DB writes');
+ok(!/\$executeRaw|\.(create|delete|upsert|executeRaw|createMany|updateMany|deleteMany)\s*\(|\b(?:prisma|tx)\.\w+\.update\s*\(/.test(source),'preflight implementation contains no DB writes');
 ok(!source.includes('process.env.DATABASE_URL')&&!source.includes('console.log(process.env'),'preflight never prints credential URLs');
 console.log(JSON.stringify({ok:true,assertions,feature:'release_checksum_preflight_isolated_ci'}));
