@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Query, Req } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RequirePermissions } from '../common/permissions.decorator';
 import { UnitScoped } from '../common/unit-scope.decorator';
@@ -45,6 +45,37 @@ export class CoreReadController {
     const term=String(q||'').trim();
     const rows=await this.prisma.client.findMany({where:{active:true,...(term?{AND:[{OR:[{name:{contains:term,mode:'insensitive'}},{phone:{contains:term}},{email:{contains:term,mode:'insensitive'}}]}]}:{})},select:{id:true,name:true,active:true,phone:true,email:true,registrationUnitId:true,version:true,legacyPayload:true,unitLinks:{where:{active:true},select:{unitId:true,source:true}}},orderBy:{name:'asc'},take:100});
     return rows.map(x=>this.clientView(x));
+  }
+
+  // Client identity and treatment history are global; the scoped clients.read permission
+  // authorizes opening the network client record, not unrestricted finance endpoints.
+  @Get('clients/:id/history')
+  @UnitScoped()
+  @RequirePermissions('clients.read')
+  async clientHistory(@Param('id') id:string) {
+    const client=await this.prisma.client.findFirst({where:{id,active:true},select:{id:true,name:true}});
+    if(!client)throw new NotFoundException('Cliente não encontrada');
+    const [bookings,commands]=await Promise.all([
+      this.prisma.booking.findMany({
+        where:{clientId:id},
+        select:{id:true,unitId:true,serviceDate:true,startAt:true,status:true,notes:true,createdAt:true,
+          items:{orderBy:{sortOrder:'asc'},select:{id:true,serviceId:true,professionalId:true,startAt:true,durationMin:true,unitPrice:true,sortOrder:true,service:{select:{name:true}},professional:{select:{name:true,publicName:true}}}},
+          service:{select:{id:true,name:true}},professional:{select:{id:true,name:true,publicName:true}}
+        },
+        orderBy:[{serviceDate:'desc'},{createdAt:'desc'}],take:500,
+      }),
+      this.prisma.openCommand.findMany({
+        where:{clientId:id},
+        select:{id:true,unitId:true,serviceDate:true,status:true,grossAmount:true,discountAmount:true,remainingAmount:true,
+          items:{select:{id:true,serviceId:true,professionalId:true,quantity:true,unitPrice:true,netServiceAmount:true}},
+          payments:{select:{id:true,method:true,amount:true,status:true,receivedAt:true}}},
+        orderBy:{serviceDate:'desc'},take:500,
+      }),
+    ]);
+    return {clientId:client.id,bookings:bookings.map(row=>({
+      ...row,
+      items:row.items.map(item=>({...item,serviceName:item.service?.name||null,professionalName:item.professional?.publicName||item.professional?.name||null})),
+    })),commands};
   }
 
   @Get('waitlist')
