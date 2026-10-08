@@ -49,7 +49,7 @@ export class MessagingDispatchService {
       const providerMessageId=String(result.providerMessageId||'').trim();
       if(!providerMessageId)throw new MessagingProviderError('PROVIDER_MESSAGE_ID_MISSING','Messaging provider response did not include a message id',true,'DELIVERY_UNKNOWN');
       const sentAt=result.acceptedAt||new Date();
-      await this.prisma.$transaction(async tx=>{
+      const persisted=await this.prisma.$transaction(async tx=>{
         const updated=await tx.messagingOutbox.updateMany({
           where:{id:row.id,status:MessagingOutboxStatus.SENDING},
           data:{status:MessagingOutboxStatus.SENT,providerMessageId,sentAt,nextAttemptAt:null,lastError:null},
@@ -59,7 +59,9 @@ export class MessagingDispatchService {
           legacyPayload:{provider:this.provider.providerName,channelId:row.channelId,messageType:row.messageType,trigger:row.trigger,attempts:row.attempts},
           occurredAt:new Date(),
         }});
+        return updated.count===1;
       });
+      if(!persisted)return {outcome:'SKIPPED',id,status:'SEND_STATE_CHANGED_REQUIRES_REVIEW'};
       return {outcome:'SENT',id,status:MessagingOutboxStatus.SENT};
     }catch(error){
       const definite=error instanceof MessagingProviderError&&error.certainty==='DEFINITE_FAILURE';
