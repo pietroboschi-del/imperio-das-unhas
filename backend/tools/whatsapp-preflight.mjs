@@ -29,6 +29,7 @@ for(const script of ['test:wa1','test:wa2','test:wa2.1','test:wa2.2','test:wa4-e
 const staleRaw=Number(process.env.MESSAGING_SENDING_STALE_MS||300000);
 const staleMs=Number.isFinite(staleRaw)&&staleRaw>=1000?Math.min(86400000,Math.trunc(staleRaw)):300000;
 const endpoints=['POST /api/v1/integrations/evolution/webhook',
+ 'GET /api/v1/admin/messaging/outbox/reconciliation',
  'POST /api/v1/admin/messaging/outbox/:id/reconcile'];
 let outbox={status:'NOT APPLICABLE',reason:'No database configured; no writes attempted'};
 if(present('DATABASE_URL')){
