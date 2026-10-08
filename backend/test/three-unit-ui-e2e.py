@@ -4,6 +4,7 @@ It never injects session cookies, mocks API responses, or connects to live infra
 """
 import json, os, subprocess, sys, time, urllib.request
 from pathlib import Path
+from datetime import date,timedelta
 from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright
 
@@ -309,6 +310,31 @@ def main():
                 })""",service_name)
                 print(json.dumps({"scenario":"3C-cross-unit-booking-professional-choices","choices":choices,"config":config},ensure_ascii=False))
                 assert choices,"No eligible professional shown in Centro booking form despite 3B configured professional"
+                monday=date.today()+timedelta(days=(7-date.today().weekday())%7 or 7)
+                booking_ids=[]
+                for index,unit in enumerate(("u3","u1","u2")):
+                    if index:
+                        page.locator("#unitPicker").select_option(value=unit)
+                        page.get_by_role("button",name="Agenda",exact=True).click()
+                        page.wait_for_timeout(800)
+                        page.get_by_role("button",name="+ Novo agendamento").click()
+                        page.locator("#rClientSearch").fill(client_name)
+                        page.locator("#rClientResults").get_by_role("button",name="Selecionar").click()
+                    booked_date=(monday+timedelta(days=7*index)).isoformat()
+                    assert page.locator(".res-line .res-pro option").count()>=1, f"No eligible professional at {unit}"
+                    page.locator("#rDate").fill(booked_date)
+                    page.locator(".res-line .res-time").fill("11:00")
+                    page.locator("#modalHost").get_by_role("button",name="Salvar",exact=True).click()
+                    page.wait_for_timeout(1450)
+                    booked=page.evaluate("""(args)=>db.bookings.filter(b=>b.clientId===args.client&&b.unit===args.unit&&b.date===args.date).map(b=>({id:b.id,items:b.items.map(i=>({pro:i.pro,serviceId:i.serviceId})),status:b.status}))""",
+                        {"client":identity[0]["id"],"unit":unit,"date":booked_date})
+                    print(json.dumps({"scenario":"3C-booking-saved-by-browser","unit":unit,"date":booked_date,"bookings":booked,"visibleToast":page.locator("body").inner_text()[:230]},ensure_ascii=False))
+                    assert len(booked)==1 and len(booked[0]["items"])==1, f"Real booking not persisted for {unit}"
+                    assert booked[0]["items"][0]["pro"]==choices[0]["value"], f"Professional mismatch in {unit}"
+                    booking_ids.append(booked[0]["id"])
+                assert len(set(booking_ids))==3,"Cross-unit bookings were not distinct"
+                print(json.dumps({"ok":True,"scenario":"3C-three-unit-cross-booking-persisted","bookings":booking_ids,"clientId":identity[0]["id"]},ensure_ascii=False))
+
 
 
 
