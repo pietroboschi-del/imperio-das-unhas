@@ -61,11 +61,14 @@ def main():
                    "body":page.locator("body").inner_text()[:1400]}
                 print(json.dumps(auth_snapshot,ensure_ascii=False))
                 assert any(i["type"]=="password" for i in auth_snapshot["inputs"]), "Team login did not render a visible password input"
+                requests=[]
+                page.on("request",lambda request: requests.append(request.url.split("?")[0]))
                 routing=page.evaluate("""() => ({
                   officialProductionMode:typeof officialProductionMode==='function'?String(officialProductionMode).slice(0,1300):'not accessible',
                   officialProductionModeValue:typeof officialProductionMode==='function'?officialProductionMode():null,
                   centralEnabled:typeof centralEnabled==='function'?String(centralEnabled).slice(0,650):'not accessible',
-                  host:location.hostname
+                  host:location.hostname,
+                  snippets:(()=>{const src=[...document.scripts].map(s=>s.textContent||"").join("\\n");return ["function officialProductionMode","function centralEnabled","PRODUCTION_API","loginUser","function login"].map(term=>{const i=src.indexOf(term);return {term,found:i>=0,excerpt:i>=0?src.slice(Math.max(0,i-80),i+560):""}})})()
                 })""")
                 print(json.dumps({"scenario":"3B-auth-routing-diagnostic","routing":routing},ensure_ascii=False))
                 page.locator("#loginUser").fill(os.environ["ADMIN_USERNAME"])
@@ -74,6 +77,7 @@ def main():
                 page.wait_for_timeout(1800)
                 after={"scenario":"3B-real-admin-authentication","url":page.url,
                        "loginVisible":page.locator("#loginPass").is_visible(),
+                       "requests":requests[-15:],
                        "buttons":page.locator("button:visible").all_text_contents()[:35],
                        "body":page.locator("body").inner_text()[:1500]}
                 print(json.dumps(after,ensure_ascii=False))
