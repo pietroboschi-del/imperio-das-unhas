@@ -163,6 +163,7 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:
   <div class="login-card"><span class="brand-logo-frame brand-logo-login"><img class="brand-logo" data-brand-logo="imperio" src="assets/branding/imperio-logo-colorida.png" alt="Império das Unhas"></span><h1>Área da equipe</h1><p>Entre para acessar agenda e gestão.</p>
     <div class="field"><label>Usuário</label><input id="loginUser" autocomplete="username"></div><div class="field" style="margin-top:12px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password"></div>
     <button class="btn btn-primary" style="width:100%;margin-top:18px" onclick="doLogin()">Entrar</button>
+    <button class="btn btn-ghost" style="width:100%;margin-top:9px" onclick="centralOpenActivation()">Ativar meu acesso</button>
     <button class="btn btn-ghost" style="width:100%;margin-top:9px" onclick="goPublic()">Voltar ao site</button>
     <div class="demo-note">Use seu usuário individual. No Centro de Contagem, a autenticação é validada pelo backend central; as demais unidades continuam no modo legado até o próprio corte.</div>
   </div>
@@ -7439,6 +7440,22 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   };
   window.renderServices=patched;try{renderServices=patched}catch(e){}
  }
+
+ window.centralOpenActivation=function(){
+  modal('Ativar acesso à equipe','<div class="inline-note">Utilize o token temporário recebido do administrador. Defina sua própria senha, que será salva com hash no backend.</div><div class="field"><label>Token de ativação</label><textarea id="centralActivationToken" rows="3" autocomplete="off"></textarea></div><div class="field"><label>Nova senha (mínimo 12 caracteres)</label><input id="centralActivationPassword" type="password" autocomplete="new-password"></div><div class="field"><label>Confirmar nova senha</label><input id="centralActivationConfirm" type="password" autocomplete="new-password"></div>','<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="centralSubmitActivation()">Ativar conta</button>');
+ };
+ window.centralSubmitActivation=async function(){
+  const token=document.getElementById('centralActivationToken')?.value.trim()||'',
+        password=document.getElementById('centralActivationPassword')?.value||'',
+        confirm=document.getElementById('centralActivationConfirm')?.value||'';
+  if(!token||password.length<12||password!==confirm){toast('Informe o token e duas senhas iguais com no mínimo 12 caracteres');return false}
+  try{
+   const response=await fetch(endpoint()+'/api/v1/auth/activate',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify({token,newPassword:password})});
+   const payload=await response.json().catch(()=>({}));
+   if(!response.ok)throw new Error(Array.isArray(payload.message)?payload.message.join(' · '):payload.message||'Não foi possível ativar a conta');
+   closeModal();toast('Acesso ativado. Entre com seu login e nova senha.');return true;
+  }catch(e){toast('Ativação não concluída: '+e.message);return false}
+ };
  const legacyRenderClients=window.renderClients||((typeof renderClients==='function')?renderClients:null);
  if(legacyRenderClients){let wrapped=function(){let out=legacyRenderClients.apply(this,arguments);if(centralEnabled())refreshCentralClients(document.getElementById('clientSearch')?.value||'').then(()=>{if(typeof renderClientRows==='function')renderClientRows()}).catch(e=>toast('Clientes centrais indisponíveis: '+e.message));return out};window.renderClients=wrapped;try{renderClients=wrapped}catch(e){}}
  const legacyRenderAgenda=window.renderAgenda||((typeof renderAgenda==='function')?renderAgenda:null);
