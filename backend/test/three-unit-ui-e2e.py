@@ -627,7 +627,16 @@ def main():
                 assert page.locator("#paymentLines .pay-account").first.is_disabled(),"DIRECT_PROFESSIONAL incorrectly requires company account"
                 amount=float(page.locator("#paymentLines .pay-amount").first.input_value())
                 assert amount>0,"Command due must be positive for payment test"
+                payment_http=[]
+                payment_console=[]
+                page.on("response",lambda response: payment_http.append({"method":response.request.method,"status":response.status,"path":urlsplit(response.url).path}) if "/api/v1/" in response.url and ("command" in response.url or "cash" in response.url) else None)
+                page.on("console",lambda msg: payment_console.append(msg.text[:300]) if msg.type=="error" else None)
+                secure_state=page.evaluate("""() => ({secure:window.isSecureContext,crypto:!!window.crypto,subtle:!!window.crypto?.subtle,draft:db.clientCommands.at(-1)?.paymentDraft?.map(p=>({id:p.id,method:p.methodId,amount:p.amount,account:p.accountId}))})""")
+                print(json.dumps({"scenario":"3E-before-payment-confirm","security":secure_state},ensure_ascii=False))
                 page.get_by_role("button",name="Confirmar pagamento").click()
+                page.wait_for_timeout(3000)
+                pay_after=page.evaluate("""() => ({modal:document.querySelector('#modalHost')?.innerText?.slice(-450),paymentVisible:!!document.querySelector('#modalHost .payment-shell'),toast:document.querySelector('#toast')?.innerText||document.querySelector('.toast')?.innerText||'',commands:db.clientCommands.filter(c=>c.central).slice(-2).map(c=>({id:c.id,status:c.status,paymentDraft:c.paymentDraft?.map(p=>({id:p.id,method:p.methodId,amount:p.amount}))})),cash:db.cashSessions.filter(c=>c.unitId==='u3').map(c=>({id:c.id,status:c.status}))})""")
+                print(json.dumps({"scenario":"3E-after-payment-confirm-diagnostic","state":pay_after,"network":payment_http[-20:],"console":payment_console[-10:]},ensure_ascii=False))
                 page.wait_for_function("() => !document.querySelector('#modalHost .payment-shell')",timeout=20000)
                 paid=page.evaluate("""() => db.clientCommands.filter(c=>c.clientName?.includes('Cliente E2E Rede')&&c.unitId==='u3').map(c=>({id:c.id,status:c.status,central:c.central,payments:c.paymentDraft?.map(x=>x.methodId)}))""")
                 print(json.dumps({"scenario":"3E-direct-payment-central-ui","commands":paid},ensure_ascii=False))
