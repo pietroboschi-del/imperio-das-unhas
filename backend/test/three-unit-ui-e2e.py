@@ -259,6 +259,11 @@ def main():
                 page.locator("#unitPicker").select_option(value="u1")
                 page.get_by_role("button",name="Clientes",exact=True).click()
                 page.wait_for_timeout(800)
+                # Empty commercial database has no acquisition sources. Configure one through the UI.
+                page.get_by_role("button",name="Como conheceu?").click()
+                page.locator("#newSourceName").fill("Origem E2E "+suffix)
+                page.get_by_role("button",name="Adicionar",exact=True).click()
+                page.get_by_role("button",name="Fechar",exact=True).click()
                 page.get_by_role("button",name="+ Nova cliente").click()
                 page.locator("#cfName").fill(client_name)
                 page.locator("#cfPhone").fill(client_phone)
