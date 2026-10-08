@@ -7377,6 +7377,17 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  setTimeout(()=>{
   window.v63OpenUser=authoritativeCentralUserOpen;
   window.v63SaveUser=authoritativeCentralUserSave;
+  const originalPage=window.setPage;
+  if(typeof originalPage==='function'){
+   window.setPage=function(target){
+    const result=originalPage.apply(this,arguments);
+    if(target==='settings'&&centralOwnerOnly()){
+     refreshCentralAdminUsers().catch(e=>toast('Usuários centrais indisponíveis: '+e.message));
+    }
+    return result;
+   };
+   try{setPage=window.setPage}catch(e){}
+  }
  },0);
  const legacySettingsTab=window.v63SetSettingsTab;
  if(legacySettingsTab)window.v63SetSettingsTab=function(tab){
@@ -7394,8 +7405,9 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  window.v77OpenWorkstationsSettings=function(){
   if(!centralAuthenticated())return localRenderStations?.apply(this,arguments);
   if(!centralConfigAvailable('catalog.manage')){toast('Sem permissão estrutural');return false}
-  return centralApi.configWorkstations().then(rows=>{
+  return Promise.all([centralApi.configWorkstations(),centralApi.configCategories()]).then(([rows,categories])=>{
    db.workstations=rows.map(x=>({...x,id:x.id,unitId:localUnitRef(x.unitId),central:true}));
+   db.categories=categories.map(x=>({id:x.id,name:x.name,active:x.active!==false,central:true}));
    return localRenderStations?.apply(this,arguments);
   }).catch(e=>{toast('Estações centrais indisponíveis: '+e.message);return false});
  };
