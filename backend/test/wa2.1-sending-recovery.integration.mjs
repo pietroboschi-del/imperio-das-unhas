@@ -62,10 +62,10 @@ try{
   recovery=await dispatch.recoverStaleSending(20,now);
   eq(recovery.recovered,1,'SENDING stale é recuperado uma vez');
   const staleRecovered=await prisma.messagingOutbox.findUniqueOrThrow({where:{id:stale.id}});
-  eq(staleRecovered.status,'FAILED','SENDING stale vira FAILED recuperável');
-  ok(staleRecovered.nextAttemptAt instanceof Date&&staleRecovered.nextAttemptAt>now,'SENDING stale recebe nextAttemptAt futuro');
-  eq(staleRecovered.lastError,'Previous send attempt did not complete','SENDING stale recebe erro sanitizado');
-  eq(await prisma.auditEvent.count({where:{action:'communication.send_recovered',entityId:stale.id}}),1,'SENDING stale gera um AuditEvent');
+  eq(staleRecovered.status,'RECONCILIATION_REQUIRED','SENDING stale exige reconciliação');
+  eq(staleRecovered.nextAttemptAt,null,'SENDING stale não agenda retry');
+  eq(staleRecovered.lastError,'Previous send attempt has unknown delivery outcome','SENDING stale recebe erro sanitizado');
+  eq(await prisma.auditEvent.count({where:{action:'communication.reconciliation_required',entityId:stale.id}}),1,'SENDING stale gera um AuditEvent');
   eq(fake.calls.length,0,'recuperação stale não chama provider');
 
   const concurrent=await queue(foundation,'wa2.1-concurrent');
@@ -77,7 +77,7 @@ try{
     dispatch.recoverStaleSending(20,now),
   ]);
   eq(concurrentResults.reduce((sum,item)=>sum+item.recovered,0),1,'duas recuperações concorrentes têm uma única alteração efetiva');
-  eq(await prisma.auditEvent.count({where:{action:'communication.send_recovered',entityId:concurrent.id}}),1,'concorrência gera um único AuditEvent');
+  eq(await prisma.auditEvent.count({where:{action:'communication.reconciliation_required',entityId:concurrent.id}}),1,'concorrência gera um único AuditEvent');
   eq(fake.calls.length,0,'recuperação concorrente não chama provider');
 
   const viaPending=await queue(foundation,'wa2.1-process-pending');
@@ -87,18 +87,15 @@ try{
   dispatch=new MessagingDispatchService(prisma,fake);
   await dispatch.processPending(20);
   const processRecovered=await prisma.messagingOutbox.findUniqueOrThrow({where:{id:viaPending.id}});
-  eq(processRecovered.status,'FAILED','processPending primeiro recupera SENDING stale');
-  ok(processRecovered.nextAttemptAt instanceof Date,'processPending agenda retry após recuperação');
+  eq(processRecovered.status,'RECONCILIATION_REQUIRED','processPending primeiro isola SENDING stale');
+  eq(processRecovered.nextAttemptAt,null,'processPending não agenda retry ambíguo');
   eq(fake.calls.length,0,'processPending não envia SENDING stale no mesmo ato de recuperação');
 
-  await prisma.messagingOutbox.update({
-    where:{id:viaPending.id},
-    data:{nextAttemptAt:new Date(Date.now()-1000)},
-  });
+  await prisma.messagingOutbox.update({where:{id:viaPending.id},data:{nextAttemptAt:new Date(Date.now()-1000)}});
   await dispatch.processPending(20);
-  const retried=await prisma.messagingOutbox.findUniqueOrThrow({where:{id:viaPending.id}});
-  eq(retried.status,'SENT','FAILED recuperado pode seguir retry normal quando elegível');
-  eq(fake.calls.length,1,'retry normal chama provider uma única vez após elegibilidade');
+  eq((await prisma.messagingOutbox.findUniqueOrThrow({where:{id:viaPending.id}})).status,'RECONCILIATION_REQUIRED','agendamento indevido não libera envio ambíguo');
+  eq((await dispatch.processOne(viaPending.id)).outcome,'SKIPPED','processOne direto bloqueia estado ambíguo');
+  eq(fake.calls.length,0,'nenhum envio após stale ambíguo');
 
   const protectedStatuses=['SENT','DELIVERED','READ','CANCELLED'];
   const protectedIds=[];
@@ -110,7 +107,7 @@ try{
   recovery=await dispatch.recoverStaleSending(50,now);
   for(const [id,status] of protectedIds){
     eq((await prisma.messagingOutbox.findUniqueOrThrow({where:{id}})).status,status,status+' nunca entra na recuperação stale');
-    eq(await prisma.auditEvent.count({where:{action:'communication.send_recovered',entityId:id}}),0,status+' não gera audit de recuperação');
+    eq(await prisma.auditEvent.count({where:{action:'communication.reconciliation_required',entityId:id}}),0,status+' não gera audit de recuperação');
   }
 
   const flagOff=await queue(foundation,'wa2.1-flag-off');
