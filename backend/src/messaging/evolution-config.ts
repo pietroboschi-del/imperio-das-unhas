@@ -19,17 +19,17 @@ export function evolutionHttpTimeoutMs(env:NodeJS.ProcessEnv=process.env){
 }
 export function evolutionBaseUrl(env:NodeJS.ProcessEnv=process.env){
   const raw=String(env.EVOLUTION_API_BASE_URL||'').trim();
-  if(!raw)throw new MessagingProviderError('EVOLUTION_BASE_URL_MISSING','Evolution provider is not configured',false);
+  if(!raw)throw new MessagingProviderError('EVOLUTION_BASE_URL_MISSING','Evolution provider is not configured',false,'DEFINITE_FAILURE');
   let url:URL;
-  try{url=new URL(raw)}catch{throw new MessagingProviderError('EVOLUTION_BASE_URL_INVALID','Evolution provider configuration is invalid',false)}
+  try{url=new URL(raw)}catch{throw new MessagingProviderError('EVOLUTION_BASE_URL_INVALID','Evolution provider configuration is invalid',false,'DEFINITE_FAILURE')}
   if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash){
-    throw new MessagingProviderError('EVOLUTION_BASE_URL_INVALID','Evolution provider configuration is invalid',false);
+    throw new MessagingProviderError('EVOLUTION_BASE_URL_INVALID','Evolution provider configuration is invalid',false,'DEFINITE_FAILURE');
   }
   return url.toString().replace(/\/+$/,'');
 }
 export function evolutionApiKey(env:NodeJS.ProcessEnv=process.env){
   const value=String(env.EVOLUTION_API_KEY||'').trim();
-  if(!value)throw new MessagingProviderError('EVOLUTION_API_KEY_MISSING','Evolution provider is not configured',false);
+  if(!value)throw new MessagingProviderError('EVOLUTION_API_KEY_MISSING','Evolution provider is not configured',false,'DEFINITE_FAILURE');
   return value;
 }
 
@@ -37,7 +37,7 @@ export function evolutionApiKey(env:NodeJS.ProcessEnv=process.env){
 export class EvolutionInstanceResolver {
   instanceForChannel(channelId:MessagingChannelId,env:NodeJS.ProcessEnv=process.env){
     const instance=String(env[INSTANCE_ENV_BY_CHANNEL[channelId]]||'').trim();
-    if(!instance)throw new MessagingProviderError('EVOLUTION_INSTANCE_MISSING','Messaging channel is not configured',false);
+    if(!instance)throw new MessagingProviderError('EVOLUTION_INSTANCE_MISSING','Messaging channel is not configured',false,'DEFINITE_FAILURE');
     return instance;
   }
   channelForInstance(instance:string,env:NodeJS.ProcessEnv=process.env):MessagingChannelId|null{
