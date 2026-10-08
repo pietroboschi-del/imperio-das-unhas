@@ -20,11 +20,14 @@ export interface MessagingProvider {
   send(message:ProviderOutboundMessage):Promise<ProviderSendResult>;
 }
 
+export type MessagingFailureCertainty='DEFINITE_FAILURE'|'DELIVERY_UNKNOWN';
+
 export class MessagingProviderError extends Error {
   constructor(
     readonly code:string,
     safeMessage:string,
     readonly retryable=true,
+    readonly certainty:MessagingFailureCertainty='DELIVERY_UNKNOWN',
   ){
     super(safeMessage);
     this.name='MessagingProviderError';
