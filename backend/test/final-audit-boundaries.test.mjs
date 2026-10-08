@@ -37,3 +37,11 @@ test('nested service item rejects negative price/commission and unknown fields',
   const dto=plainToInstance(SyncCommandDto,{grossAmount:10,discountAmount:0,amountDue:10,items:[{serviceId:'s',professionalId:'p',quantity:1,unitPrice:-10,commissionFixedAmount:-5,networkAdmin:true}]});
   assert.ok((await validate(dto,{whitelist:true,forbidNonWhitelisted:true})).length>0);
 });
+
+test('unknown stock location is validated before unit gate and cannot cause writes',async()=>{
+ const old=process.env.OPERATIONAL_WRITES_ENABLED,units=process.env.OPERATIONAL_WRITES_UNITS;
+ process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';
+ let writes=0;const db={stockLocation:{findUnique:async()=>null},$transaction:async()=>{writes++;throw Error('unexpected transaction')}};
+ try{await assert.rejects(()=>new StockService(db).consume({networkAdmin:true},{locationId:'evil-location',items:[{productId:'p',qty:1}]},'unknown'),e=>e.getStatus?.()===404);assert.equal(writes,0);}
+ finally{if(old===undefined)delete process.env.OPERATIONAL_WRITES_ENABLED;else process.env.OPERATIONAL_WRITES_ENABLED=old;if(units===undefined)delete process.env.OPERATIONAL_WRITES_UNITS;else process.env.OPERATIONAL_WRITES_UNITS=units;}
+});

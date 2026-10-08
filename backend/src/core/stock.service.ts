@@ -37,12 +37,20 @@ export class StockService {
   }
   private async assertWriteLocations(p:ImperioPrincipal,ids:string[]){
     this.assertAny(p,'stock.manage');
+    const unitIds:string[]=[];
     for(const id of ids){
-      if(CANONICAL_UNITS.includes(id as any)&&!this.unitAccess(p,id,'stock.manage'))throw new ForbiddenException('Usuário sem acesso ao estoque desta localização');
-      if(id==='central'&&!this.centralAccess(p,'stock.manage'))throw new ForbiddenException('Usuário sem acesso ao estoque central');
+      if(CANONICAL_UNITS.includes(id as any)){
+        if(!this.unitAccess(p,id,'stock.manage'))throw new ForbiddenException('Usuário sem acesso ao estoque desta localização');
+        unitIds.push(id);
+      }else if(id==='central'){
+        if(!this.centralAccess(p,'stock.manage'))throw new ForbiddenException('Usuário sem acesso ao estoque central');
+      }else{
+        const location=await this.location(id);this.assertLocation(p,location,'stock.manage');
+        if(location.unitId)unitIds.push(location.unitId);
+      }
     }
     assertOperationalWriteEnabled();
-    for(const id of ids)if(id!=='central')assertOperationalWriteEnabled(id);
+    for(const unitId of unitIds)assertOperationalWriteEnabled(unitId);
     return this.assertLocations(p,ids,'stock.manage');
   }
   private globalPerm(p:ImperioPrincipal,perm:'stock.read'|'stock.manage'){
