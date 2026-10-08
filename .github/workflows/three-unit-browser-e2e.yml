@@ -4,6 +4,7 @@ on:
     branches: [official-three-units-integration]
     paths:
       - 'backend/test/three-unit-ui-e2e.py'
+      - 'index.html'
       - '.github/workflows/three-unit-browser-e2e.yml'
   workflow_dispatch:
 
