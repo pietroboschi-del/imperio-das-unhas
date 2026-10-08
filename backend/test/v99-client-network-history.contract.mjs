@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const html=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+const controller=readFileSync(new URL('../src/core/core-read.controller.ts',import.meta.url),'utf8');
+let checks=0;
+function must(condition,message){assert.ok(condition,message);checks++}
+must(html.includes("clientHistory(id){return centralRequest('/api/v1/clients/'+encodeURIComponent(id)+'/history')"),'frontend calls network history endpoint');
+must(html.includes("if(tab==='historico'&&centralAuthenticated()"),'central history replaces local timeline only in authenticated mode');
+must(html.includes('renderCentralClientHistory')||html.includes('centralHistoryHtml'),'frontend renders server history');
+must(html.includes('Atendimentos das três unidades'),'history is explicitly network-wide');
+must(html.includes('it.professionalName||it.professional?.publicName'),'frontend uses professional tied to each BookingItem');
+must(controller.includes("@Get('clients/:id/history')"),'backend exposes network client history');
+must(controller.includes("where:{clientId:id}"),'network query uses global Client id, not selected unit');
+must(controller.includes("items:{orderBy:{sortOrder:'asc'}"),'BookingItem order is canonical');
+must(controller.includes('professionalName:item.professional?.publicName'),'backend preserves service-professional relationship');
+must(controller.includes("@RequirePermissions('clients.read')"),'history is protected by client permission');
+console.log(JSON.stringify({ok:true,checks,feature:'client_network_history_frontend_contract'}));
