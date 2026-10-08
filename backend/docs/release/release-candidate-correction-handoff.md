@@ -21,7 +21,7 @@ V98 Backend CI #535, run 37786601733, HEAD e63b42161788198f516c5660486d724b6b1d3
 - CI #535 completed SUCCESS, including new checksum isolated CI gate.
 - Reconciled static read-only contract: allow only the explicit Node crypto Hash.update call; still deny Prisma data writes.
 
-## CHECKPOINT 3 — NOT STARTED / BROWSER E2E REQUIRED
+## CHECKPOINT 3 — IN PROGRESS / REAL BROWSER REQUIRED
 - A true browser E2E on isolated backend/PostgreSQL and real frontend must demonstrate admin login, three units, UI configuration, global clients/history, cross-unit agenda, public booking and permission boundaries. Static contracts/API integration are insufficient.
 - No Playwright package/configuration was found in the repository tree at this checkpoint; inspect CI's browser/runtime availability and choose a tested automation method without altering production. Do not claim UI E2E passed until tested.
 - NEXT TASK: implement a real headless browser CI suite with actual navigation/action/assertions on isolated data, then fix only UI bridges actually shown broken and prove CI green.
@@ -36,3 +36,15 @@ Railway backend deploy reported 920d74cbb5856ab3bdb1c63c1c0c762c82346cba, fronte
 NONE. No Railway mutation, no live DB connection write, no deploy, no migration or WhatsApp activation.
 ## VERDICT
 NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
+
+
+## SUBCHECKPOINT 3A — COMPLETE (2026-10-08)
+- Real Chromium via Python Playwright already installed in CI. Harness `backend/test/three-unit-ui-e2e.py`, npm script `test:three-unit-ui-e2e`; GitHub Actions step after isolated Prisma/admin setup.
+- Browser actually navigated to `http://127.0.0.1:3101/index.html`, frontend title `Império das Unhas — V97 Read-through Controlado`, visible public booking and `Área da equipe` controls. CI #539, run 37790254402, exact HEAD fe9faa6d75cb8250338e0c4efc9caf4e9e1ad20c: SUCCESS.
+- Runtime guards refuse non-loopback/non-`imperio_ci` database; services start in isolated CI, terminated on exit. WA flags OFF, no real external APIs, no live writes.
+- **This proves only harness and page rendering, not authenticated admin/business journeys.** Do not mistake static/page smoke for Checkpoint 3 completion.
+- LAST_COMPLETED_SUBCHECKPOINT: 3A
+- CURRENT_HEAD: fe9faa6d75cb8250338e0c4efc9caf4e9e1ad20c (prior to this ledger commit).
+- NEXT_SUBCHECKPOINT: 3B — browser-click `Área da equipe`, authenticate real CI admin through visible form and then inspect admin configuration screens; no cookie injection or direct API bootstrap for UI actions.
+- NEXT_EXACT_TASK: Extend Playwright script with real login flow and durable post-login rendered assertions; run in CI, fix only observed failure, update this ledger after green.
+- DO_NOT_REPEAT: Checkpoints 1 and 2, 3A browser harness/environment, all WA1–WA5 implementation.
