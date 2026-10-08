@@ -50,8 +50,9 @@ backup somente quando `TZ=America/Sao_Paulo date +%H` retorna `03`. Isso mantém
 O repositório é público e a branch padrão atual é `main`.
 
 GitHub executa `schedule` e disponibiliza normalmente `workflow_dispatch` a partir do
-workflow presente na branch padrão. Portanto, enquanto este arquivo existir apenas em
-`official-three-units-integration`, ele está **preparado, mas não ativado**.
+workflow presente na branch padrão. Esse workflow já foi incorporado à `main` e está ativo: em 08/10/2026, run #7
+`37736120838` concluiu SUCCESS às 06:10 UTC (03:10 São Paulo), com artifact
+`imperio-logical-backup-2026-10-08T03-10-10`. Revalidar o último run antes do cutover.
 
 Não alterar a branch padrão apenas para ativar o backup. A ativação deve ocorrer no
 momento em que este workflow for incorporado conscientemente à `main`.
@@ -145,7 +146,8 @@ manter ao menos uma cópia offline protegida.
 5. confirma header `X-Backup-Format: pg_dump-custom` e magic bytes `PGDMP`;
 6. valida com `postgres:18 pg_restore --list`;
 7. calcula SHA-256 e tamanho do dump;
-8. cria manifesto com nome, horário, bytes, SHA-256, SHA Git e run ID;
+8. restaura em PostgreSQL 18 temporário, valida tabelas, unidades e ledger;
+   cria manifesto com nome, horário, bytes, SHA-256, SHA Git e run ID;
 9. criptografa dump e manifesto separadamente com age/public key;
 10. remove os arquivos em claro do runner por best effort (`shred`, com fallback para `rm`);
 11. faz upload somente de arquivos criptografados e checksum do ciphertext;
@@ -211,7 +213,8 @@ Somente considerar o arquivo recuperável se checksum, descriptografia, SHA-256 
 
 ## Restore
 
-Este workflow **não restaura** banco.
+Este workflow restaura o dump somente em PostgreSQL 18 temporário e isolado
+para smoke de integridade; não restaura nem altera o banco de produção.
 
 Nunca fazer restore diretamente por cima de produção como primeira ação. Em incidente,
 seguir `backend/PRODUCTION_BACKUP_ROLLBACK.md`: validar o dump, restaurar primeiro em

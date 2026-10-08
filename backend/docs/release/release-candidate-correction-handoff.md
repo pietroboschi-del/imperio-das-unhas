@@ -1,5 +1,7 @@
 # Release candidate correction pack — recoverable handoff (2026-10-08)
 
+> Current status is the PRE-AUDIT PROJECT CLOSURE PACK at the end. Earlier sections are chronological recovery evidence, not current blockers.
+
 ## Baseline
 Repository pietroboschi-del/imperio-das-unhas, branch official-three-units-integration.
 Start HEAD 9bf7d45db2bb03e75520b2ea1b32d7df0f4e9891; prior CI #525 FAILED at Static and projector tests because release-hardening asserted a stale 13-to-21 label.
@@ -259,3 +261,55 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - DO_NOT_REPEAT: Checkpoints 1, 2, 3A–3G, WA1–WA5 implementations, established E2E harness, professional/service/client/booking/finance/stock/report scenarios, release manifest/checksum/migration foundation.
 - FUNCTIONAL_UI_READINESS: COMPLETE. CHECKPOINT_3: COMPLETE. RELEASE_CANDIDATE: READY FOR NEXT CLOSURE BLOCK, not automatic authorization for production rollout.
 - PRODUCTION_MUTATIONS: NONE. PRODUCTION: UNCHANGED by this checkpoint.
+
+
+## PRE-AUDIT PROJECT CLOSURE PACK — 2026-10-08
+
+Repository `pietroboschi-del/imperio-das-unhas`; branch `official-three-units-integration`. Executor closure only; independent audit and all production authorization remain separate.
+
+| Item | Classification | Evidence / result |
+|---|---|---|
+| START HEAD | CONFIRMED | `83af534519173e08b04ba4c4694179cd59b452e0` |
+| FINAL HEAD | CONFIRMED BY COMMIT ID | The commit containing this pack; resolve its exact SHA from Git history / executor delivery. No self-referential SHA is fabricated. |
+| Approved code | CONFIRMED | `b6f452c21583faebd260a614e1dad7634606de58`; start HEAD is one commit ahead, only this handoff changed. Closure diff is documentation only. |
+| CI code | CONFIRMED | V98 Backend CI #603, run `37850290620`, SUCCESS on b6f452c; 65 successful job steps. |
+| CI start documentation | CONFIRMED | V98 Backend CI #604, run `37851226952`, SUCCESS on 83af534. Final documentary commit's ordinary push CI must be checked separately; #603 is not attributed to that SHA. No manual rerun initiated. |
+| Browser / Checkpoint 3 | CONFIRMED | #53, run `37850290632`, SUCCESS on b6f452c; 3A–3G COMPLETE in isolated Chromium/backend/PostgreSQL. |
+| Release Candidate | CONFIRMED | COMPLETE for pre-audit code/document readiness; manifest parity, checksum and synthetic rehearsal green in #603. No live rollout approval. |
+| Migrations | CONFIRMED (repository/CI) | Expected baseline 13 / target 22 / delta 9. Does not confirm live applied/pending count. Historical SQL unchanged. |
+| SHA-256 / rehearsal | CONFIRMED (isolated) | #603 checksum preflight and manifest parity SUCCESS; synthetic 13→22 rehearsal SUCCESS. No repeat. Fresh restored live-data clone rehearsal remains cutover prerequisite. |
+| Railway | CONFIRMED | Backend deployment `1cbcff0b-b9a6-4015-b09b-599c58478436`, SHA `920d74cbb5856ab3bdb1c63c1c0c762c82346cba`; frontend `e3a3db74-ad79-4c69-aebe-cc658966faab`, SHA `a5e43d114dd34cac2231a96cbc3d5d46f0d44f59`; Postgres `853e47f7-120a-46c7-99e2-d53a13a3d301`. All online, 1/1 replicas, no warnings/criticals/recent failures in returned health window. |
+| Staged work | CONFIRMED / INFERRED | Inventory and dedicated staged-diff return no patch/resources. Health lists old patch `1ea95b42-13df-4157-9bef-f32aa8da695b` with empty changes; inferred stale health entry, not proven absent internal pending work. Recheck before cutover; no mutation. |
+| Live migration ledger | NOT VERIFIED | No authorized read-only DB connection available. Live applied/pending, incomplete/rolled-back/unknown rows, stored checksum equality and canonical unit rows remain unverified. No credentials requested/access created. |
+| Backup | CONFIRMED | Official schedule #7, run `37736120838`, SUCCESS 2026-10-08 06:10 UTC / 03:10 São Paulo; artifact `imperio-logical-backup-2026-10-08T03-10-10`, 2,653,961 archive bytes, non-expired. PGDMP, pg_restore list, isolated restore, 34 public tables / Unit=3, SHA-256 and age validated by workflow and successful log. Artifact digest `sha256:9044c0a77c40e595614aa94b1b9759cf1edcfda5d679a7b108b4af87dadc6170` is artifact archive digest, not plaintext dump hash. Plaintext hash is in encrypted manifest. FRESH BACKUP REQUIRED AT CUTOVER. |
+| Operational flags | NOT VERIFIED | OPERATIONAL_WRITES_ENABLED and OPERATIONAL_WRITES_UNITS present, values redacted by OAuth connector. Historical values are not current confirmation. |
+| WhatsApp flags | NOT VERIFIED (live) | WHATSAPP_AUTOMATION_ENABLED, WHATSAPP_AGENT_API_ENABLED and EVOLUTION_WEBHOOK_ENABLED not listed by connector; absence is not effective runtime OFF proof. Policy and isolated tests remain OFF; no flag changed. |
+| WhatsApp code readiness | CONFIRMED | #603 WA1–WA5, ambiguous-delivery quarantine, stale SENDING, authorized audited reconciliation, inbound idempotency and protected Outbox passed. Existing activation matrix and operational handover reused. Real provider not certified. |
+| External dependencies | NOT VERIFIED / separately gated | Provider version/connectivity, instances, number, credentials, webhook, runtime scheduler, live ledger/flags and final client exports/approval. Do not configure or send messages. |
+| Functional UI / empty-state | CONFIRMED within evidence scope | #53 real UI and #603 empty-state integration prove configuration, global clients, three-unit agenda/public booking, commands, DIRECT_PROFESSIONAL, cash, purchases/consumption/inventory and reports. Transfers/average cost/freight/unit scopes additionally covered by #603 stock foundation integration. Empty commercial state is not a defect. |
+| Exact browser limits | NOT PROVEN by browser | Company cash payment UI was N/A in synthetic payment-method configuration; API empty-state journey covers PIX/payment/cash in all three units. Transfer UI is not claimed from #53; transfer lifecycle/idempotency covered at integration level. No claim that every UI combination was tested. |
+| Handover | CONFIRMED (documentation) | Short operating path below complements existing CLIENTS_ONLY, recovery, smoke/rollback and WhatsApp handover; no new manual framework. Staff training and live configuration are not claimed complete. |
+| P2 / Checkpoint 4 | NOT RECOVERABLE / deferred | Repository .md/.txt search found only references to missing original P2 input; attached master/deadline provide no actionable P2 list; ZIP is logo assets. P2 INPUT NOT RECOVERABLE — DEFER TO FINAL AUDIT. Does not block pre-audit closure. |
+| Cutover readiness | CONFIRMED (runbook only) | Freeze, final CI, fresh backup/restore, exact ledger/hash validation, upgrade of restored clone, owner-authorized forward migrations, post-ledger, backend/frontend smoke, separately approved final client reconciliation, three-unit/global-client/financial/stock boundaries, monitoring/abort/rollback documented. Execution remains gated. |
+| Production mutations | CONFIRMED (this execution) | NONE: only read-only connector calls and repository documentation changes. Does not assert no other actor/database writes occurred. |
+| Next responsible parties | CONFIRMED | Independent Auditor: full audit and P2 recovery/findings. Executor: only subsequent authorized corrections. Owner + authorized production operator: live prerequisites, explicit migration/deploy/import approvals. Integration operator: separately approved WhatsApp activation. |
+
+### Short operational handover (future approved release)
+
+1. **Login/users:** Área da equipe → Entrar. Network administrator: Configurações → Usuários e Acessos, create user, choose unit access and explicit functional permissions; deliver activation token through approved policy. User selects Ativar meu acesso and defines own password. Never treat global agenda access as cash/stock/admin permission. See `backend/PRODUCTION_RECOVERY.md` for recovery; no shared owner password.
+2. **Configuration:** Serviços → Categorias / Estações; register categories, service duration/price/publication and unit workstation eligibility. Profissionais → Nova profissional, units, each unit's weekday schedule and eligible services; save and reopen to verify. Use actual approved business data only.
+3. **Clients/agenda:** Clientes creates/searches network identity; inspect global history before another registration. Select Centro, Big or Shopping Contagem in Agenda before creation/edit/cancel/reschedule; preserve each service/professional item. Public booking uses selected unit's published services and available schedule/resources. Empty slots require configuration/schedule review, not invented availability.
+4. **Commands/payment/cash:** Open comanda from appointment, verify items and totals, choose payment and recipient. DIRECT_PROFESSIONAL requires an eligible service-line recipient and does not enter company cash. For company receipts use configured method/account and correct unit/session; open/count/close Caixa using observed values. Preserve reversals/audit; never delete financial traces or blindly retry ambiguous payment outcomes.
+5. **Stock:** Estoque → Produtos, Compras → Receber compra; confirm destination (central technical location or correct unit), quantity, price/freight. Visão Geral → Registrar consumo; Inventário → Aplicar contagem with reason. Follow transfer lifecycle separation/send/receive and correct source/destination permissions. Preserve movements; no manual balance SQL.
+6. **Reports:** Relatórios, choose unit/date and applicable tab; distinguish valid empty state from error. Confirm paid-command data against operational records, not estimated sales.
+7. **WhatsApp/troubleshooting:** Remains OFF by policy. See `whatsapp-operational-handover.md` for RECONCILIATION_REQUIRED, stale SENDING, privileged reconciliation and escalation. For login/403, first check user activation/unit/permissions; for missing slots, schedule/service/resource rules; for uncertain financial/messaging outcome, inspect central persisted status and escalate before retry. Use sanitized errors/IDs, never secrets or customer payloads.
+
+### Documentary corrections / recovery
+
+- Corrected target preflight exit-2 semantics before baseline upgrade; after upgrade exit 0 required.
+- Added missing restored-clone upgrade rehearsal, final CLIENTS_ONLY reconciliation, freeze/monitoring and global-client/unit-boundary checks to existing cutover runbook.
+- Corrected automated backup document: schedule already active; workflow includes isolated restore smoke.
+- Preserved chronological green evidence. No code/test/schema changes, broad audit, test rerun or new workflow dispatch.
+- Final SHA/commit and final ordinary push CI are recorded in executor delivery. If final documentary CI is still pending/fails, carry this pack forward without rerunning green code tests; inspect only first real failure.
+
+PRE-AUDIT CLOSURE: READY FOR INDEPENDENT 100% AUDIT
