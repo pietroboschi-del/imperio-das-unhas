@@ -32,7 +32,9 @@ def wait_http(url,timeout=45):
 
 def main():
     check_isolated()
-    env={**os.environ, "PORT":str(BACKEND_PORT), "OPERATIONAL_WRITES_ENABLED":"false",
+    env={**os.environ, "PORT":str(BACKEND_PORT), "OPERATIONAL_WRITES_ENABLED":"true",
+         "OPERATIONAL_WRITES_UNITS":"centro,big,shopping-contagem",
+         "MIGRATION_IMPORT_ENABLED":"false",
          "WHATSAPP_AUTOMATION_ENABLED":"false","EVOLUTION_WEBHOOK_ENABLED":"false",
          "WHATSAPP_AGENT_API_ENABLED":"false","CORS_ORIGINS":UI_ORIGIN}
     processes=[]
@@ -88,6 +90,23 @@ def main():
                        "body":page.locator("body").inner_text()[:1500]}
                 print(json.dumps(after,ensure_ascii=False))
                 assert not after["loginVisible"], "CI admin login did not leave authentication screen; potential central/legacy bridge failure"
+                picker=page.locator("#unitPicker")
+                labels=picker.locator("option").all_text_contents()
+                print(json.dumps({"scenario":"3B-unit-picker","options":labels,"selected":picker.input_value()},ensure_ascii=False))
+                assert len(labels)==3, "Expected exactly three authorized canonical units in real admin picker"
+                for local in ("u3","u1","u2"):
+                    picker.select_option(value=local)
+                    assert picker.input_value()==local,"Unit switch did not persist in selector"
+                picker.select_option(value="u3")
+                page.get_by_role("button",name="Profissionais",exact=True).click()
+                page.wait_for_timeout(500)
+                assert page.get_by_role("button",name="+ Nova profissional").is_visible(),"Professionals configuration is not navigable"
+                page.get_by_role("button",name="+ Nova profissional").click()
+                page.wait_for_timeout(350)
+                print(json.dumps({"scenario":"3B-professional-form","buttons":page.locator("#modalHost button:visible").all_text_contents()[:25],
+                    "inputs":[{"id":e.get_attribute("id"),"type":e.get_attribute("type")} for e in page.locator("#modalHost input:visible").all()[:45]],
+                    "body":page.locator("#modalHost").inner_text()[:1400]},ensure_ascii=False))
+
                 print(json.dumps({"ok":True,"scenario":"3A-real-browser-bootstrap"}))
             except Exception:
                 page.screenshot(path="/tmp/imperio-e2e-bootstrap-failure.png",full_page=True)
