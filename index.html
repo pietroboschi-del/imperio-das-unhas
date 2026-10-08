@@ -7160,8 +7160,8 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function applyCentralProfessionals(rows){
   db.pros=(rows||[]).filter(Boolean).map(x=>{let c=x.config||{},schedule={};for(const [k,v] of Object.entries(c.schedule||{})){let m=String(k).match(/^(.*)-(\d)$/);if(m)schedule[localUnitRef(m[1])+'-'+m[2]]=v}let services=Object.entries(x.serviceRules||{}).filter(([,v])=>v&&v.enabled===true).map(([sid])=>sid);let p=normalizeProfessional(Object.assign({},c,{id:x.id,name:x.name,publicName:x.publicName||x.name,active:x.active!==false,units:(x.unitIds||[]).map(localUnitRef),schedule,services,central:true}));for(const [sid,r] of Object.entries(x.serviceRules||{})){let s=db.services.find(v=>v.id===sid);if(s){s.proRules=s.proRules||{};s.proRules[x.id]=r}}return p});
  }
- async function refreshCentralServiceConfig(){let rows=await centralApi.configServices();applyCentralServices(rows);return rows}
- async function refreshCentralProfessionalConfig(){let [services,pros]=await Promise.all([centralApi.configServices(),centralApi.configProfessionals()]);applyCentralServices(services);applyCentralProfessionals(pros);return pros}
+ async function refreshCentralServiceConfig(){let [rows,categories]=await Promise.all([centralApi.configServices(),centralApi.configCategories()]);db.categories=categories.map(x=>({id:x.id,name:x.name,active:x.active!==false,central:true}));applyCentralServices(rows);return rows}
+ async function refreshCentralProfessionalConfig(){let [services,pros,categories]=await Promise.all([centralApi.configServices(),centralApi.configProfessionals(),centralApi.configCategories()]);db.categories=categories.map(x=>({id:x.id,name:x.name,active:x.active!==false,central:true}));applyCentralServices(services);applyCentralProfessionals(pros);return pros}
  
  const centralApi=Object.freeze({
   status(){return {enabled:centralEnabled(),unitId:centralUnitId(),localUnitId:centralLocalUnitId(),endpoint:endpoint(),scope:'controlled_three_unit_rollout',operationalWriteUnits:centralWriteUnits(),sourceOfTruth:centralEnabled()?'postgresql_central':'blocked_or_legacy_local',financeMode:'postgresql_central'}},
@@ -7174,6 +7174,9 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   configWorkstations(){return centralRequest('/api/v1/config/workstations',{unitRequired:false})},
   createConfigWorkstation(body){return centralRequest('/api/v1/config/workstations',{method:'POST',body,unitRequired:false})},
   updateConfigWorkstation(id,body){return centralRequest('/api/v1/config/workstations/'+encodeURIComponent(id),{method:'PATCH',body,unitRequired:false})},
+  configCategories(){return centralRequest('/api/v1/config/categories',{unitRequired:false})},
+  createConfigCategory(body){return centralRequest('/api/v1/config/categories',{method:'POST',body,unitRequired:false})},
+  updateConfigCategory(id,body){return centralRequest('/api/v1/config/categories/'+encodeURIComponent(id),{method:'PATCH',body,unitRequired:false})},
   configServices(){return centralRequest('/api/v1/config/services',{unitRequired:false})},
   createConfigService(body){return centralRequest('/api/v1/config/services',{method:'POST',body,unitRequired:false})},
   updateConfigService(id,body){return centralRequest('/api/v1/config/services/'+encodeURIComponent(id),{method:'PATCH',body,unitRequired:false})},
@@ -7398,6 +7401,36 @@ button,.btn,input,select,textarea{touch-action:manipulation}
    closeModal();await window.v77OpenWorkstationsSettings();toast('Estação salva no PostgreSQL');return true;
   }catch(e){toast('Estação não salva: '+e.message);return false}
  };
+
+ function centralCategoryToolbar(){
+  if(!centralConfigAvailable('catalog.manage')||page!=='services')return;
+  const head=adminPage.querySelector('.page-head');if(!head||head.querySelector('.central-category-action'))return;
+  const btn=document.createElement('button');btn.className='btn btn-ghost central-category-action';btn.textContent='+ Categoria';btn.onclick=()=>{
+   const categories=(db.categories||[]).map(c=>'<option value="'+escapeHtml(c.id)+'">'+escapeHtml(c.name)+'</option>').join('');
+   modal('Categorias da rede','<div class="field"><label>Editar categoria existente</label><select id="centralCatEdit"><option value="">Nova categoria</option>'+categories+'</select></div><div class="field"><label>Nome da categoria</label><input id="centralCatName" placeholder="Ex.: Manicure"></div>','<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="centralSaveCategory()">Salvar categoria</button>');
+   const select=document.getElementById('centralCatEdit');if(select)select.onchange=()=>{let row=(db.categories||[]).find(x=>x.id===select.value);document.getElementById('centralCatName').value=row?.name||''};
+  };head.appendChild(btn);
+ }
+ window.centralSaveCategory=async function(){
+  if(!centralConfigAvailable('catalog.manage'))return false;
+  const id=document.getElementById('centralCatEdit')?.value||'',name=document.getElementById('centralCatName')?.value.trim()||'';
+  if(!name){toast('Informe a categoria');return false}
+  try{
+   if(id)await centralApi.updateConfigCategory(id,{name});else await centralApi.createConfigCategory({name,active:true});
+   await refreshCentralServiceConfig();closeModal();
+   if(typeof renderServices==='function')renderServices();
+   toast('Categoria salva no PostgreSQL');return true;
+  }catch(e){toast('Categoria não salva: '+e.message);return false}
+ };
+ const oldRenderServicesForCategory=window.renderServices||((typeof renderServices==='function')?renderServices:null);
+ if(oldRenderServicesForCategory){
+  const patched=function(){
+   const result=oldRenderServicesForCategory.apply(this,arguments);
+   if(centralAuthenticated())centralCategoryToolbar();
+   return result;
+  };
+  window.renderServices=patched;try{renderServices=patched}catch(e){}
+ }
  const legacyRenderClients=window.renderClients||((typeof renderClients==='function')?renderClients:null);
  if(legacyRenderClients){let wrapped=function(){let out=legacyRenderClients.apply(this,arguments);if(centralEnabled())refreshCentralClients(document.getElementById('clientSearch')?.value||'').then(()=>{if(typeof renderClientRows==='function')renderClientRows()}).catch(e=>toast('Clientes centrais indisponíveis: '+e.message));return out};window.renderClients=wrapped;try{renderClients=wrapped}catch(e){}}
  const legacyRenderAgenda=window.renderAgenda||((typeof renderAgenda==='function')?renderAgenda:null);
