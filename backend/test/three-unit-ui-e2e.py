@@ -342,6 +342,7 @@ def main():
                 page.locator('[data-client-tab="historico"]').click()
                 page.wait_for_function("() => document.querySelector('#clientTabContent')?.innerText.includes('Atendimentos das três unidades')",timeout=15000)
                 history=page.locator("#clientTabContent").inner_text()
+                print(json.dumps({"scenario":"3C-global-history-rendered-diagnostic","history":history[:3400]},ensure_ascii=False))
                 assert "Histórico central indisponível" not in history, "Central global client history API failed"
                 for unit_name in ("Centro de Contagem","Big Shopping","Shopping Contagem"):
                     assert unit_name in history, f"Missing {unit_name} in visible global history"
