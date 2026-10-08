@@ -7249,7 +7249,11 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   db.bookings=(db.bookings||[]).filter(b=>!(b.unit===uid&&b.date===date));
   db.pros=(pros||[]).map(p=>normalizeProfessional({id:p.id,name:p.name,publicName:p.publicName||p.name,active:p.active!==false,units:[uid],services:[],central:true}));
   db.services=(services||[]).map(x=>normalizeService({id:x.id,name:x.name,active:x.active!==false,price:Number(x.price||0),duration:Number(x.durationMin||30),central:true}))
-  mergeCentralBookings(rows,uid);return true
+  mergeCentralBookings(rows,uid);
+  // Central administrators need the full ProfessionalUnit/service-rule configuration
+  // for the existing UI eligibility selector; core read projections omit those rules.
+  if(centralConfigAvailable('professionals.manage')&&centralConfigAvailable('catalog.manage'))await refreshCentralProfessionalConfig();
+  return true
  }
  const legacyCentralQueueOpen=window.v79OpenQueue;
  if(legacyCentralQueueOpen){window.v79OpenQueue=function(){let out=legacyCentralQueueOpen.apply(this,arguments);if(centralEnabled()){let uid=centralLocalUnitId();centralApi.waitlist().then(rows=>{if(centralEnabled()&&centralLocalUnitId()===uid){mergeCentralWaitlist(rows,uid);window.v79RenderQueueList?.();window.v79RefreshAgendaButton?.()}}).catch(e=>toast('Fila central indisponível: '+e.message))}return out}}
