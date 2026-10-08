@@ -233,8 +233,11 @@ WHERE "bookingId"='block3-booking';
 };
 
 const smokeBackend = async (databaseUrl) => {
-  const mainPath = path.join(backendRoot, 'dist/main.js');
-  assert(fs.existsSync(mainPath), 'dist/main.js is required for backend smoke');
+  const mainPath = [
+    path.join(backendRoot, 'dist/main.js'),
+    path.join(backendRoot, 'dist/src/main.js'),
+  ].find((candidate) => fs.existsSync(candidate));
+  assert(mainPath, 'dist/main.js or dist/src/main.js is required for backend smoke');
   const port = 3219;
   const child = spawn(process.execPath, [mainPath], {
     cwd: backendRoot,
