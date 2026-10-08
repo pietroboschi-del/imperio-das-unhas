@@ -7096,7 +7096,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function centralUnitId(){let id=centralLocalUnitId();return UNIT_TO_CENTRAL[id]||id}
  function centralPrincipal(){try{return JSON.parse(sessionStorage.getItem(CENTRAL_PRINCIPAL)||'null')}catch(e){return null}}
  function centralAuthenticated(){try{return sessionStorage.getItem(CENTRAL_SESSION)==='1'&&!!centralPrincipal()}catch(e){return false}}
- function centralCanUse(unitId){let p=centralPrincipal(),id=UNIT_TO_CENTRAL[unitId]||unitId;return !!p&&(p.networkAdmin===true||(p.unitIds||[]).includes(id)||(p.unitAccesses||[]).some(x=>x.unitId===id))}
+ function centralCanUse(unitId){let p=centralPrincipal(),id=UNIT_TO_CENTRAL[unitId]||unitId;if(!p)return false;let linked=(p.unitAccesses||[]).length>0||(p.unitIds||[]).length>0;let domainGrant=linked&&(centralGlobalPermission('agenda.read')||centralGlobalPermission('agenda.manage')||centralGlobalPermission('clients.read'));return p.networkAdmin===true||domainGrant||(p.unitIds||[]).includes(id)||(p.unitAccesses||[]).some(x=>x.unitId===id)}
  function centralWriteUnits(){try{let v=JSON.parse(sessionStorage.getItem(CENTRAL_WRITE_UNITS)||'[]');return Array.isArray(v)?v.map(String):[]}catch(e){return []}}
  function setCentralWriteUnits(units){try{sessionStorage.setItem(CENTRAL_WRITE_UNITS,JSON.stringify(Array.isArray(units)?units.map(String):[]))}catch(e){}return centralWriteUnits()}
  function centralUnitAllowed(unitId){let id=UNIT_TO_CENTRAL[unitId]||unitId;return centralWriteUnits().includes(id)}
