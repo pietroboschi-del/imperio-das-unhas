@@ -87,7 +87,7 @@ for (const needle of [
   'SYNTHETIC_REHEARSAL',
   '920d74cbb5856ab3bdb1c63c1c0c762c82346cba',
   'EXPECTED_BASELINE_MIGRATION_COUNT = 13',
-  'EXPECTED_TARGET_MIGRATION_COUNT = 21',
+  'EXPECTED_TARGET_MIGRATION_COUNT = 22',
   'pg_dump',
   'pg_restore',
   '--list',
