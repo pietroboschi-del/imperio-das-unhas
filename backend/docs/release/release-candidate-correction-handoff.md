@@ -313,3 +313,9 @@ Repository `pietroboschi-del/imperio-das-unhas`; branch `official-three-units-in
 - Final SHA/commit and final ordinary push CI are recorded in executor delivery. If final documentary CI is still pending/fails, carry this pack forward without rerunning green code tests; inspect only first real failure.
 
 PRE-AUDIT CLOSURE: READY FOR INDEPENDENT 100% AUDIT
+
+## FINAL AUDIT + CORRECTION PACK — 2026-10-08
+
+Start HEAD 4cc95ce5d4e0e1a87559d44ec151241bc8c04db7 verified with remote. Initial backend #605 and code/browser #603/#53 independently confirmed. Risk-directed audit found FA-01..FA-06 P1, FA-07 P2; implemented atomic credential consumption, direct recipient and authoritative payment reload, common finance locks, global client identity lock, stock write gates/location replay scopes/serialization/read-only GET, and shared configured workstation capacity. FA-08 P3 error-string encoding deferred NON-BLOCKING. Full evidence/limitations: `final-audit-correction-report.md`.
+
+No migration added; baseline 13 / target 22 / expected nine pending unchanged. New behavior and extended PostgreSQL integration regressions are part of aggregate CI. Exact final corrective commit SHA and terminal backend/browser results are in executor delivery. Changed-HEAD CI is mandatory; earlier greens do not certify these corrections. Live ledger and effective flags remain NOT VERIFIED. Fresh backup and fresh-restored-live-data clone rehearsal remain future cutover prerequisites. PRODUCTION MUTATIONS: NONE. No deploy/import/provider activation authorization is implied.

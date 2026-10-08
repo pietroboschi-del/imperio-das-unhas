@@ -28,7 +28,7 @@ async function main(){
  const ch=await makeUser('stock-centro','stock_centro_ci',['centro']);
  const rh=await makeUser('stock-read','stock_read_ci',['centro'],['stock.read']);
  const oh=await makeUser('stock-owner','stock_owner_ci',['centro','big','shopping-contagem'],['*'],true);
- const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port)},stdio:['ignore','pipe','pipe']});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem'},stdio:['ignore','pipe','pipe']});
  try{
   await wait();
   let r=await req('/api/v1/stock/locations',{headers:mh});ok(r.ok,'locations available');let locs=await r.json();eq(locs.length,4,'four stock locations');

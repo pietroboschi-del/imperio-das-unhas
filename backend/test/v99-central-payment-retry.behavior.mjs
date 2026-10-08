@@ -72,8 +72,9 @@ ok(JSON.stringify(divergent.state)===beforeDivergence&&divergent.syncCalls===1,'
 
 // DIRECT_PROFESSIONAL remains outside company cash and idempotent replay keeps
 // the same key/payload for an already confirmed line.
-const directCommand={...command,paymentDraft:[command.paymentDraft[0],{...command.paymentDraft[1],methodId:'pm_direct'}]};
+const directCommand={...command,paymentDraft:[command.paymentDraft[0],{...command.paymentDraft[1],methodId:'pm_direct',professionalId:'pro1'}]};
 const direct=setup({commandValue:directCommand});const directPlan=await helpers.centralPaymentRetryPlanV99(directCommand,{payments:[]},cash,totals);
+ok(directPlan[1].body.professionalId==='pro1','destinatária preservada no bridge central');
 ok(directPlan[1].body.method==='DIRECT_PROFESSIONAL'&&!directPlan[1].body.cashSessionId,'DIRECT_PROFESSIONAL é enviado sem caixa da empresa');
 await direct.run();const directRow=direct.state.payments.find(p=>p.method==='DIRECT_PROFESSIONAL');
 ok(directRow?.cashSessionId===null&&direct.companyCash===60&&direct.companyEffects===1,'pagamento direto não entra no caixa ou nos efeitos financeiros da empresa');

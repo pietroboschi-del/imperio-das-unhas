@@ -124,6 +124,8 @@ jobs:
         run: npm run test:wa5.7
       - name: WA5.8 end-to-end and security
         run: npm run test:wa5.8
+      - name: Final audit security behavior regressions
+        run: node test/final-audit-security.behavior.mjs
       - name: Static and projector tests
         run: npm test
       - name: Frontend central bridge contract

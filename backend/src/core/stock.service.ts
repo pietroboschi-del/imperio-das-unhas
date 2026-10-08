@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, StockLocationKind } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
+import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ImperioPrincipal } from '../common/request-context';
 import { hasPermissions, permissionSet } from '../auth/permission-policy';
@@ -32,13 +33,13 @@ export class StockService {
     if(p.networkAdmin||this.globalPerm(p,perm))return true;
     return p.unitAccesses.some(a=>hasPermissions(permissionSet(a.permissions),[perm]));
   }
+  private async lockOperation(tx:Prisma.TransactionClient,key:string){await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('stock-operation'), hashtext(${key}))`;}
   async ensureLocations(db:any=this.prisma){
     const units=await db.unit.findMany({where:{id:{in:[...CANONICAL_UNITS]}},select:{id:true,name:true,active:true}});
     await db.stockLocation.upsert({where:{id:'central'},create:{id:'central',kind:StockLocationKind.CENTRAL,unitId:null,name:'Estoque Central',active:true},update:{kind:StockLocationKind.CENTRAL,unitId:null,name:'Estoque Central',active:true}});
     for(const u of units)await db.stockLocation.upsert({where:{id:u.id},create:{id:u.id,kind:StockLocationKind.UNIT,unitId:u.id,name:u.name,active:u.active},update:{kind:StockLocationKind.UNIT,unitId:u.id,name:u.name,active:u.active}});
   }
   private async location(id:string,db:any=this.prisma){
-    await this.ensureLocations(db);
     const x=await db.stockLocation.findUnique({where:{id},include:{unit:true}});
     if(!x?.active)throw new NotFoundException('Localização de estoque inválida ou inativa');
     if(x.kind===StockLocationKind.UNIT&&(!x.unitId||!x.unit?.active))throw new NotFoundException('Unidade da localização está inativa');
@@ -68,18 +69,20 @@ export class StockService {
         this.assertLocation(p,existing,perm);
       }
     }
+    if(perm==='stock.manage')for(const id of unique)assertOperationalWriteEnabled(CANONICAL_UNITS.includes(id as any)?id:undefined);
+    if(perm==='stock.manage')await this.ensureLocations(db);
     const out=[];
     for(const id of unique){const x=await this.location(id,db);this.assertLocation(p,x,perm);out.push(x)}
     return out;
   }
   async locations(p:ImperioPrincipal){
-    this.assertAny(p,'stock.read');await this.ensureLocations();
+    this.assertAny(p,'stock.read');
     const rows=await this.prisma.stockLocation.findMany({where:{active:true},include:{unit:true},orderBy:{id:'asc'}});
     return rows.filter(x=>{try{this.assertLocation(p,x,'stock.read');return true}catch{return false}}).map(x=>({id:x.id,kind:x.kind,unitId:x.unitId,name:x.name,active:x.active}));
   }
   async products(p:ImperioPrincipal){this.assertAny(p,'stock.read');return this.prisma.product.findMany({orderBy:[{active:'desc'},{name:'asc'}]})}
   async upsertProduct(p:ImperioPrincipal,body:any,id?:string){
-    this.assertAny(p,'stock.manage');
+    this.assertAny(p,'stock.manage');assertOperationalWriteEnabled();
     const productId=String(id||body.id||randomUUID()).trim(),name=String(body.name||'').trim(),type=String(body.type||'').trim().toUpperCase();
     if(!name)throw new ConflictException('Nome do produto é obrigatório');
     if(!['INPUT','RESALE'].includes(type))throw new ConflictException('Tipo de produto inválido');
@@ -99,13 +102,13 @@ export class StockService {
     });
   }
   async balances(p:ImperioPrincipal,locationId?:string){
-    this.assertAny(p,'stock.read');await this.ensureLocations();
+    this.assertAny(p,'stock.read');
     const ids=locationId?[locationId]:(await this.locations(p)).map(x=>x.id);
     await this.assertLocations(p,ids,'stock.read');
     return this.prisma.stockBalance.findMany({where:{locationId:{in:ids}},include:{product:true,location:true},orderBy:[{locationId:'asc'},{product:{name:'asc'}}]});
   }
   async movements(p:ImperioPrincipal,locationId?:string){
-    this.assertAny(p,'stock.read');await this.ensureLocations();
+    this.assertAny(p,'stock.read');
     const ids=locationId?[locationId]:(await this.locations(p)).map(x=>x.id);
     await this.assertLocations(p,ids,'stock.read');
     return this.prisma.stockMovement.findMany({where:{locationId:{in:ids}},include:{product:true},orderBy:{createdAt:'desc'},take:1000});
@@ -122,10 +125,11 @@ export class StockService {
     const unique=[...new Set(ids)];const rows=await tx.product.findMany({where:{id:{in:unique},active:true}});if(rows.length!==unique.length)throw new NotFoundException('Um ou mais produtos não existem ou estão inativos');return new Map(rows.map(x=>[x.id,x]));
   }
   async purchase(p:ImperioPrincipal,body:any,key?:string){
-    const idem=this.key('stock.purchase',key),locationId=String(body.destinationLocationId||'');
+    const locationId=String(body.destinationLocationId||''),idem=this.key('stock.purchase|'+locationId,key);
     await this.assertLocations(p,[locationId],'stock.manage');
     const raw=Array.isArray(body.items)?body.items:[];if(!raw.length)throw new ConflictException('Compra precisa de ao menos um item');
     return this.prisma.$transaction(async tx=>{
+      await this.lockOperation(tx,idem);
       const prior=await tx.stockPurchase.findUnique({where:{idempotencyKey:idem},include:{items:true}});if(prior)return prior;
       const products=await this.productsByIds(tx,raw.map((x:any)=>String(x.productId)));
       const lines:{productId:string;qty:number;unitCost:number;sortOrder:number}[]=raw.map((x:any,i:number)=>({productId:String(x.productId),qty:Number(x.qty),unitCost:Number(x.unitCost),sortOrder:i}));if(lines.some((x:{productId:string;qty:number;unitCost:number;sortOrder:number})=>!(x.qty>0)||x.unitCost<0||!Number.isFinite(x.unitCost)))throw new ConflictException('Quantidade/custo inválido na compra');
@@ -152,9 +156,10 @@ export class StockService {
     return this.prisma.stockPurchase.findMany({where:{destinationLocationId:{in:ids}},include:{items:{include:{product:true},orderBy:{sortOrder:'asc'}},destinationLocation:true},orderBy:{createdAt:'desc'},take:500});
   }
   async consume(p:ImperioPrincipal,body:any,key?:string){
-    const idem=this.key('stock.consume',key),locationId=String(body.locationId||'');await this.assertLocations(p,[locationId],'stock.manage');
+    const locationId=String(body.locationId||''),idem=this.key('stock.consume|'+locationId,key);await this.assertLocations(p,[locationId],'stock.manage');
     const raw=Array.isArray(body.items)?body.items:[];if(!raw.length)throw new ConflictException('Consumo precisa de ao menos um item');
     return this.prisma.$transaction(async tx=>{
+      await this.lockOperation(tx,idem);
       const prior=await tx.auditEvent.findFirst({where:{action:'stock.consumption.applied',entityId:idem}});if(prior)return {idempotent:true,operationId:idem};
       await this.productsByIds(tx,raw.map((x:any)=>String(x.productId)));const seen=new Set<string>();
       for(let i=0;i<raw.length;i++){const productId=String(raw[i].productId),qty=Number(raw[i].qty);if(seen.has(productId))throw new ConflictException('Produto repetido no mesmo consumo');seen.add(productId);if(!(qty>0))throw new ConflictException('Quantidade de consumo inválida');
@@ -167,10 +172,11 @@ export class StockService {
     });
   }
   async inventory(p:ImperioPrincipal,body:any,key?:string){
-    const idem=this.key('stock.inventory',key),locationId=String(body.locationId||''),reason=String(body.reason||'').trim();await this.assertLocations(p,[locationId],'stock.manage');
+    const locationId=String(body.locationId||''),idem=this.key('stock.inventory|'+locationId,key),reason=String(body.reason||'').trim();await this.assertLocations(p,[locationId],'stock.manage');
     if(!reason)throw new ConflictException('Motivo do inventário é obrigatório');
     const counts=Array.isArray(body.counts)?body.counts:[];if(!counts.length)throw new ConflictException('Inventário precisa de contagens');
     return this.prisma.$transaction(async tx=>{
+      await this.lockOperation(tx,idem);
       const prior=await tx.auditEvent.findFirst({where:{action:'stock.inventory.applied',entityId:idem}});if(prior)return {idempotent:true,operationId:idem};
       await this.productsByIds(tx,counts.map((x:any)=>String(x.productId)));const seen=new Set<string>();let changed=0;
       for(let i=0;i<counts.length;i++){const productId=String(counts[i].productId),counted=Number(counts[i].countedQty);if(seen.has(productId))throw new ConflictException('Produto repetido no inventário');seen.add(productId);if(counted<0||!Number.isFinite(counted))throw new ConflictException('Contagem inválida');
@@ -184,12 +190,13 @@ export class StockService {
   }
   private async transferWithAccess(p:ImperioPrincipal,id:string,perm:'stock.read'|'stock.manage',tx:any=this.prisma){
     const row=await tx.stockTransfer.findUnique({where:{id},include:{items:{orderBy:{sortOrder:'asc'}},sourceLocation:true,destinationLocation:true}});if(!row)throw new NotFoundException('Transferência não encontrada');
-    this.assertLocation(p,row.sourceLocation,perm);this.assertLocation(p,row.destinationLocation,perm);return row;
+    this.assertLocation(p,row.sourceLocation,perm);this.assertLocation(p,row.destinationLocation,perm);if(perm==='stock.manage'){assertOperationalWriteEnabled(row.sourceLocation.unitId||undefined);assertOperationalWriteEnabled(row.destinationLocation.unitId||undefined);}return row;
   }
   async createTransfer(p:ImperioPrincipal,body:any,key?:string){
-    const idem=this.key('stock.transfer',key),sourceLocationId=String(body.sourceLocationId||''),destinationLocationId=String(body.destinationLocationId||'');if(!sourceLocationId||sourceLocationId===destinationLocationId)throw new ConflictException('Origem e destino devem ser diferentes');
+    const sourceLocationId=String(body.sourceLocationId||''),destinationLocationId=String(body.destinationLocationId||''),idem=this.key('stock.transfer|'+sourceLocationId+'|'+destinationLocationId,key);if(!sourceLocationId||sourceLocationId===destinationLocationId)throw new ConflictException('Origem e destino devem ser diferentes');
     await this.assertLocations(p,[sourceLocationId,destinationLocationId],'stock.manage');const raw=Array.isArray(body.items)?body.items:[];if(!raw.length)throw new ConflictException('Transferência precisa de itens');
     return this.prisma.$transaction(async tx=>{
+      await this.lockOperation(tx,idem);
       const prior=await tx.stockTransfer.findUnique({where:{idempotencyKey:idem},include:{items:true}});if(prior)return prior;
       await this.productsByIds(tx,raw.map((x:any)=>String(x.productId)));const seen=new Set<string>(),items=raw.map((x:any,i:number)=>{const productId=String(x.productId),qty=Number(x.qty);if(seen.has(productId))throw new ConflictException('Produto repetido na transferência');seen.add(productId);if(!(qty>0))throw new ConflictException('Quantidade inválida');return {productId,qty,sortOrder:i}});
       const id=randomUUID();await tx.stockTransfer.create({data:{id,sourceLocationId,destinationLocationId,transferDate:dateOnly(body.transferDate),status:'SEPARATED',note:String(body.note||'').trim()||null,createdByUserId:p.userId,idempotencyKey:idem,items:{create:items.map((x:{productId:string;qty:number;sortOrder:number})=>({productId:x.productId,qty:D(x.qty),sortOrder:x.sortOrder}))}}});
@@ -199,6 +206,7 @@ export class StockService {
   }
   async sendTransfer(p:ImperioPrincipal,id:string){
     return this.prisma.$transaction(async tx=>{
+      await this.lockOperation(tx,'transfer:'+id);
       const row=await this.transferWithAccess(p,id,'stock.manage',tx);if(row.status==='IN_TRANSIT'||row.status==='RECEIVED')return row;if(row.status!=='SEPARATED')throw new ConflictException('Transferência não pode ser enviada neste estado');
       for(const item of row.items){const bal=await this.balanceLocked(tx,item.productId,row.sourceLocationId),before=n(bal.qty),qty=n(item.qty);if(qty>before+.0000001)throw new ConflictException('Saldo insuficiente na origem da transferência');const after=before-qty,cost=n(bal.avgCost);
         await tx.stockBalance.update({where:{id:bal.id},data:{qty:D(after),version:{increment:1}}});
@@ -212,6 +220,7 @@ export class StockService {
   }
   async receiveTransfer(p:ImperioPrincipal,id:string){
     return this.prisma.$transaction(async tx=>{
+      await this.lockOperation(tx,'transfer:'+id);
       const row=await this.transferWithAccess(p,id,'stock.manage',tx);if(row.status==='RECEIVED')return row;if(row.status!=='IN_TRANSIT')throw new ConflictException('Transferência precisa estar em trânsito');
       for(const item of row.items){if(item.unitCost===null)throw new ConflictException('Transferência sem custo congelado no envio');const bal=await this.balanceLocked(tx,item.productId,row.destinationLocationId),before=n(bal.qty),oldCost=n(bal.avgCost),qty=n(item.qty),cost=n(item.unitCost),after=before+qty,avg=after?((before*oldCost)+(qty*cost))/after:cost;
         await tx.stockBalance.update({where:{id:bal.id},data:{qty:D(after),avgCost:D(avg),version:{increment:1}}});
@@ -223,12 +232,13 @@ export class StockService {
     });
   }
   async transfers(p:ImperioPrincipal){
-    this.assertAny(p,'stock.read');await this.ensureLocations();
+    this.assertAny(p,'stock.read');
     const rows=await this.prisma.stockTransfer.findMany({include:{sourceLocation:true,destinationLocation:true,items:{include:{product:true},orderBy:{sortOrder:'asc'}}},orderBy:{createdAt:'desc'},take:500});
     return rows.filter(x=>{try{this.assertLocation(p,x.sourceLocation,'stock.read');this.assertLocation(p,x.destinationLocation,'stock.read');return true}catch{return false}});
   }
   async applyOpeningBalances(p:ImperioPrincipal){
     if(!p.networkAdmin)throw new ForbiddenException('Apenas administrador da rede pode aplicar saldos de abertura');
+    assertOperationalWriteEnabled();for(const id of CANONICAL_UNITS)assertOperationalWriteEnabled(id);
     await this.ensureLocations();const rows=await this.prisma.stockBalanceOpening.findMany({orderBy:{createdAt:'asc'}}),review:any[]=[];let applied=0,skipped=0;
     for(const opening of rows){const locationId=LEGACY_LOCATION_MAP[opening.locationId];if(!locationId){review.push({id:opening.id,reason:'unknown_location',locationId:opening.locationId});continue}
       const product=await this.prisma.product.findUnique({where:{id:opening.productId}});if(!product){review.push({id:opening.id,reason:'missing_product',productId:opening.productId});continue}

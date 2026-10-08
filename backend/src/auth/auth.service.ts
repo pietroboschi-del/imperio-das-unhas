@@ -117,6 +117,8 @@ export class AuthService {
     }
     const passwordHash=await argon2.hash(newPassword,{type:argon2.argon2id});
     await this.prisma.$transaction(async tx=>{
+      const claimed=await tx.userCredentialToken.updateMany({where:{id:row.id,purpose,usedAt:null,invalidatedAt:null,expiresAt:{gt:new Date()},user:{active:true}},data:{usedAt:now}});
+      if(claimed.count!==1)throw new UnauthorizedException('Token inválido ou expirado');
       await tx.user.update({where:{id:row.userId},data:{passwordHash,passwordResetRequired:false,version:{increment:1}}});
       await tx.userCredentialToken.update({where:{id:row.id},data:{usedAt:now}});
       await tx.userCredentialToken.updateMany({where:{userId:row.userId,id:{not:row.id},usedAt:null,invalidatedAt:null},data:{invalidatedAt:now}});

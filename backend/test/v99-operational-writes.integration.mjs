@@ -33,6 +33,8 @@ async function main(){
   ok(await prisma.booking.count({where:{unitId:{not:'centro'}}})===0,'outras unidades permanecem intactas');
   const operationalAudit=await prisma.auditEvent.findMany({where:{unitId:'centro',action:{in:['client.created','booking.created']}},select:{action:true}}),operationalActions=operationalAudit.map(x=>x.action);
   ok(operationalActions.filter(x=>x==='client.created').length===1&&operationalActions.filter(x=>x==='booking.created').length===1,'cliente e agendamento auditados');
+  const parallelClients=await Promise.all(['centro','big'].map(unit=>fetch(base+'/api/v1/clients',{method:'POST',headers:{...oh,'x-unit-id':unit,'idempotency-key':'parallel-identity-'+unit},body:JSON.stringify({name:'Concurrent Network Client',phone:'+5531999990077'})})));
+  ok(parallelClients.every(x=>x.ok),'cadastros concorrentes autorizados');const parallelRows=await Promise.all(parallelClients.map(x=>x.json()));ok(parallelRows[0].id===parallelRows[1].id&&await prisma.client.count({where:{phone:'+5531999990077'}})===1,'cadastros concorrentes entre unidades convergem para identidade global');
   const sharedKey='owner-shared-client-key';
   r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...oh,'x-unit-id':'centro','idempotency-key':sharedKey},body:JSON.stringify({name:'Cliente Owner Centro',phone:'+5531999990081'})});ok(r.ok,'owner cria cliente no Centro com chave compartilhada');const ownerCentro=await r.json();
   r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...oh,'x-unit-id':'big','idempotency-key':sharedKey},body:JSON.stringify({name:'Cliente Owner Big',phone:'+5531999990082'})});ok(r.ok,'mesma Idempotency-Key pode ser usada em outra unidade sem colisão');const ownerBig=await r.json();

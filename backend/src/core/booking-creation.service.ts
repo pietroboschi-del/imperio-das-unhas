@@ -1,3 +1,4 @@
+import { assertBookingResourceCapacity } from './booking-resource-capacity';
 import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
@@ -355,7 +356,6 @@ export class BookingCreationService {
     const serviceDate=new Date(firstDate+'T00:00:00.000Z');
     const lockKeys=[...new Set([
      ...prepared.map(x=>x.professionalId+'|'+firstDate),
-     ...(input.requirePhysicalCapacity?['physical|'+firstDate]:[]),
     ])].sort();
     for(const lock of lockKeys)await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.unitId}), hashtext(${lock}))`;
 
@@ -391,6 +391,7 @@ export class BookingCreationService {
      }
     }
 
+    await assertBookingResourceCapacity(tx,input.unitId,firstDate,prepared);
     if(input.requirePhysicalCapacity){
      for(let i=0;i<prepared.length;i++)for(let j=0;j<i;j++){
       const a=prepared[j],b=prepared[i],as=a.startAt.getTime(),ae=as+a.durationMin*60000,bs=b.startAt.getTime(),be=bs+b.durationMin*60000;
@@ -490,6 +491,7 @@ export class BookingCreationService {
  }
 
  private async resolveClient(tx:Prisma.TransactionClient,input:CanonicalInput){
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('client-identity'), 0)`;
   if(input.clientId){
    const client=await tx.client.findFirst({where:{id:input.clientId,active:true}});
    if(!client)throw new NotFoundException('Cliente não encontrado ou inativo');

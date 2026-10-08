@@ -18,6 +18,7 @@ export class CreateCommandDto {
  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) discountAmount?:number;
 }
 export class ReceivePaymentDto {
+ @IsOptional() @IsString() @MaxLength(128) professionalId?:string;
  @IsOptional() @IsString() @MaxLength(128) cashSessionId?:string;
  @IsIn(['CASH','PIX','DEBIT_CARD','CREDIT_CARD','TRANSFER','OTHER','DIRECT_PROFESSIONAL','BARTER']) method!:string;
  @IsNumber({maxDecimalPlaces:2}) @Min(0.01) amount!:number;
