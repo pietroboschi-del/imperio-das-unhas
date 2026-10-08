@@ -10,4 +10,11 @@ ok(!/prisma(?:\.\w+)?\.(?:create|createMany|update|updateMany|upsert|delete|dele
 ok(!/\$queryRaw(?:Unsafe)?\s*[(`]\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)/i.test(src),'raw SQL não contém DDL/DML');
 ok(!src.includes('errorLogs')&&src.includes('errorLogPresent'),'diagnóstico não expõe conteúdo de logs de migration');
 ok(src.includes('export async function buildReadinessReport'),'diagnóstico exporta função reutilizável');
+const integration=fs.readFileSync(new URL('./v99-three-unit-readiness.integration.mjs',import.meta.url),'utf8');
+ok(integration.includes("ISOLATED_SCHEMA='readiness_integration_fixture'"),'fixtures usam schema dedicado');
+ok(integration.includes("fixtureUrl.searchParams.set('schema',ISOLATED_SCHEMA)"),'Prisma é apontado para schema isolado');
+ok(integration.includes("READINESS_TEST_DATABASE must exactly match"),'proteção do banco CI continua ativa');
+ok(integration.includes('DROP SCHEMA'), 'schema temporário possui desmontagem explícita');
+ok(src.includes('technicalReadiness')&&src.includes('businessDataReadiness'),'readiness técnico separado dos dados comerciais');
+ok(src.includes('EXPECTED_EMPTY_STATE')&&src.includes('POST_GO_LIVE_USER_DRIVEN'),'ausência de dados e migração posterior não bloqueiam sistema');
 console.log(JSON.stringify({ok:true,tests,feature:'three_unit_readonly_readiness'}));
