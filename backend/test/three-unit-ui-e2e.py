@@ -104,15 +104,139 @@ def main():
                     assert actual==local,"Unit switch did not persist in selector"
                 picker.select_option(value="u3")
                 page.get_by_role("button",name="Profissionais",exact=True).click()
-                page.wait_for_timeout(500)
+                page.wait_for_timeout(900)
                 assert page.get_by_role("button",name="+ Nova profissional").is_visible(),"Professionals configuration is not navigable"
                 page.get_by_role("button",name="+ Nova profissional").click()
-                page.wait_for_timeout(350)
+                page.wait_for_timeout(600)
                 print(json.dumps({"scenario":"3B-professional-form","buttons":page.locator("#modalHost button:visible").all_text_contents()[:25],
                     "inputs":[{"id":e.get_attribute("id"),"type":e.get_attribute("type")} for e in page.locator("#modalHost input:visible").all()[:45]],
                     "body":page.locator("#modalHost").inner_text()[:1400]},ensure_ascii=False))
+                assert page.locator("#pfName").is_visible(),"Professional modal did not expose editable name field"
+                page.get_by_role("button",name="Cancelar").click()
+                page.wait_for_timeout(250)
 
-                print(json.dumps({"ok":True,"scenario":"3A-real-browser-bootstrap"}))
+                suffix=str(int(time.time()*1000))
+                category_name="Categoria E2E UI "+suffix
+                service_name="Serviço E2E UI "+suffix
+                pro_name="Profissional E2E UI "+suffix
+                pro_edited=pro_name+" Editada"
+                station_name="Estação E2E UI "+suffix
+                day_key="1"
+
+                page.get_by_role("button",name="Serviços",exact=True).click()
+                page.wait_for_timeout(900)
+                assert page.get_by_role("button",name="+ Novo serviço").is_visible(),"Services configuration is not navigable"
+                page.get_by_role("button",name="Categorias",exact=True).click()
+                page.wait_for_timeout(1200)
+                page.get_by_role("button",name="+ Nova categoria").click()
+                page.wait_for_timeout(350)
+                page.locator("#v89CatName").fill(category_name)
+                page.locator("#v89CatArea").select_option(value="hands")
+                page.locator("#v89CatLead").select_option(value="0")
+                page.get_by_role("button",name="Salvar").click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=category_name,timeout=15000)
+                print(json.dumps({"scenario":"3B-category-created","name":category_name},ensure_ascii=False))
+
+                page.get_by_role("button",name="Serviços",exact=True).click()
+                page.wait_for_timeout(900)
+                page.get_by_role("button",name="+ Novo serviço").click()
+                page.wait_for_timeout(500)
+                page.locator("#sfName").fill(service_name)
+                page.locator("#sfCat").select_option(label=category_name)
+                page.locator("#sfPrice").fill("79.90")
+                page.locator("#sfDur").fill("45")
+                page.get_by_role("button",name="Site").click()
+                page.locator("#sfPublicName").fill(service_name+" Online")
+                if not page.locator("#sfShow").is_checked(): page.locator("#sfShow").check()
+                if not page.locator("#sfOnline").is_checked(): page.locator("#sfOnline").check()
+                page.get_by_role("button",name="Salvar serviço").click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=service_name,timeout=15000)
+                print(json.dumps({"scenario":"3B-service-created","name":service_name,"category":category_name},ensure_ascii=False))
+
+                page.get_by_role("button",name="Profissionais",exact=True).click()
+                page.wait_for_timeout(900)
+                page.get_by_role("button",name="+ Nova profissional").click()
+                page.wait_for_timeout(800)
+                page.locator("#pfName").fill(pro_name)
+                page.locator("#pfPublicName").fill("Pro E2E")
+                page.locator("#pfSpec").fill("Nail designer E2E")
+                for local in ("u1","u2","u3"):
+                    box=page.locator(f".pfUnit[value='{local}']")
+                    assert box.count()==1, f"Professional unit checkbox missing for {local}"
+                    if not box.is_checked(): box.check()
+                page.get_by_role("button",name="Horários").click()
+                for local,start,end in (("u1","09:00","18:00"),("u2","10:00","19:00"),("u3","08:30","17:30")):
+                    row=page.locator(f".schedule-row[data-unit='{local}'][data-day='{day_key}']")
+                    row.locator(".pfs-work").check()
+                    row.locator(".pfs-start").fill(start)
+                    row.locator(".pfs-end").fill(end)
+                page.get_by_role("button",name="Serviços").click()
+                service_row=page.locator(".pro-service-row",has_text=service_name)
+                assert service_row.count()==1,"Created service is not available for professional eligibility"
+                service_row.locator(".pfr-enabled").check()
+                service_row.locator(".pfr-duration").fill("40")
+                service_row.locator(".pfr-commission").fill("50")
+                service_row.locator(".pfr-price").fill("85")
+                page.get_by_role("button",name="Salvar profissional").click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=pro_name,timeout=15000)
+                print(json.dumps({"scenario":"3B-professional-created","name":pro_name,"units":["u1","u2","u3"],"service":service_name},ensure_ascii=False))
+
+                page.locator("tr",has_text=pro_name).get_by_role("button",name="Editar").click()
+                page.wait_for_timeout(700)
+                page.locator("#pfSpec").fill("Nail designer E2E editada")
+                page.locator("#pfPublicName").fill("Pro E2E Editada")
+                page.locator("#pfName").fill(pro_edited)
+                page.get_by_role("button",name="Salvar alterações").click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=pro_edited,timeout=15000)
+                page.reload(wait_until="domcontentloaded",timeout=30000)
+                page.wait_for_timeout(1500)
+                page.get_by_role("button",name="Profissionais",exact=True).click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=pro_edited,timeout=15000)
+                page.locator("tr",has_text=pro_edited).get_by_role("button",name="Editar").click()
+                page.wait_for_timeout(700)
+                persisted=page.evaluate("""(serviceName) => ({
+                  checked:[...document.querySelectorAll('.pfUnit:checked')].map(x=>x.value).sort(),
+                  monday:[...document.querySelectorAll('.schedule-row[data-day="1"]')].map(r=>({unit:r.dataset.unit,work:r.querySelector('.pfs-work')?.checked,start:r.querySelector('.pfs-start')?.value,end:r.querySelector('.pfs-end')?.value})).filter(x=>x.work),
+                  serviceEnabled:[...document.querySelectorAll('.pro-service-row')].filter(r=>r.innerText.includes(serviceName)).map(r=>({duration:r.querySelector('.pfr-duration')?.value,commission:r.querySelector('.pfr-commission')?.value,price:r.querySelector('.pfr-price')?.value,enabled:r.querySelector('.pfr-enabled')?.checked}))
+                })""",service_name)
+                assert persisted["checked"]==["u1","u2","u3"],"Professional multi-unit links did not persist after reload"
+                assert len(persisted["monday"])==3,"Professional schedule did not persist across all three units"
+                assert persisted["serviceEnabled"] and persisted["serviceEnabled"][0]["enabled"],"Professional service eligibility did not persist"
+                page.get_by_role("button",name="Cancelar").click()
+
+                page.get_by_role("button",name="Serviços",exact=True).click()
+                page.wait_for_timeout(900)
+                page.get_by_role("button",name="Estações",exact=True).click()
+                page.wait_for_timeout(1200)
+                page.get_by_role("button",name="+ Nova estação").click()
+                page.wait_for_timeout(500)
+                page.locator("#v77WsName").fill(station_name)
+                page.locator("#v77WsUnit").select_option(value="u3")
+                ws_cat=page.get_by_label(category_name)
+                if ws_cat.count()==0:
+                    ws_cat=page.locator(".v77-ws-category").first()
+                if not ws_cat.is_checked(): ws_cat.check()
+                page.get_by_role("button",name="Salvar").click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=station_name,timeout=15000)
+                page.reload(wait_until="domcontentloaded",timeout=30000)
+                page.wait_for_timeout(1500)
+                page.get_by_role("button",name="Serviços",exact=True).click()
+                page.wait_for_timeout(800)
+                page.get_by_role("button",name="Estações",exact=True).click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=station_name,timeout=15000)
+                inventory=page.evaluate("""() => ({
+                  categories:(db.categories||[]).filter(x=>String(x.name||'').includes('Categoria E2E UI')).map(x=>({id:x.id,name:x.name,active:x.active})),
+                  services:(db.services||[]).filter(x=>String(x.name||'').includes('Serviço E2E UI')).map(x=>({id:x.id,name:x.name,category:x.category,price:x.price,duration:x.duration,active:x.active,show:x.show,online:x.online})),
+                  professionals:(db.pros||[]).filter(x=>String(x.name||'').includes('Profissional E2E UI')).map(x=>({id:x.id,name:x.name,units:x.units,services:x.services,schedule:x.schedule,active:x.active,show:x.show,online:x.online})),
+                  workstations:(db.workstations||[]).filter(x=>String(x.name||'').includes('Estação E2E UI')).map(x=>({id:x.id,name:x.name,unitId:x.unitId,allowedCategoryIds:x.allowedCategoryIds,active:x.active}))
+                })""")
+                print(json.dumps({"scenario":"3B-admin-config-persisted","inventory":inventory},ensure_ascii=False))
+                assert len(inventory["professionals"])>=1 and len(inventory["services"])>=1 and len(inventory["workstations"])>=1, "Admin config records were not visible after reload"
+                assert any(x["online"] and x["show"] and x["active"] for x in inventory["services"]), "Created service is not active and published online"
+                assert any(set(x["units"])=={"u1","u2","u3"} for x in inventory["professionals"]), "Created professional is not linked to all three units"
+                assert any(x["unitId"]=="u3" and x["active"] for x in inventory["workstations"]), "Created workstation did not persist for Centro"
+
+                print(json.dumps({"ok":True,"scenario":"3B-admin-configuration-browser-closure"}))
             except Exception:
                 page.screenshot(path="/tmp/imperio-e2e-bootstrap-failure.png",full_page=True)
                 raise

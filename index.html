@@ -4500,7 +4500,8 @@ window.v56PublicSearchSlots=function(){let date=document.getElementById('bkPubli
  const REPORT_TAB_MAP={overview:'overview',clients:'clients',retention:'retention',agenda:'agenda',pros:'pros',professionals:'pros',services:'services',stock:'stock',finance:'finance',marketing:'marketing',audit:'audit'};
  const MAIN_ORDER=['agenda','clients','pros','services','cash','stock','finance','reports','actions','settings'];
  function clone(x){try{return typeof structuredClone==='function'?structuredClone(x):JSON.parse(JSON.stringify(x))}catch{return x}}
- function user(){return window.__imperioV63?.currentUser?.()||null}
+ function centralPermissionUserV99(){try{let p=JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'null');if(p?.networkAdmin===true)return {id:p.id||p.userId||'central-network-admin',name:p.displayName||p.name||p.username||'Administrador de rede',username:p.username||'central-network-admin',role:'admin',active:p.active!==false,central:true,networkAdmin:true}}catch(e){}return null}
+ function user(){return window.__imperioV63?.currentUser?.()||centralPermissionUserV99()||null}
  function isAdmin(u=user()){return !!u&&u.active!==false&&u.role==='admin'}
  function roleMap(role){let out={};for(const k of ALL_KEYS)out[k]=false;if(role==='admin'){for(const k of ALL_KEYS)out[k]=true;return out}for(const k of ROLE_ALLOWED[role]||[])out[k]=true;return out}
  function effectiveMap(u=user()){if(!u)return {};let base=roleMap(u.role);if(u.role==='admin')return base;if(u.permissionMode!=='custom'||!u.permissions||typeof u.permissions!=='object')return base;for(const k of ALL_KEYS){if(Object.prototype.hasOwnProperty.call(u.permissions,k))base[k]=!!u.permissions[k]}return base}

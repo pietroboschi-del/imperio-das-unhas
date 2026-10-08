@@ -66,3 +66,21 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - NEXT_EXACT_TASK: verify latest branch HEAD and related full CI; examine Playwright #11 log/screenshot after clicking Profissionais; diagnose visible page/route/permissions; correct only confirmed UI bridge; run fast browser CI and main CI; then save checkpoint handoff. Do not broaden into 3C until 3B has functional evidence and green CI.
 - DO_NOT_REPEAT: Checkpoints 1 and 2, 3A harness, WA1–WA5 foundations, original conceptual audit, baseline manifest/migration work.
 - PRODUCTION_MUTATIONS: NONE. Live ledger/checksums/flags/backup NOT VERIFIED.
+
+## CHECKPOINT 3B RECOVERY PROGRESS — PERMISSION BRIDGE FIX READY FOR CI (2026-10-08)
+- CURRENT_HEAD (before this progress commit): e89dbfc81c526fa4f81fce6718b5f6ad68016836.
+- LAST_COMPLETED_SUBCHECKPOINT: 3A — COMPLETE. 3B remains IN PROGRESS until isolated browser CI proves create/edit/reload persistence.
+- CI_READ: V98 Backend CI #556, run 37795693600, HEAD e89dbfc81c526fa4f81fce6718b5f6ad68016836, completed FAILURE at step `Three-unit real Chromium UI bootstrap`. Three-unit browser E2E #11, run 37795385134, HEAD 8448057789d97c4eede160fb0bb6010cf048e54f, completed FAILURE at `Real browser scenario`.
+- FINDING: the real root cause for missing `+ Nova profissional` is the V67 legacy permission guard. Browser login allowed backend-authenticated central `networkAdmin` without a local legacy user record, but `window.__imperioV63.currentUser()` stayed null; V67 `setPage('pros')` denied navigation before `renderPros()` could render the button.
+- FIX: `index.html` now projects only an authenticated central `networkAdmin` principal from `sessionStorage['imperio-v99-central-principal']` into a synthetic active admin user for the V67 guard. Non-network-admin central users are not promoted.
+- TESTS: red/green contract added to `backend/test/v99-frontend-central-bridge.contract.mjs`; local targeted commands passed:
+  - `node test/v99-frontend-central-bridge.contract.mjs` → PASS, 89 checks.
+  - `npm run test:frontend-central-bridge` → PASS.
+  - `node test/v99-professional-units-schedule-ui.contract.mjs` → PASS, 19 checks.
+  - `python3 -m py_compile backend/test/three-unit-ui-e2e.py` → PASS.
+- E2E CHANGE: `backend/test/three-unit-ui-e2e.py` now continues beyond button visibility and exercises 3B UI paths in the isolated browser: category creation, service creation with category/price/duration/online publication, professional creation with three-unit links, schedule rows, service eligibility, edit/reload persistence, workstation creation and reload persistence.
+- FILES_CHANGED: `index.html`; `backend/test/v99-frontend-central-bridge.contract.mjs`; `backend/test/three-unit-ui-e2e.py`; this handoff.
+- NEXT_SUBCHECKPOINT: 3B.
+- NEXT_EXACT_TASK: commit and push this recovery progress, wait for `Three-unit browser E2E (isolated)` and main `V98 Backend CI`; if the first real browser failure is in the newly expanded 3B flow, inspect the failure log/screenshot and correct only that confirmed UI/bridge issue. Do not start 3C until 3B browser CI is green.
+- DO_NOT_REPEAT: login proof, session proof, three-unit selector proof, canonical IDs proof, and the V67 `networkAdmin` permission root-cause diagnosis.
+- PRODUCTION_MUTATIONS: NONE.

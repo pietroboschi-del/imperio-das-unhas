@@ -21,6 +21,8 @@ ok(html.includes("db.bookings=(db.bookings||[]).filter(b=>!(b.unit===uid&&b.date
 ok(html.includes("registrationUnit:UNIT_TO_LOCAL[x.registrationUnitId]"),'cliente central retorna ao ID local de apresentação');
 ok(html.includes("if(!officialProductionMode())"),'produção não autentica silenciosamente pelo legado');
 ok(html.includes("applyCentralUnitGate();renderAdmin();toast('Sessão central autenticada ✓')"),'login central aplica gate antes da operação');
+ok(html.includes("function centralPermissionUserV99()"),'permissões V67 projetam usuário central autenticado');
+ok(html.includes("sessionStorage.getItem('imperio-v99-central-principal')")&&html.includes("p.networkAdmin===true")&&html.includes("networkAdmin:true"),'networkAdmin central sem usuário legado local consegue atravessar guards administrativos');
 ok(html.includes("createBlockSeries(body,key=operationKey('block_series'))"),'ponte expõe bloqueio recorrente central');
 ok(html.includes("updateClient(id,body)"),'ponte expõe atualização central de cliente');
 ok(html.includes("updateBooking(id,body)"),'ponte expõe atualização central de agenda');
