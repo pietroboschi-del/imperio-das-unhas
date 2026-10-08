@@ -3,10 +3,10 @@
 > Scope: WA1–WA5, no production activation. This is a recoverable checkpoint ledger; CI proves only its tested scope.
 
 ## CURRENT_HEAD
-b882c9aeb18e1672f1505558e95454e3f5a816a1 (baseline before Checkpoint A). **After Checkpoint A commit, replace with resulting commit SHA in next checkpoint; do not treat this baseline as branch HEAD.**
+e802df674b3444e104d377ef42e68a6737263ceb (source HEAD immediately before this ledger update; verify current branch HEAD at continuation)
 
 ## LAST_COMPLETED_CHECKPOINT
-A — COMPLETE (inventory evidence and CI verification)
+E — COMPLETE (B/C implementation and targeted gates passed in CI #505; D/E docs committed). F — PENDING full regression/CI.
 
 ## COMMITS
 - Baseline b882c9aeb18e1672f1505558e95454e3f5a816a1: fix(release): locate built backend entrypoint in rehearsal
@@ -82,12 +82,12 @@ Status **IMPLEMENTED; TESTED (CI #478)** means code/test artifacts exist and the
 - Evolution provider URL, API credential, instances per channel, verified inbound secret, phone number setup and operator approval. No secrets should be committed or printed.
 
 ## NEXT_CHECKPOINT
-B — SECURITY + FAILURES
+F — Final WA1–WA5 regression, build, typecheck, affected security/integration and full CI.
 
 ## NEXT_EXACT_ACTION
-1. Re-fetch official branch HEAD and this document from GitHub. Confirm no unrecognized concurrent commits.
-2. Inspect webhook auth, inbound replay/idempotency, outbound idempotency, retry/stale SENDING and failure handling in source and tests. Make only evidenced fixes.
-3. Run affected tests in a runnable checkout/CI, review diff, commit/push the correction, update this ledger with SHA and B status. Do not alter production.
+1. Revalidate branch HEAD and latest full CI. CI #505 proved B/C directed steps success (WA2, WA2.1, WA2.2, preflight); later gate status must be checked.
+2. Confirm synthetic migration rehearsal accepts 22 migrations (new additive WA status migration). Fix only the first actual remaining failure.
+3. Confirm the newest complete CI is SUCCESS for its exact SHA, run the full requested WA suite, and record F evidence. If green, mark F complete and prepare independent audit pack. If not green, keep F BLOCKED and preserve this ledger.
 
 ## DO_NOT_REPEAT
 - Do not redo Checkpoint A inventory unless actual relevant source changes.
@@ -96,3 +96,44 @@ B — SECURITY + FAILURES
 
 ## NORMAL_CHAT_CONTINUATION_INSTRUCTIONS
 Continue the Block 4 sequence B → C → D → E → F, one recoverable checkpoint at a time. Read GitHub HEAD, latest CI and this ledger before writing. On unexpected movement stop; on safety/data/prod conflict stop. Persist every checkpoint as commit and push, update fields (CURRENT_HEAD, LAST_COMPLETED_CHECKPOINT, COMMITS, TESTS, FINDINGS, FIXES, KNOWN_BLOCKERS, EXTERNAL_REQUIREMENTS, NEXT_CHECKPOINT, NEXT_EXACT_ACTION, DO_NOT_REPEAT, NORMAL_CHAT_CONTINUATION_INSTRUCTIONS). Release remains OFF; production mutations NONE.
+
+
+## CHECKPOINTS B–E COMPLETION EVIDENCE (2026-10-08)
+
+### CHECKPOINT B: COMPLETE — OUTBOUND SAFETY (targeted gates passed)
+- Added `MessagingOutboxStatus.RECONCILIATION_REQUIRED` and additive migration `20261008_wa2_outbox_reconciliation_required`; no migration changed in place.
+- Evolution errors now distinguish DEFINITE_FAILURE from DELIVERY_UNKNOWN. HTTP 5xx/408/429, timeout, connection failures, invalid 2xx and missing provider ID are conservatively ambiguous; no assumption about Evolution deduplication.
+- Dispatch moves unknown results and stale SENDING to RECONCILIATION_REQUIRED without scheduled retry. FAILED with nextAttemptAt null is terminal. PENDING and proven retry-due FAILED only are automatically eligible.
+- Privileged POST `/api/v1/admin/messaging/outbox/:id/reconcile`: CONFIRM_SENT (requires providerMessageId), CONFIRM_NOT_SENT (single controlled retry opportunity), CANCEL; NetworkAdmin guard, atomic state gate and operator audit.
+- Provider delivery status failure is quarantined instead of blindly retried. Inbound deduplication remains as previously implemented.
+- Tests include simulated provider HTTP/network ambiguity, stale SENDING, no auto replay, double worker claim, terminal failure, confirmed sent/not sent and admin authorization. CI #505 WA2/WA2.1/WA2.2/preflight steps passed; final aggregate validation is Checkpoint F.
+
+### CHECKPOINT C: COMPLETE — PREFLIGHT
+- `npm run whatsapp:preflight` -> `backend/tools/whatsapp-preflight.mjs`. Config presence/redacted secret checks, WA migrations, flags, instance requirements, job scripts, optional read-only Outbox summaries including RECONCILIATION_REQUIRED and stale SENDING count.
+- `npm run test:whatsapp-preflight` enforces no mutation or provider access and checks that secrets are not printed. CI #505 targeted step passed.
+
+### CHECKPOINT D: COMPLETE — ACTIVATION MATRIX
+- `backend/docs/release/whatsapp-activation-matrix.md` covers connection, inbound, availability, booking, multi-service, waitlist, automation, outbound, failures and controlled reconciliation with precondition, action, expected state, DB/log expectations, stop condition.
+
+### CHECKPOINT E: COMPLETE — OPERATIONAL HANDOVER
+- `backend/docs/release/whatsapp-operational-handover.md` gives instructions for connection/offline status, Outbox, stale SENDING, ambiguous delivery, network-admin reconciliation, safe shutdown, logs, escalation and reception fallback with WhatsApp OFF.
+
+## COMMITS (B–E)
+29 commits between starting A HEAD e9dcb55239b164439b8d045d42424aebbfbb399b and pre-ledger e802df674b3444e104d377ef42e68a6737263ceb; inspect GitHub compare for full logical list. Additional ledger commit follows.
+
+## TESTS (B–E)
+- CI #505 directed WA1, WA2, WA2.1, WA2.2, and WhatsApp read-only preflight contract: SUCCESS at their respective steps; full CI result still pending at ledger writing.
+- CI #498 failed only at synthetic migration rehearsal hardcoded target count=21; code now asserts 22 (actual migration directories counted as 22); revalidate on newer CI.
+
+## FINDINGS / FIXES / KNOWN_BLOCKERS
+- Safety risks (unknown timeout and stale retries) corrected at code level with tests, not certified against a live Evolution instance.
+- Full green CI for final HEAD and independent audit remain outstanding. Do not activate real WhatsApp.
+
+## EXTERNAL_REQUIREMENTS
+Provider URL, API key, instances, number, inbound secret, webhook URL and external operator approval are **EXTERNAL ACTIVATION DEPENDENCIES**, not code-readiness evidence.
+
+## PRODUCTION MUTATIONS
+NONE. No live Railway, PostgreSQL, deployment, migration, flag, webhook, number or message touched.
+
+## NORMAL_CHAT_CONTINUATION_INSTRUCTIONS
+Resume exclusively at Checkpoint F from the branch HEAD, verify the latest CI and full WA/regression gates. Do not repeat A or rewrite B–E unless evidence shows a real regression. CI must be green at final HEAD before declaring READY FOR FINAL AUDIT.
