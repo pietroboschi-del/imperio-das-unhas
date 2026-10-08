@@ -95,8 +95,12 @@ def main():
                 print(json.dumps({"scenario":"3B-unit-picker","options":labels,"selected":picker.input_value()},ensure_ascii=False))
                 assert len(labels)==3, "Expected exactly three authorized canonical units in real admin picker"
                 for local in ("u3","u1","u2"):
+                    before_value=picker.input_value()
                     picker.select_option(value=local)
-                    assert picker.input_value()==local,"Unit switch did not persist in selector"
+                    page.wait_for_timeout(180)
+                    actual=picker.input_value()
+                    print(json.dumps({"scenario":"3B-unit-switch","before":before_value,"requested":local,"after":actual,"options":picker.locator("option").evaluate_all("(els)=>els.map(e=>({value:e.value,text:e.textContent}))")},ensure_ascii=False))
+                    assert actual==local,"Unit switch did not persist in selector"
                 picker.select_option(value="u3")
                 page.get_by_role("button",name="Profissionais",exact=True).click()
                 page.wait_for_timeout(500)
