@@ -59,8 +59,10 @@ async function main(){
   ok(crossBooking.unitId==='big'&&crossBooking.clientId===client.id,'cross-unit booking reuses single global Client identity');
   r=await fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...crossHeaders,'idempotency-key':'cross-cash-denied'},body:JSON.stringify({businessDate:'2026-10-06',openingAmount:0})});
   ok(r.status===403,'network agenda grant does not authorize Big cash');
+  const locationCountBeforeDeniedStock=await prisma.stockLocation.count();
   r=await fetch(base+'/api/v1/stock/consumptions',{method:'POST',headers:{...crossHeaders,'idempotency-key':'cross-stock-denied'},body:JSON.stringify({locationId:'big',items:[{productId:'synthetic-denied',qty:1}]})});
   ok(r.status===403,'network agenda grant does not authorize Big stock');
+  ok(await prisma.stockLocation.count()===locationCountBeforeDeniedStock,'denied stock request does not create locations');
   r=await fetch(base+'/api/v1/config/workstations',{method:'POST',headers:crossHeaders,body:JSON.stringify({id:'cross-config-denied',unitId:'big',name:'Forbidden',allowedCategoryIds:[]})});
   ok(r.status===403,'network agenda grant does not authorize structural configuration');
   ok(await prisma.client.count({where:{id:client.id}})===1,'same Client retained across Centro and Big');
