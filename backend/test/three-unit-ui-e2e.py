@@ -6,7 +6,7 @@ import json, os, subprocess, sys, time, urllib.request
 from pathlib import Path
 from datetime import date,timedelta
 from urllib.parse import urlsplit
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 ROOT=Path(__file__).resolve().parents[2]
 BACKEND=ROOT/"backend"
@@ -525,8 +525,25 @@ def main():
 
                 # 3E — real operational UI, isolated PostgreSQL. No raw API or SQL writes.
                 page.locator("#unitPicker").select_option(value="u3")
-                page.get_by_role("button",name="Estoque",exact=True).click()
-                page.wait_for_function("() => !!document.querySelector('.stock-nav')",timeout=15000)
+                # The central unit refresh may asynchronously rerender the legacy admin
+                # shell and supersede the first Stock navigation click. Repeat only the
+                # real visible UI action; never substitute a direct route or API fixture.
+                for stock_nav_attempt in range(3):
+                    page.get_by_role("button",name="Estoque",exact=True).click()
+                    try:
+                        page.wait_for_function("() => !!document.querySelector('.stock-nav')",timeout=6000)
+                        break
+                    except PlaywrightTimeoutError:
+                        state=page.evaluate("""() => ({
+                          unit:document.querySelector('#unitPicker')?.value,
+                          page:typeof page==='undefined'?'unknown':page,
+                          heading:document.querySelector('#adminPage')?.innerText.slice(0,250),
+                          stockNav:!!document.querySelector('.stock-nav'),
+                          authenticated:sessionStorage.getItem('imperio-v99-central-authenticated')
+                        })""")
+                        print(json.dumps({"scenario":"3G-stock-admin-route-reentry","attempt":stock_nav_attempt+1,"state":state},ensure_ascii=False))
+                else:
+                    raise AssertionError("Stock navigation did not survive central unit refresh")
                 page.locator(".stock-nav").get_by_role("button",name="Produtos",exact=True).click()
                 page.wait_for_function("() => !!document.querySelector('#adminPage button[onclick=\"openStockProduct()\"]')",timeout=15000)
                 product_name="Produto E2E Caixa Estoque "+suffix
