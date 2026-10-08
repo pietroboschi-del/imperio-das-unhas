@@ -78,18 +78,34 @@ async function clientAgenda(owner,cfg){
  const desk=await login('journey_agenda_ci','journey-agenda-password-123');
  const found=await good(await req('/api/v1/clients?q=Cliente%20Global',{actor:desk,unit:'centro'}),'global client search from Centro');
  ok(found.some(c=>c.id===client.id),'same central Client can be found in Centro');
- for(const [unit,time,actor] of [['big','10:00',owner],['centro','11:00',desk],['shopping-contagem','12:00',owner]]){
-  const b=await good(await req('/api/v1/bookings',{actor,unit,method:'POST',key:'journey-booking-'+unit,body:{clientId:client.id,serviceId:cfg.service,professionalId:cfg.pros[unit],serviceDate:cfg.date,startAt:cfg.date+'T'+time+':00-03:00'}}),'appointment '+unit);
+ for(const [unit,time] of [['big','10:00'],['centro','11:00'],['shopping-contagem','12:00']]){
+  const search=await good(await req('/api/v1/clients?q=Cliente%20Global',{actor:desk,unit}),'global client search '+unit);
+  ok(search.some(c=>c.id===client.id),'client reused in '+unit);
+  const availability=await good(await req('/api/v1/public/availability?unitId='+unit+'&serviceId='+cfg.service+'&professionalId='+cfg.pros[unit]+'&date='+cfg.date),'availability for reception '+unit);
+  ok(Array.isArray(availability.slots)&&availability.slots.length>0,'available time in '+unit);
+  const b=await good(await req('/api/v1/bookings',{actor:desk,unit,method:'POST',key:'journey-booking-'+unit,body:{clientId:client.id,serviceId:cfg.service,professionalId:cfg.pros[unit],serviceDate:cfg.date,startAt:cfg.date+'T'+time+':00-03:00'}}),'reception appointment '+unit);
   eq(b.clientId,client.id,'same global client in '+unit);
+  const visible=await good(await req('/api/v1/bookings',{actor:desk,unit}),'reception booking readback '+unit);
+  ok(visible.some(x=>x.id===b.id),'cross-unit agenda read permission '+unit);
  }
  eq(await prisma.client.count({where:{id:client.id}}),1,'no duplicate Client');
  eq(await prisma.clientUnitLink.count({where:{clientId:client.id,active:true}}),3,'three unit history links');
- const cashDenied=await req('/api/v1/cash-sessions',{actor:desk,unit:'centro',method:'POST',key:'journey-denied-cash',body:{businessDate:cfg.date,openingAmount:0}});
- eq(cashDenied.status,403,'agenda permission does not grant cross-unit cash');
- const before=await prisma.stockLocation.count();
- const stockDenied=await req('/api/v1/stock/consumptions',{actor:desk,unit:'centro',method:'POST',key:'journey-denied-stock',body:{locationId:'centro',items:[{productId:'none',qty:1}]}});
- eq(stockDenied.status,403,'agenda permission does not grant stock');
- eq(await prisma.stockLocation.count(),before,'denied stock request writes nothing');
+ for(const unit of UNITS){
+  const before={cash:await prisma.cashSession.count(),finance:await prisma.openCommand.count(),stock:await prisma.stockLocation.count(),movements:await prisma.stockMovement.count(),workstations:await prisma.workstation.count()};
+  const cashDenied=await req('/api/v1/cash-sessions',{actor:desk,unit,method:'POST',key:'journey-denied-cash-'+unit,body:{businessDate:cfg.date,openingAmount:0}});
+  eq(cashDenied.status,403,'cross-unit agenda cannot open cash '+unit);
+  const financeDenied=await req('/api/v1/commands',{actor:desk,unit,method:'POST',key:'journey-denied-finance-'+unit,body:{clientId:client.id,serviceDate:cfg.date,grossAmount:50}});
+  eq(financeDenied.status,403,'cross-unit agenda cannot create command '+unit);
+  const stockDenied=await req('/api/v1/stock/consumptions',{actor:desk,unit,method:'POST',key:'journey-denied-stock-'+unit,body:{locationId:unit,items:[{productId:'none',qty:1}]}});
+  eq(stockDenied.status,403,'cross-unit agenda cannot consume stock '+unit);
+  const configDenied=await req('/api/v1/config/workstations',{actor:desk,unit,method:'POST',body:{id:'journey-denied-workstation-'+unit,unitId:unit,name:'Forbidden workstation',allowedCategoryIds:[]}});
+  eq(configDenied.status,403,'cross-unit agenda cannot configure '+unit);
+  eq(await prisma.cashSession.count(),before.cash,'denied cash has no side effect '+unit);
+  eq(await prisma.openCommand.count(),before.finance,'denied finance has no side effect '+unit);
+  eq(await prisma.stockLocation.count(),before.stock,'denied stock creates no location '+unit);
+  eq(await prisma.stockMovement.count(),before.movements,'denied stock creates no movement '+unit);
+  eq(await prisma.workstation.count(),before.workstations,'denied config creates no workstation '+unit);
+ }
  return client;
 }
 async function publicJourney(cfg,client){
