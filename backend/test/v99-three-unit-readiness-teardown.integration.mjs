@@ -7,6 +7,7 @@ const db=new PrismaClient();
 const cases=[
   {stage:null,expected:0},
   {stage:'after_schema',expected:1},
+  {stage:'migration_failure',expected:1},
   {stage:'after_migration',expected:1},
   {stage:'client_init',expected:1},
   {stage:'mid_fixture',expected:1},
