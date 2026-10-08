@@ -48,3 +48,21 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - NEXT_SUBCHECKPOINT: 3B — browser-click `Área da equipe`, authenticate real CI admin through visible form and then inspect admin configuration screens; no cookie injection or direct API bootstrap for UI actions.
 - NEXT_EXACT_TASK: Extend Playwright script with real login flow and durable post-login rendered assertions; run in CI, fix only observed failure, update this ledger after green.
 - DO_NOT_REPEAT: Checkpoints 1 and 2, 3A browser harness/environment, all WA1–WA5 implementation.
+
+
+## CONTROLLED STOP — CHECKPOINT 3B (2026-10-08)
+- CURRENT_HEAD (before this handoff commit): 8448057789d97c4eede160fb0bb6010cf048e54f
+- LAST_COMPLETED_SUBCHECKPOINT: 3A — COMPLETE (real Chromium frontend/backend isolated, CI #539 SUCCESS).
+- CURRENT_SUBCHECKPOINT_STATUS: 3B PARTIAL / BLOCKED. Authenticated networkAdmin through real browser, three canonical unit options and actual switching now pass. Professional configuration screen save/reload not verified.
+- COMMITS: 86d1020 (headless browser harness), 20c26ef (npm script), fe9faa6 (main CI), d356af1 (3A handoff), ac307fe (login form), 1607fa9 (login action), 6b528ca (routing diagnostic), 7e2dbf3 (fast browser workflow), 7c4aa31 (request diagnostic), 6894746 and a228021 (isolated official central host and network isolation), fdb3ba5 (bridge diagnostic), 74174f0 (frontend CI trigger), e983ecf (networkAdmin without legacy user), 1d1be84 (canonical selector navigation test), 3b4026c (move main UI test after other integration gates), 56b2f79 and ec47c01 (selection diagnostic), 8448057 (central unit selector fix).
+- FILES_CHANGED: index.html; backend/test/three-unit-ui-e2e.py; backend/package.json; .github/workflows/backend-ci.yml; .github/workflows/three-unit-browser-e2e.yml; this handoff.
+- TESTS_PASSED: V98 Backend CI #539 SUCCESS on fe9faa6; browser isolated #7 SUCCESS on e983ecf verified authenticated central admin; targeted browser #11 on 8448057 explicitly passed login and all three unit selector switches (u1 Big, u2 Shopping Contagem, u3 Centro) before its next failing assertion.
+- CI_STATUS: targeted Three-unit browser E2E #11, run 37795385134, FAILURE at first professional UI navigation assertion (not the unit selector). V98 Backend CI #555 for 8448057 was running at stop, must check before next change. No green full aggregate CI on final code HEAD claimed.
+- FINDINGS: localhost activates legacy login, isolated .test domain activates central route; central networkAdmin lacking legacy local record was rejected despite successful API login; legacy unit picker would empty canonical choices on change; both minimal bridges fixed and browser-proven.
+- FIXES_APPLIED: allow authenticated networkAdmin without local legacy mapping (do not relax non-admin rule); restore canonical unit choices after legacy selector change handler, retaining selection; isolated Chromium CI with no production network and synthetic CI database.
+- KNOWN_BLOCKERS: after clicking real 'Profissionais' navigation, assertion 'Professionals configuration is not navigable' fails because '+ Nova profissional' button is not visible. Determine whether async load or UI/permission bridge failure, fix minimally, then verify actual professional creation and persistence. All other substantive Checkpoint 3 flows unverified.
+- REMAINING_SUBCHECKPOINTS: 3B incomplete; 3C, 3D, 3E, 3F, 3G NOT STARTED. Checkpoint 4 not started, P2 inputs not re-audited.
+- NEXT_SUBCHECKPOINT: 3B ONLY.
+- NEXT_EXACT_TASK: verify latest branch HEAD and related full CI; examine Playwright #11 log/screenshot after clicking Profissionais; diagnose visible page/route/permissions; correct only confirmed UI bridge; run fast browser CI and main CI; then save checkpoint handoff. Do not broaden into 3C until 3B has functional evidence and green CI.
+- DO_NOT_REPEAT: Checkpoints 1 and 2, 3A harness, WA1–WA5 foundations, original conceptual audit, baseline manifest/migration work.
+- PRODUCTION_MUTATIONS: NONE. Live ledger/checksums/flags/backup NOT VERIFIED.
