@@ -68,7 +68,7 @@ for (const forbidden of [
 }
 ok(!/\b(?:prisma|tx)\.\w+\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/.test(preflight), 'preflight never performs Prisma model writes');
 ok(preflight.includes("createHash('sha256').update(fs.readFileSync(file))"), 'cryptographic hash update allowed without DB writes');
-ok(!/\b(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)\b/i.test(preflight), 'preflight source contains no DDL/DML keywords');
+ok(!/\b(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)\b/i.test(preflight.replace("createHash('sha256').update(fs.readFileSync(file))", 'SHA256_DIGEST_ONLY')), 'preflight source contains no DDL/DML keywords');
 
 const delta = read('../tools/release-delta.mjs');
 for (const needle of [
