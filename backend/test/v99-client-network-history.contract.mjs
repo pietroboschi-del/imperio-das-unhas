@@ -18,4 +18,14 @@ must(html.includes("operationalSummary(date=''){return centralRequest('/api/v1/r
 must(html.includes("central-operational-summary"),'admin reports page renders central operational summary');
 must(controller.includes("@Get('reports/operational-summary')"),'backend exposes canonical operational reports');
 must(controller.includes("@RequirePermissions('reports.read')"),'report summary enforces report permission');
+must(html.includes("adminUsers(){return centralRequest('/api/v1/admin/users'"),'admin users list goes through central API');
+must(html.includes("createAdminUser(body){return centralRequest('/api/v1/admin/users'"),'user creation goes through central API');
+must(html.includes("updateAdminUser(id,body){return centralRequest('/api/v1/admin/users/"),'user edit goes through central API');
+must(html.includes("centralSaveUserAccess"),'central user save handler is wired');
+must(html.includes("adminActivationToken(id){return centralRequest('/api/v1/auth/users/"),'password activation uses backend token');
+must(html.includes("configWorkstations(){return centralRequest('/api/v1/config/workstations'"),'workstation list goes through central API');
+must(html.includes("createConfigWorkstation(body){return centralRequest('/api/v1/config/workstations'"),'workstation create goes through central API');
+must(html.includes("updateConfigWorkstation(id,body){return centralRequest('/api/v1/config/workstations/"),'workstation update goes through central API');
+must(html.includes("window.v77SaveWorkstation=async function"),'central workstation UI save handler exists');
+must(html.includes("db.workstations=rows.map"),'central workstations replace local display data');
 console.log(JSON.stringify({ok:true,checks,feature:'client_network_history_frontend_contract'}));
