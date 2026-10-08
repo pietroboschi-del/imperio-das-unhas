@@ -34,4 +34,9 @@ must(html.includes("updateConfigCategory(id,body){return centralRequest('/api/v1
 must(html.includes("window.centralSaveCategory=async function"),'service category DOM save handler exists');
 must(html.includes("window.v63OpenUser=function"),'users DOM editor connected to central mode');
 must(html.includes("central-user-unit-permission"),'user editor exposes permissions for each unit');
+must(html.includes('onclick="centralOpenActivation()"'),'login exposes self-service activation path');
+must(html.includes("window.centralSubmitActivation=async function"),'activation is handled in frontend');
+must(html.includes("endpoint()+'/api/v1/auth/activate'"),'activation uses public central API endpoint');
+must(html.includes("central-user-unit-permission"),'per-unit permission fields exist');
+must(html.includes("authoritativeCentralUserOpen"),'central user UI survives later adapter registration');
 console.log(JSON.stringify({ok:true,checks,feature:'client_network_history_frontend_contract'}));
