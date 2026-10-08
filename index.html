@@ -7369,6 +7369,14 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   }catch(e){toast('Acesso não salvo: '+e.message);return false}
  };
  window.v63SaveUser=function(id=''){if(centralAuthenticated())return window.centralSaveUserAccess(id);return localSaveUser?.(id)};
+ // V99 user adapter is registered later in the HTML. Restore the canonical
+ // API-backed editor after all synchronous scripts have loaded.
+ const authoritativeCentralUserOpen=window.v63OpenUser;
+ const authoritativeCentralUserSave=window.v63SaveUser;
+ setTimeout(()=>{
+  window.v63OpenUser=authoritativeCentralUserOpen;
+  window.v63SaveUser=authoritativeCentralUserSave;
+ },0);
  const legacySettingsTab=window.v63SetSettingsTab;
  if(legacySettingsTab)window.v63SetSettingsTab=function(tab){
   const result=legacySettingsTab.apply(this,arguments);
