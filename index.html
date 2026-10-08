@@ -7177,6 +7177,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   setConfigProfessionalActive(id,active){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id)+'/active',{method:'PATCH',body:{active},unitRequired:false})},
   clients(q=''){return centralRequest('/api/v1/clients'+(q?'?q='+encodeURIComponent(q):''))},
   clientHistory(id){return centralRequest('/api/v1/clients/'+encodeURIComponent(id)+'/history')},
+  operationalSummary(date=''){return centralRequest('/api/v1/reports/operational-summary'+(date?'?date='+encodeURIComponent(date):''))},
   bookings(date=''){return centralRequest('/api/v1/bookings'+(date?'?date='+encodeURIComponent(date):''))},
   waitlist(){return centralRequest('/api/v1/waitlist')},tasks(){return centralRequest('/api/v1/tasks')},
   createClient(body,key=operationKey('client')){return centralRequest('/api/v1/clients',{method:'POST',body,key})},
@@ -7290,6 +7291,33 @@ button,.btn,input,select,textarea{touch-action:manipulation}
    return result;
   };
   window.renderClientProfileTab=patched;try{renderClientProfileTab=patched}catch(e){}
+ }
+
+ const originalCentralReports=window.renderReports||((typeof renderReports==='function')?renderReports:null);
+ if(originalCentralReports){
+  const wrapped=function(){
+   const result=originalCentralReports.apply(this,arguments);
+   if(centralAuthenticated()&&centralUnitId()){
+    const reportUnit=centralUnitId(),container=document.createElement('section');
+    container.id='central-operational-summary';container.className='report-card';
+    container.innerHTML='<h3>Resumo operacional — PostgreSQL</h3><div class="muted">Carregando dados centrais…</div>';
+    adminPage.prepend(container);
+    centralApi.operationalSummary().then(data=>{
+     if(page!=='reports'||centralUnitId()!==reportUnit||!container.isConnected)return;
+     container.innerHTML='<h3>Resumo operacional — '+escapeHtml(({centro:'Centro',big:'Big Shopping','shopping-contagem':'Shopping Contagem'})[data.unitId]||data.unitId)+'</h3>'+
+      '<div class="report-kpis">'+[
+       ['Agendamentos',data.bookings],['Serviços agendados',data.bookingItems],
+       ['Comandas',data.commands],['Pagamentos confirmados',data.confirmedPayments],
+       ['Valor recebido',money(Number(data.confirmedPaymentAmount||0))],
+       ['Clientes vinculadas',data.linkedClients],['Movimentações de estoque',data.stockMovements]
+      ].map(x=>'<div class="report-card"><div class="muted">'+escapeHtml(x[0])+'</div><b>'+escapeHtml(String(x[1]))+'</b></div>').join('')+'</div>';
+    }).catch(error=>{
+     if(page==='reports'&&container.isConnected)container.innerHTML='<h3>Resumo operacional — PostgreSQL</h3><div class="muted">Relatório central indisponível: '+escapeHtml(error.message||'Falha de comunicação')+'</div>';
+    });
+   }
+   return result;
+  };
+  window.renderReports=wrapped;try{renderReports=wrapped}catch(e){}
  }
  const legacyRenderClients=window.renderClients||((typeof renderClients==='function')?renderClients:null);
  if(legacyRenderClients){let wrapped=function(){let out=legacyRenderClients.apply(this,arguments);if(centralEnabled())refreshCentralClients(document.getElementById('clientSearch')?.value||'').then(()=>{if(typeof renderClientRows==='function')renderClientRows()}).catch(e=>toast('Clientes centrais indisponíveis: '+e.message));return out};window.renderClients=wrapped;try{renderClients=wrapped}catch(e){}}
