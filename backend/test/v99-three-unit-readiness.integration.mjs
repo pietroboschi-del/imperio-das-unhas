@@ -69,18 +69,22 @@ async function addProfessional({id,active=true,link=true,published=true,services
 
 let fixture;
 let schemaCreated=false;
+function injectFailure(stage){if(process.env.READINESS_INJECT_FAILURE===stage)throw new Error('READINESS_INJECTED_'+stage)}
 let mainFailure;
 try{
   adminPrisma=new PrismaClient();
   await assertSafeTestDatabase();
   await adminPrisma.$executeRawUnsafe('CREATE SCHEMA "'+ISOLATED_SCHEMA+'"');
   schemaCreated=true;
+  injectFailure('after_schema');
   const fixtureUrl=new URL(process.env.DATABASE_URL);
   fixtureUrl.searchParams.set('schema',ISOLATED_SCHEMA);
   const migrated=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{
     cwd:new URL('../',import.meta.url),env:{...process.env,DATABASE_URL:fixtureUrl.toString()},encoding:'utf8',timeout:120000
   });
-  assert.equal(migrated.status,0,'isolated readiness migrations failed: '+String(migrated.stderr||'').slice(0,500));
+  assert.equal(migrated.status,0,'isolated readiness migrations failed (diagnostics withheld)');
+  injectFailure('after_migration');
+  if(process.env.READINESS_INJECT_FAILURE==='client_init')throw new Error('READINESS_INJECTED_client_init');
   prisma=new PrismaClient({datasources:{db:{url:fixtureUrl.toString()}}});
   const schemaIdentity=await prisma.$queryRaw`SELECT current_schema() AS schema_name,current_database() AS database_name`;
   equal(schemaIdentity[0]?.schema_name,ISOLATED_SCHEMA,'Prisma must use isolated schema');
@@ -106,6 +110,7 @@ try{
   equal(report.units.aliases['big-shopping'].exists,false,'alias big-shopping ausente');
   equal(report.units.aliases.central.exists,false,'central não é Unit');
 
+  injectFailure('mid_fixture');
   await prisma.user.create({data:{id:'readiness-user',username:'readiness-user',displayName:'Readiness User',active:true,unitAccesses:{create:{unitId:'centro',role:'reception',permissions:[],active:true}}}});
   report=await buildReadinessReport(prisma,{migrationsDir:fixture.root,now:new Date('2026-10-08T12:00:00.000Z')});
   equal(report.users.byUnit.centro.operableProfiles,0,'papel sem permissões não torna usuário operacional');
@@ -160,6 +165,7 @@ try{
   ok(report.migrations.incomplete.some(x=>x.migrationName===incomplete),'migration incompleta é detectada');
   ok(report.migrations.unexpected.some(x=>x.migrationName===unexpected),'migration inesperada é detectada');
 
+  injectFailure('assertion');
   console.log(JSON.stringify({ok:true,tests,feature:'three_unit_readiness_integration'}));
  }catch(error){mainFailure=error;
 }finally{
