@@ -3,10 +3,10 @@
 > Scope: WA1–WA5, no production activation. This is a recoverable checkpoint ledger; CI proves only its tested scope.
 
 ## CURRENT_HEAD
-e802df674b3444e104d377ef42e68a6737263ceb (source HEAD immediately before this ledger update; verify current branch HEAD at continuation)
+92ceaca3db40d6571e3f0bb9e49570424e3c5e53 (fully green code HEAD, V98 Backend CI #518; this document commit will advance the branch, verify its CI separately)
 
 ## LAST_COMPLETED_CHECKPOINT
-E — COMPLETE (B/C implementation and targeted gates passed in CI #505; D/E docs committed). F — PENDING full regression/CI.
+F — COMPLETE (full V98 Backend CI #518 SUCCESS, run 37741879212, head 92ceaca3db40d6571e3f0bb9e49570424e3c5e53)
 
 ## COMMITS
 - Baseline b882c9aeb18e1672f1505558e95454e3f5a816a1: fix(release): locate built backend entrypoint in rehearsal
@@ -76,18 +76,18 @@ Status **IMPLEMENTED; TESTED (CI #478)** means code/test artifacts exist and the
 ## KNOWN_BLOCKERS
 - Actual production flags/provider status **NOT VERIFIED**; must not infer from CI defaults.
 - Provider/number/secret/connectivity require separate authorized future activation.
-- Detailed security/failure audit, read-only preflight, activation matrix, operational handover and final regression remain.
+- All code/document checkpoints completed; independent final audit and external activation dependencies remain.
 
 ## EXTERNAL_REQUIREMENTS
 - Evolution provider URL, API credential, instances per channel, verified inbound secret, phone number setup and operator approval. No secrets should be committed or printed.
 
 ## NEXT_CHECKPOINT
-F — Final WA1–WA5 regression, build, typecheck, affected security/integration and full CI.
+INDEPENDENT FINAL AUDIT — no additional code changes authorized.
 
 ## NEXT_EXACT_ACTION
-1. Revalidate branch HEAD and latest full CI. CI #505 proved B/C directed steps success (WA2, WA2.1, WA2.2, preflight); later gate status must be checked.
-2. Confirm synthetic migration rehearsal accepts 22 migrations (new additive WA status migration). Fix only the first actual remaining failure.
-3. Confirm the newest complete CI is SUCCESS for its exact SHA, run the full requested WA suite, and record F evidence. If green, mark F complete and prepare independent audit pack. If not green, keep F BLOCKED and preserve this ledger.
+1. Confirm this ledger-only final commit's own CI is SUCCESS and record final branch SHA in the audit capsule.
+2. Independent auditor checks outbound ambiguity, stale quarantine, manual reconciliation and migration. Real Evolution, number, webhook and secrets remain unconfigured and OFF.
+3. Do not deploy, activate WhatsApp or touch live Railway/PostgreSQL.
 
 ## DO_NOT_REPEAT
 - Do not redo Checkpoint A inventory unless actual relevant source changes.
@@ -136,4 +136,22 @@ Provider URL, API key, instances, number, inbound secret, webhook URL and extern
 NONE. No live Railway, PostgreSQL, deployment, migration, flag, webhook, number or message touched.
 
 ## NORMAL_CHAT_CONTINUATION_INSTRUCTIONS
-Resume exclusively at Checkpoint F from the branch HEAD, verify the latest CI and full WA/regression gates. Do not repeat A or rewrite B–E unless evidence shows a real regression. CI must be green at final HEAD before declaring READY FOR FINAL AUDIT.
+All Checkpoints A–F are implemented and validated through CI #518 for code HEAD 92ceaca3. Verify the newest documentation-only ledger commit CI before final READY FOR FINAL AUDIT. Independent audit required; no activation authorized.
+
+
+## CHECKPOINT F: COMPLETE — FULL REGRESSION EVIDENCE
+- V98 Backend CI #518, run 37741879212, exact HEAD 92ceaca3db40d6571e3f0bb9e49570424e3c5e53: **SUCCESS**.
+- Full gates: Prisma generate+migrations, build, typecheck, WA1, WA2, WA2.1, WA2.2, preflight, WA3A/B/C.1–C.4, WA4.1–4.7, WA4 E2E, WA5.2–5.8, static/projector, frontend bridge, security integration, synthetic migration rehearsal, stock, agenda, financial and public booking tests.
+- Safe HTTP/provider failure simulation: 400 terminal, 408/429/500 uncertain, malformed/ID-less 2xx uncertain, abort/network failure uncertain. Real Evolution was never contacted.
+- Late provider success after stale quarantine cannot falsely report durable SENT; specific behavioral regression added.
+- Reconciliation GET admin queue returns IDs/metadata without message body or client contact; POST privileged conditional transition and audit.
+- New migration verified among 22 migrations in rehearsal, without modifying historical migration SQL.
+- Final code HEAD recorded above; the commit updating this ledger contains no runtime changes, and has a separate CI run.
+
+## AUDIT CAPSULE
+- Starting HEAD: e9dcb55239b164439b8d045d42424aebbfbb399b (Checkpoint A).
+- Fully green code HEAD: 92ceaca3db40d6571e3f0bb9e49570424e3c5e53 (#518 SUCCESS).
+- Migration: backend/prisma/migrations/20261008_wa2_outbox_reconciliation_required/migration.sql (additive enum state).
+- Files: backend/src/messaging/{messaging-dispatch.service.ts,messaging-inbound.service.ts,evolution-messaging.provider.ts,evolution-config.ts,messaging.provider.ts,messaging-reconciliation.service.ts,messaging-reconciliation.controller.ts,messaging.module.ts}, backend/prisma/schema.prisma, backend/test/wa2*, backend/test/v98b-security.integration.mjs, backend/tools/whatsapp-preflight.mjs, backend/test/wa4-preflight-read-only.contract.mjs, backend/docs/release/whatsapp-{activation-matrix,operational-handover}.md, backend/package.json, .github/workflows/backend-ci.yml, synthetic migration rehearsal and release contract.
+- Residual: provider version-specific real integration, live number, credentials, instance/webhook setup and independent final audit. No live activation performed.
+- PRODUCTION MUTATIONS: NONE.
