@@ -39,4 +39,8 @@ must(html.includes("window.centralSubmitActivation=async function"),'activation 
 must(html.includes("endpoint()+'/api/v1/auth/activate'"),'activation uses public central API endpoint');
 must(html.includes("central-user-unit-permission"),'per-unit permission fields exist');
 must(html.includes("authoritativeCentralUserOpen"),'central user UI survives later adapter registration');
+must(html.includes('id="centralUserRole"'),'admin editor supports role choice');
+must(html.includes("if(u?.networkAdmin){toast('A conta do dono é protegida')"),'owner identity is not edited through staff form');
+must(html.includes("window.__imperioV63?.renderSettings?.()"),'central user reload calls canonical renderer');
+must(html.includes("Promise.all([centralApi.configWorkstations(),centralApi.configCategories()])"),'workstation editor receives canonical service categories');
 console.log(JSON.stringify({ok:true,checks,feature:'client_network_history_frontend_contract'}));
