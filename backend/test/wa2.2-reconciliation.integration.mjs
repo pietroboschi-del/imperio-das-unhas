@@ -37,6 +37,9 @@ try{
  await dispatch.processPending(10);
  eq(fake.calls.length,1,'pending dispatch never resends unknown');
  ok(await db.auditEvent.count({where:{entityId:ambiguous.id,action:'communication.reconciliation_required'}})===1,'uncertainty audited');
+ const queue=await reconcile.listPending();
+ ok(queue.some(x=>x.id===ambiguous.id),'admin can locate unresolved Outbox ID');
+ ok(queue.every(x=>!('payload' in x)&&!('idempotencyKey' in x)),'reconciliation queue does not expose content or logical keys');
  await reconcile.reconcile(ambiguous.id,'CONFIRM_NOT_SENT','wa2-test-operator');
  row=await db.messagingOutbox.findUniqueOrThrow({where:{id:ambiguous.id}});
  eq(row.status,'FAILED','explicit proof of no send permits retry');
