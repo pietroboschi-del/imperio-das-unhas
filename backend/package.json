@@ -78,7 +78,8 @@
     "test:employee-config-readiness": "node test/v99-employee-config-readiness.contract.mjs && node test/v99-professional-units-schedule-ui.contract.mjs && node test/v99-employee-config-permissions.integration.mjs",
     "test:booking-item-data-model": "node test/v99-booking-item-data-model.contract.mjs && node test/v99-booking-item-source-of-truth.integration.mjs",
     "booking-items:audit": "node tools/booking-item-backfill-report.mjs",
-    "test:stock-foundation": "node test/v99-stock-foundation.contract.mjs && node test/v99-stock-foundation.integration.mjs"
+    "test:stock-foundation": "node test/v99-stock-foundation.contract.mjs && node test/v99-stock-foundation.integration.mjs",
+    "test:empty-state-journey": "node test/v99-empty-state-operational-journey.integration.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
