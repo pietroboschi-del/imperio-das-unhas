@@ -636,7 +636,21 @@ def main():
                 page.on("console",lambda msg: payment_console.append(msg.text[:300]) if msg.type=="error" else None)
                 secure_state=page.evaluate("""() => ({secure:window.isSecureContext,crypto:!!window.crypto,subtle:!!window.crypto?.subtle,draft:db.clientCommands.at(-1)?.paymentDraft?.map(p=>({id:p.id,method:p.methodId,amount:p.amount,account:p.accountId}))})""")
                 print(json.dumps({"scenario":"3E-before-payment-confirm","security":secure_state},ensure_ascii=False))
-                assert secure_state["secure"] and secure_state["subtle"],"Isolated Chromium must emulate HTTPS WebCrypto for financial reconciliation"
+                assert secure_state["secure"] and secure_state["subtle"],"Isolated Chromium must provide WebCrypto for financial reconciliation"
+                # No professional is chosen yet. The UI must reject before POST,
+                # not leave a centrally paid command with unfinished local effects.
+                page.get_by_role("button",name="Confirmar pagamento").click()
+                page.wait_for_timeout(500)
+                rejected=page.evaluate("""() => ({toast:document.querySelector('#toast')?.innerText||'',modal:!!document.querySelector('#modalHost .payment-shell')})""")
+                print(json.dumps({"scenario":"3E-direct-recipient-preflight-rejected","state":rejected,"network":payment_http[-8:]},ensure_ascii=False))
+                assert rejected["modal"] and "Selecione a profissional" in rejected["toast"],"Direct recipient missing was not rejected visibly"
+                assert not any(r["method"]=="POST" and r["path"].endswith("/payments") for r in payment_http),"Central payment was posted before recipient validation"
+                # Two services have distinct professionals; the recipient is explicit.
+                recipient=page.locator("#paymentLines .pay-professional").first
+                assert recipient.count()==1,"Direct payment recipient selector missing"
+                recipient.select_option(label=pro_edited)
+                selected_recipient=recipient.input_value()
+                assert selected_recipient,"Recipient must be attached to the actual service professional"
                 page.get_by_role("button",name="Confirmar pagamento").click()
                 page.wait_for_timeout(3000)
                 pay_after=page.evaluate("""() => ({modal:document.querySelector('#modalHost')?.innerText?.slice(-450),paymentVisible:!!document.querySelector('#modalHost .payment-shell'),toast:document.querySelector('#toast')?.innerText||document.querySelector('.toast')?.innerText||'',commands:db.clientCommands.filter(c=>c.central).slice(-2).map(c=>({id:c.id,status:c.status,paymentDraft:c.paymentDraft?.map(p=>({id:p.id,method:p.methodId,amount:p.amount}))})),cash:db.cashSessions.filter(c=>c.unitId==='u3').map(c=>({id:c.id,status:c.status}))})""")
@@ -644,7 +658,71 @@ def main():
                 page.wait_for_function("() => !document.querySelector('#modalHost .payment-shell')",timeout=20000)
                 paid=page.evaluate("""() => db.clientCommands.filter(c=>c.clientName?.includes('Cliente E2E Rede')&&c.unitId==='u3').map(c=>({id:c.id,status:c.status,central:c.central,payments:c.paymentDraft?.map(x=>x.methodId)}))""")
                 print(json.dumps({"scenario":"3E-direct-payment-central-ui","commands":paid},ensure_ascii=False))
-                assert any(c["central"] and c["status"]!="Aberta" for c in paid),"Payment finalization did not mark central command complete"
+                assert any(c["central"] and c["status"]=="Pago" for c in paid),"Payment finalization did not close the central command"
+                command_id=command[-1]["id"]
+                remote=page.evaluate("""async id => {
+                  let c=await window.__imperioCentralApi.command(id);
+                  return {status:c.status,payments:c.payments?.map(p=>({id:p.id,method:p.method,amount:Number(p.amount),cashSessionId:p.cashSessionId,status:p.status})),
+                    items:c.items?.map(i=>({serviceId:i.serviceId,professionalId:i.professionalId})),
+                    draft:c.legacyPayload?.operationalSnapshot?.paymentDraft?.map(p=>({methodId:p.methodId,professionalId:p.professionalId}))}
+                }""",command_id)
+                local_finance=page.evaluate("""id => ({companyPayments:db.demoCashMovements.filter(m=>m.commandId===id).map(m=>m.id),
+                  directAdjustments:db.demoFinancialEntries.filter(e=>e.nature==='Compensação com profissional'&&String(e.origin||'').includes(id.replace(/\D/g,''))).map(e=>({professionalId:e.professionalId,cashImpact:e.cashImpact,treasuryImpact:e.treasuryImpact}))})""",command_id)
+                print(json.dumps({"scenario":"3E-direct-central-payment-posted-once","command":remote,"companyFinance":local_finance},ensure_ascii=False))
+                assert remote["status"]=="CLOSED" and len(remote["payments"] or [])==1,"Payment was not exactly once or command did not close"
+                assert remote["payments"][0]["method"]=="DIRECT_PROFESSIONAL" and remote["payments"][0]["cashSessionId"] is None,"Direct receipt contaminated company cash"
+                assert remote["payments"][0]["status"]=="CONFIRMED" and abs(remote["payments"][0]["amount"]-amount)<.01,"Confirmed amount differs from UI"
+                assert any(d["methodId"]=="pm_direct" and d["professionalId"]==selected_recipient for d in remote["draft"] or []),"Direct recipient not preserved in central snapshot"
+                assert len(local_finance["companyPayments"])==0,"Direct receipt generated company cash movement"
+
+                # Inventory is a central-backed technical location, not a commercial unit.
+                page.get_by_role("button",name="Estoque",exact=True).click()
+                page.locator(".stock-nav").get_by_role("button",name="Inventário",exact=True).click()
+                page.wait_for_function("() => !!document.querySelector('#stockInvLocation')",timeout=15000)
+                page.locator("#stockInvLocation").select_option(value="u3")
+                inventory_line=page.locator(f"#stockInventoryBody tbody tr[data-pid='{product[0]['id']}']")
+                assert inventory_line.count()==1,"Synthetic product absent from real inventory"
+                inventory_line.locator(".stock-inventory-input").fill("3")
+                page.locator("#stockInvReason").fill("Contagem de validação E2E 3E")
+                page.get_by_role("button",name="Aplicar contagem",exact=True).click()
+                page.wait_for_function("""pid => (db.stockBalances||[]).some(b=>b.productId===pid&&b.locationId==='u3'&&Math.abs(b.qty-3)<.001)""",arg=product[0]["id"],timeout=20000)
+                print(json.dumps({"scenario":"3E-inventory-applied-real-ui","stock":page.evaluate("""pid => db.stockBalances.filter(b=>b.productId===pid).map(b=>({loc:b.locationId,qty:b.qty,central:b.central}))""",product[0]["id"])},ensure_ascii=False))
+
+                # No company cash was received; physical opening must remain unchanged.
+                page.get_by_role("button",name="Caixa",exact=True).click()
+                page.wait_for_function("() => document.querySelector('#adminPage')?.innerText.includes('Caixa aberto')",timeout=15000)
+                cash_open=page.evaluate("""() => db.cashSessions.filter(c=>c.unitId==='u3'&&c.status==='open').map(c=>({id:c.id,opening:c.openingAmount}))""")
+                assert len(cash_open)==1 and abs(cash_open[0]["opening"]-100)<.01
+                page.get_by_role("button",name="Fechar caixa",exact=True).click()
+                page.locator("#cashCounted").fill("100")
+                page.get_by_role("button",name="Confirmar fechamento",exact=True).click()
+                page.wait_for_function("() => db.cashSessions.some(c=>c.unitId==='u3'&&c.status==='closed')",timeout=15000)
+                print(json.dumps({"scenario":"3E-cash-closed-with-no-direct-revenue","sessions":page.evaluate("""() => db.cashSessions.filter(c=>c.unitId==='u3').map(c=>({id:c.id,status:c.status,opening:c.openingAmount,counted:c.countedAmount}))""")},ensure_ascii=False))
+
+                # Reload proves cash and stock survive client restarts (central PostgreSQL).
+                page.reload(wait_until="domcontentloaded",timeout=30000)
+                page.wait_for_timeout(1550)
+                if page.get_by_role("button",name="Área da equipe").is_visible():
+                    page.get_by_role("button",name="Área da equipe").click()
+                if page.locator("#loginPass").is_visible():
+                    page.locator("#loginUser").fill(os.environ["ADMIN_USERNAME"])
+                    page.locator("#loginPass").fill(os.environ["ADMIN_PASSWORD"])
+                    page.get_by_role("button",name="Entrar",exact=True).click()
+                    page.wait_for_timeout(1500)
+                page.locator("#unitPicker").select_option(value="u3")
+                page.get_by_role("button",name="Estoque",exact=True).click()
+                page.locator(".stock-nav").get_by_role("button",name="Produtos",exact=True).click()
+                page.wait_for_function("(name)=>document.querySelector('#adminPage')?.innerText.includes(name)",arg=product_name,timeout=15000)
+                persisted_after_inventory=page.evaluate("""pid => db.stockBalances.filter(b=>b.productId===pid&&b.locationId==='u3').map(b=>({qty:b.qty,central:b.central}))""",product[0]["id"])
+                assert any(abs(b["qty"]-3)<.001 and b["central"] for b in persisted_after_inventory),"Physical inventory did not persist after reload"
+                page.get_by_role("button",name="Caixa",exact=True).click()
+                page.wait_for_function("() => db.cashSessions.some(c=>c.unitId==='u3'&&c.status==='closed')",timeout=15000)
+                reopened_remote=page.evaluate("""async id => {
+                  let c=await window.__imperioCentralApi.command(id);
+                  return {status:c.status,payments:c.payments?.map(p=>({id:p.id,method:p.method,cashSessionId:p.cashSessionId}))}
+                }""",command_id)
+                assert reopened_remote["status"]=="CLOSED" and len(reopened_remote["payments"] or [])==1,"Payment was duplicated/lost after reload"
+                print(json.dumps({"scenario":"3E-reload-finance-stock-confirmed","inventory":persisted_after_inventory,"payment":reopened_remote},ensure_ascii=False))
 
                 page.get_by_role("button",name="Relatórios",exact=True).click()
                 page.wait_for_function("() => document.querySelector('#adminPage')?.innerText.includes('Relatórios') && !!document.querySelector('.report-nav')",timeout=15000)
