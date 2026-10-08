@@ -121,3 +121,12 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - FIX: after reload, the E2E now clicks `Área da equipe` if visible and performs visible login again only if the login form appears, then continues to the persisted professional check.
 - NEXT_EXACT_TASK: publish this reload handling correction on top of remote c2f306f4306d7b27ce2d5f6158d9b744cabb7851 and wait for browser #16.
 - PRODUCTION_MUTATIONS: NONE.
+
+## CHECKPOINT 3B CI #16 FOLLOW-UP — SECOND RELOAD RE-ENTRY (2026-10-08)
+- REMOTE_HEAD_TESTED: 8d1626f1b7e6f005cbb7131fb9dce2599274f4da.
+- CI_RESULT: Three-unit browser E2E #16, run 37799700167, FAILURE at `Real browser scenario`.
+- EVIDENCE: #16 validated create/edit/reload path further and reached workstation creation; failure occurred after workstation reload while reopening Serviços to verify persisted workstation.
+- FIRST_NEW_FAILURE: same test harness issue after a second full page reload; needed to re-enter admin shell before clicking admin tabs.
+- FIX: duplicated the guarded `Área da equipe`/visible-login re-entry after workstation reload before reopening Serviços → Estações.
+- NEXT_EXACT_TASK: publish this second reload re-entry correction and wait for browser #17.
+- PRODUCTION_MUTATIONS: NONE.

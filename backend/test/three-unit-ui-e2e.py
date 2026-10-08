@@ -228,6 +228,14 @@ def main():
                 page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=station_name,timeout=15000)
                 page.reload(wait_until="domcontentloaded",timeout=30000)
                 page.wait_for_timeout(1500)
+                if page.get_by_role("button",name="Área da equipe").is_visible():
+                    page.get_by_role("button",name="Área da equipe").click()
+                    page.wait_for_timeout(800)
+                if page.locator("#loginPass").is_visible():
+                    page.locator("#loginUser").fill(os.environ["ADMIN_USERNAME"])
+                    page.locator("#loginPass").fill(os.environ["ADMIN_PASSWORD"])
+                    page.get_by_role("button",name="Entrar",exact=True).click()
+                    page.wait_for_timeout(1800)
                 page.get_by_role("button",name="Serviços",exact=True).click()
                 page.wait_for_timeout(800)
                 page.get_by_role("button",name="Estações",exact=True).click()
