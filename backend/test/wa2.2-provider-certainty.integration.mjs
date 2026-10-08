@@ -24,6 +24,7 @@ try{
  await failWith(async()=>{throw Object.assign(new Error('aborted'),{name:'AbortError'})},'DELIVERY_UNKNOWN',true);
  await failWith(async()=>({ok:false,status:500}),'DELIVERY_UNKNOWN',true);
  await failWith(async()=>({ok:false,status:429}),'DELIVERY_UNKNOWN',true);
+ await failWith(async()=>({ok:false,status:408}),'DELIVERY_UNKNOWN',true);
  await failWith(async()=>({ok:false,status:400}),'DEFINITE_FAILURE',false);
  await failWith(async()=>({ok:true,json:async()=>{throw new Error('broken response')}}),'DELIVERY_UNKNOWN',true);
  await failWith(async()=>({ok:true,json:async()=>({})}),'DELIVERY_UNKNOWN',true);
