@@ -170,7 +170,7 @@ def main():
                     row.locator(".pfs-work").check()
                     row.locator(".pfs-start").fill(start)
                     row.locator(".pfs-end").fill(end)
-                page.get_by_role("button",name="Serviços").click()
+                page.locator("#modalHost").get_by_role("button",name="Serviços").click()
                 service_row=page.locator(".pro-service-row",has_text=service_name)
                 assert service_row.count()==1,"Created service is not available for professional eligibility"
                 service_row.locator(".pfr-enabled").check()

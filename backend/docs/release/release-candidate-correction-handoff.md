@@ -103,3 +103,12 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - TESTS: `node test/v99-frontend-central-bridge.contract.mjs` was red before the fix.
 - NEXT_EXACT_TASK: run targeted contracts/py compile, publish on top of remote eba018ed838dd8b2121d514aa8f27d5230b2943f, then wait for browser #14.
 - PRODUCTION_MUTATIONS: NONE.
+
+## CHECKPOINT 3B CI #14 FOLLOW-UP — MODAL TAB SELECTOR FIX (2026-10-08)
+- REMOTE_HEAD_TESTED: 6a0ec9685302a0a527051bc1ddfa35ceaf201360.
+- CI_RESULT: Three-unit browser E2E #14, run 37799018566, FAILURE at `Real browser scenario`.
+- EVIDENCE: #14 progressed materially: category creation and service creation via browser UI both succeeded after the structural-services bridge fix.
+- FIRST_NEW_FAILURE: strict Playwright selector ambiguity on the word `Serviços`: both the admin nav and the professional modal tab were visible. This was test selector scope, not an app failure.
+- FIX: scoped the professional modal tab click to `#modalHost`.
+- NEXT_EXACT_TASK: publish this selector-only E2E correction on top of remote 6a0ec9685302a0a527051bc1ddfa35ceaf201360 and wait for browser #15.
+- PRODUCTION_MUTATIONS: NONE.
