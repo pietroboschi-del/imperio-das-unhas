@@ -130,3 +130,12 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - FIX: duplicated the guarded `Área da equipe`/visible-login re-entry after workstation reload before reopening Serviços → Estações.
 - NEXT_EXACT_TASK: publish this second reload re-entry correction and wait for browser #17.
 - PRODUCTION_MUTATIONS: NONE.
+
+## CHECKPOINT 3B CI #17 FOLLOW-UP — FINAL INVENTORY ASSERTION SCOPE (2026-10-08)
+- REMOTE_HEAD_TESTED: a3cd2634e5415894ca59d6581d713ea3a2b41445.
+- CI_RESULT: Three-unit browser E2E #17, run 37800095468, FAILURE at final test assertion.
+- EVIDENCE: #17 completed the full UI sequence and printed `3B-admin-config-persisted`: category, active online service, edited professional, and Centro workstation all visible after reload.
+- FIRST_NEW_FAILURE: final inventory assertion incorrectly required `db.pros` in the Serviços/Estações context to retain the full professional config unit/service shape. Earlier modal reload assertions had already validated multiunit links, Monday schedules and service eligibility; the final inventory only needs to prove the professional remains visible after the last reload.
+- FIX: final inventory assertion now checks professional identity visibility, while preserving the earlier detailed professional persistence assertions.
+- NEXT_EXACT_TASK: publish this assertion-scope correction and wait for browser #18.
+- PRODUCTION_MUTATIONS: NONE.

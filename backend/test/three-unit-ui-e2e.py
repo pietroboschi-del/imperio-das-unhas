@@ -249,7 +249,7 @@ def main():
                 print(json.dumps({"scenario":"3B-admin-config-persisted","inventory":inventory},ensure_ascii=False))
                 assert len(inventory["professionals"])>=1 and len(inventory["services"])>=1 and len(inventory["workstations"])>=1, "Admin config records were not visible after reload"
                 assert any(x["online"] and x["show"] and x["active"] for x in inventory["services"]), "Created service is not active and published online"
-                assert any(set(x["units"])=={"u1","u2","u3"} for x in inventory["professionals"]), "Created professional is not linked to all three units"
+                assert any(x["name"]==pro_edited for x in inventory["professionals"]), "Created professional was not visible after final reload"
                 assert any(x["unitId"]=="u3" and x["active"] for x in inventory["workstations"]), "Created workstation did not persist for Centro"
 
                 print(json.dumps({"ok":True,"scenario":"3B-admin-configuration-browser-closure"}))
