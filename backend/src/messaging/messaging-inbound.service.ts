@@ -72,7 +72,7 @@ export class MessagingInboundService {
     if(next===MessagingOutboxStatus.SENT){data.sentAt=row.sentAt||now;action='communication.sent'}
     else if(next===MessagingOutboxStatus.DELIVERED){data.deliveredAt=row.deliveredAt||now;action='communication.delivered'}
     else if(next===MessagingOutboxStatus.READ){data.readAt=row.readAt||now;action='communication.read'}
-    else{data.lastError='Provider delivery failure';data.nextAttemptAt=retryAfter(row.attempts,now);action='communication.failed'}
+    else{data.lastError='Provider delivery failure requires reconciliation';data.nextAttemptAt=null;action='communication.reconciliation_required'}
     const updated=await this.prisma.$transaction(async tx=>{
       const changed=await tx.messagingOutbox.updateMany({where:{id:row.id,status:row.status},data});
       if(changed.count!==1)return false;
@@ -90,8 +90,8 @@ export class MessagingInboundService {
     if(target==='SENT'){if(current===MessagingOutboxStatus.SENT||current===MessagingOutboxStatus.DELIVERED||current===MessagingOutboxStatus.READ)return null;return MessagingOutboxStatus.SENT}
     if(target==='DELIVERED'){if(current===MessagingOutboxStatus.DELIVERED||current===MessagingOutboxStatus.READ)return null;return MessagingOutboxStatus.DELIVERED}
     if(target==='READ'){if(current===MessagingOutboxStatus.READ)return null;return MessagingOutboxStatus.READ}
-    if(current===MessagingOutboxStatus.DELIVERED||current===MessagingOutboxStatus.READ||current===MessagingOutboxStatus.FAILED)return null;
-    return MessagingOutboxStatus.FAILED;
+    if(current===MessagingOutboxStatus.DELIVERED||current===MessagingOutboxStatus.READ||current===MessagingOutboxStatus.FAILED||current===MessagingOutboxStatus.RECONCILIATION_REQUIRED)return null;
+    return MessagingOutboxStatus.RECONCILIATION_REQUIRED;
   }
   private async auditReplayConflict(existingId:string,input:ParsedEvolutionInbound){
     await this.prisma.auditEvent.create({data:{
