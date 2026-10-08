@@ -56,6 +56,8 @@ jobs:
       RESET_TOKEN_TTL_MS: "1800000"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -149,6 +151,17 @@ jobs:
         run: npm run test:employee-config-readiness
       - name: Read-only three-unit readiness diagnostic
         run: npm run test:three-unit-readiness
+      - name: Release hardening contracts
+        run: npm run test:release-hardening
+      - name: Synthetic 13-to-21 migration rehearsal
+        env:
+          DATABASE_URL: postgresql://imperio:imperio_ci@localhost:5432/imperio_ci?schema=public
+          SYNTHETIC_REHEARSAL: "1"
+          OPERATIONAL_WRITES_ENABLED: "false"
+          WHATSAPP_AUTOMATION_ENABLED: "false"
+          EVOLUTION_WEBHOOK_ENABLED: "false"
+          WHATSAPP_AGENT_API_ENABLED: "false"
+        run: npm run test:migration-upgrade-rehearsal
       - name: Multi-unit operational write tests
         run: npm run test:operational-writes
       - name: Three-unit stock foundation
