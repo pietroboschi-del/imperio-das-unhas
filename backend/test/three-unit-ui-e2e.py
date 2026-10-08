@@ -61,6 +61,13 @@ def main():
                    "body":page.locator("body").inner_text()[:1400]}
                 print(json.dumps(auth_snapshot,ensure_ascii=False))
                 assert any(i["type"]=="password" for i in auth_snapshot["inputs"]), "Team login did not render a visible password input"
+                routing=page.evaluate("""() => ({
+                  officialProductionMode:typeof officialProductionMode==='function'?String(officialProductionMode).slice(0,1300):'not accessible',
+                  officialProductionModeValue:typeof officialProductionMode==='function'?officialProductionMode():null,
+                  centralEnabled:typeof centralEnabled==='function'?String(centralEnabled).slice(0,650):'not accessible',
+                  host:location.hostname
+                })""")
+                print(json.dumps({"scenario":"3B-auth-routing-diagnostic","routing":routing},ensure_ascii=False))
                 page.locator("#loginUser").fill(os.environ["ADMIN_USERNAME"])
                 page.locator("#loginPass").fill(os.environ["ADMIN_PASSWORD"])
                 page.get_by_role("button",name="Entrar",exact=True).click()
