@@ -7356,7 +7356,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(!centralOwnerOnly()){toast('Somente o dono gerencia usuários centrais');return false}
   const u=(db.userAccounts||[]).find(x=>x.id===userId);
   if(u?.networkAdmin){toast('A conta do dono é protegida');return false}
-  const perms=['agenda.read','agenda.manage','clients.read','clients.manage','cash.read','cash.open','cash.close','cash.adjust','cash.reopen','finance.read','finance.manage','stock.read','stock.manage','catalog.read','catalog.manage','professionals.read','professionals.manage','reports.read'];
+  const perms=['units.read','agenda.read','agenda.manage','clients.read','clients.manage','cash.read','cash.open','cash.close','cash.adjust','cash.reopen','finance.read','finance.manage','stock.read','stock.manage','catalog.read','catalog.manage','professionals.read','professionals.manage','reports.read'];
   const unitChecks=(db.units||[]).filter(x=>x.active!==false).map(x=>{
    const id=centralUnitRef(x.id),access=(u?.accesses||[]).find(a=>a.unitId===id),assigned=u?.unitIds?.includes(x.id)||!!access,granted=new Set(access?.permissions||[]);
    return '<div class="field"><label class="check"><input type="checkbox" class="central-user-unit" value="'+escapeHtml(id)+'" '+(assigned?'checked':'')+'> '+escapeHtml(x.name)+'</label>'+
