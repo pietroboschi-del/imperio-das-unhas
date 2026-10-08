@@ -334,6 +334,21 @@ def main():
                     booking_ids.append(booked[0]["id"])
                 assert len(set(booking_ids))==3,"Cross-unit bookings were not distinct"
                 print(json.dumps({"ok":True,"scenario":"3C-three-unit-cross-booking-persisted","bookings":booking_ids,"clientId":identity[0]["id"]},ensure_ascii=False))
+                page.get_by_role("button",name="Clientes",exact=True).click()
+                page.wait_for_timeout(650)
+                page.locator("#clientSearch").fill(client_name)
+                assert page.locator("#clientRows tr",has_text=client_name).count()==1
+                page.locator("#clientRows tr",has_text=client_name).get_by_role("button",name="Abrir").click()
+                page.locator('[data-client-tab="historico"]').click()
+                page.wait_for_function("() => document.querySelector('#clientTabContent')?.innerText.includes('Atendimentos das três unidades')",timeout=15000)
+                history=page.locator("#clientTabContent").inner_text()
+                assert "Histórico central indisponível" not in history, "Central global client history API failed"
+                for unit_name in ("Centro de Contagem","Big Shopping","Shopping Contagem"):
+                    assert unit_name in history, f"Missing {unit_name} in visible global history"
+                assert service_name in history and pro_edited in history and "Agendado" in history,"History lacks service professional or status"
+                assert page.locator("#clientTabContent table tbody tr").count()>=3,"Global history omitted one of three bookings"
+                print(json.dumps({"ok":True,"scenario":"3C-global-history-real-browser","rows":page.locator("#clientTabContent table tbody tr").all_text_contents()[:6]},ensure_ascii=False))
+
 
 
 
