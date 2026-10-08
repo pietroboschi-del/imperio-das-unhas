@@ -77,6 +77,9 @@ jobs:
         run: npm run test:wa2
       - name: WA2.1 stale SENDING recovery
         run: npm run test:wa2.1
+      - name: WA2.2 safe Outbox reconciliation
+        working-directory: backend
+        run: npm run test:wa2.2
       - name: WA3A server-side availability
         run: npm run test:wa3a
       - name: WA3B authoritative agent booking
