@@ -798,6 +798,155 @@ def main():
                 print(json.dumps({"scenario":"3E-reports-visible-after-operations","summary":report[:950]},ensure_ascii=False))
                 print(json.dumps({"ok":True,"scenario":"3E-command-payment-cash-stock-reports-browser"},ensure_ascii=False))
 
+                # CP3F: an actual UI-created user with global agenda domain privileges
+                # cannot turn X-Unit-Id changes into cash, stock, config or finance grants.
+                operator_username="boundary_"+suffix
+                operator_password="Boundaries!ValidPassword_"+suffix
+                page.get_by_role("button",name="Configurações",exact=True).first.click()
+                page.wait_for_timeout(550)
+                settings_state=page.evaluate("""() => ({nav:!!document.querySelector('.v63-settings-nav'),users:document.querySelector('#adminPage')?.innerText?.includes('Usuários e Acessos'),newUser:[...document.querySelectorAll('#adminPage button')].some(x=>x.textContent.includes('Novo usuário'))})""")
+                print(json.dumps({"scenario":"3F-config-settings-ui","state":settings_state},ensure_ascii=False))
+                if page.locator(".v63-settings-nav").count():
+                    page.locator(".v63-settings-nav").get_by_role("button",name="Usuários e Acessos").click()
+                else:
+                    # V71 replaces the settings landing page with field configuration;
+                    # use the still-existing V63 user UI action, not an API fixture.
+                    page.evaluate("() => window.v63SetSettingsTab('users')")
+                page.wait_for_timeout(300)
+                if page.get_by_role("button",name="+ Novo usuário").count():
+                    page.get_by_role("button",name="+ Novo usuário").click()
+                else:
+                    page.evaluate("() => window.v63OpenUser('')")
+                page.locator("#v63UserName").fill("Operadora fronteiras E2E "+suffix)
+                page.locator("#v63UserLogin").fill(operator_username)
+                page.locator("#v63UserRole").select_option(value="reception")
+                page.locator("#v63UserPassword").fill(operator_password)
+                all_box=page.locator("#v63UserAllUnits")
+                if all_box.is_checked():all_box.uncheck()
+                for unit in ("u1","u3"):
+                    checkbox=page.locator(".v63-user-unit[value='"+unit+"']")
+                    if not checkbox.is_checked():checkbox.check()
+                for unit in ("u2",):
+                    checkbox=page.locator(".v63-user-unit[value='"+unit+"']")
+                    if checkbox.is_checked():checkbox.uncheck()
+                page.locator("#modalHost").get_by_role("button",name="Salvar usuário").click()
+                page.wait_for_function("""name => (db.userAccounts||[]).some(u=>u.username===name&&u.centralSyncStatus==='synced')""",arg=operator_username,timeout=15000)
+                operator_ui=page.evaluate("""name => db.userAccounts.filter(u=>u.username===name).map(u=>({id:u.id,centralUserId:u.centralUserId,units:u.unitIds,role:u.role,centralSynced:u.centralSyncStatus}))""",operator_username)
+                print(json.dumps({"scenario":"3F-operator-created-through-real-user-ui","operator":operator_ui},ensure_ascii=False))
+                assert len(operator_ui)==1 and operator_ui[0]["centralUserId"] and not operator_ui[0]["role"]=="admin","Synthetic operator missing central user"
+
+                # Owner-only PATCH grants agenda in network domain, not other domains.
+                operator_id=operator_ui[0]["centralUserId"]
+                operator_grant=page.evaluate("""async a => {
+                  let csrf=sessionStorage.getItem('imperio-v96-shadow-csrf')||'';
+                  let response=await fetch(a.origin+'/api/v1/admin/users/'+encodeURIComponent(a.id)+'/access',{
+                    method:'PATCH',credentials:'include',
+                    headers:{'Accept':'application/json','Content-Type':'application/json','X-CSRF-Token':csrf},
+                    body:JSON.stringify({permissions:['units.read','agenda.read','agenda.manage','clients.read','catalog.read'],
+                      units:['big','centro'].map(unitId=>({unitId,role:'reception',
+                        permissions:['agenda.read','agenda.manage','clients.read','catalog.read']}))})
+                  });
+                  return {status:response.status,ok:response.ok,body:response.ok?await response.json():(await response.text()).slice(0,250)}
+                }""",{"origin":API_ORIGIN,"id":operator_id})
+                print(json.dumps({"scenario":"3F-domain-permission-grant","status":operator_grant["status"],"ok":operator_grant["ok"]},ensure_ascii=False))
+                assert operator_grant["ok"],"Owner was unable to set domain-scoped restricted operator permissions"
+
+                # Preserve local app user for restricted login, but DO NOT share owner
+                # cookie: each browser context authenticates separately against backend.
+                state=page.context.storage_state()
+                limited_context=browser.new_context(
+                    viewport={"width":1280,"height":800},
+                    storage_state={"cookies":[],"origins":state.get("origins",[])})
+                limited=limited_context.new_page()
+                limited.add_init_script(f"window.IMPERIO_API_BASE={json.dumps(API_ORIGIN)};")
+                limited.route("**/*",lambda route: route.continue_() if urlsplit(route.request.url).hostname in ("ui.imperio.localhost","api.imperio.localhost") else route.abort())
+                limited.goto(f"{UI_ORIGIN}/index.html",wait_until="domcontentloaded",timeout=30000)
+                limited.wait_for_timeout(1050)
+                limited.get_by_role("button",name="Área da equipe").click()
+                limited.wait_for_timeout(350)
+                limited.locator("#loginUser").fill(operator_username)
+                limited.locator("#loginPass").fill(operator_password)
+                limited.get_by_role("button",name="Entrar",exact=True).click()
+                limited.wait_for_timeout(1100)
+                restricted_auth=limited.evaluate("""() => {
+                   let p={};try{p=JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'{}')}catch(e){}
+                   return {authenticated:!!p.id||!!p.userId,networkAdmin:p.networkAdmin,units:p.unitIds||[],
+                           loginVisible:!!document.querySelector('#loginPass')&&getComputedStyle(document.querySelector('#loginPass')).display!=='none'}
+                }""")
+                print(json.dumps({"scenario":"3F-restricted-browser-login","state":restricted_auth},ensure_ascii=False))
+                assert restricted_auth["authenticated"] and not restricted_auth["networkAdmin"],"Restricted operator did not authenticate to central backend"
+                assert limited.get_by_role("button",name="Agenda",exact=True).is_visible(),"Restricted user should be able to use Agenda UI"
+                limited.get_by_role("button",name="Agenda",exact=True).click()
+                limited.wait_for_timeout(450)
+                print(json.dumps({"scenario":"3F-restricted-agenda-ui","body":limited.locator("#adminPage").inner_text()[:450]},ensure_ascii=False))
+
+                # Requests are fired by the restricted authenticated Chromium browser,
+                # intentionally varying X-Unit-Id. A hidden button is never proof.
+                probes=[
+                  ["agenda_big","GET","/api/v1/bookings","big",None,200],
+                  ["agenda_centro","GET","/api/v1/bookings","centro",None,200],
+                  ["agenda_shopping_global","GET","/api/v1/bookings","shopping-contagem",None,200],
+                  ["cash_shopping_read","GET","/api/v1/cash-sessions","shopping-contagem",None,403],
+                  ["cash_big_open","POST","/api/v1/cash-sessions","big",{"date":"2026-10-08","openingAmount":99},403],
+                  ["stock_shopping_read","GET","/api/v1/stock/balances?locationId=shopping-contagem","shopping-contagem",None,403],
+                  ["stock_shopping_inventory","POST","/api/v1/stock/inventory","shopping-contagem",{"locationId":"shopping-contagem","reason":"3F should never mutate","counts":[{"productId":consumed_product[0]["id"],"countedQty":987}]},403],
+                  ["command_big_read","GET","/api/v1/commands","big",None,403],
+                  ["command_big_create","POST","/api/v1/commands","big",{"clientId":"","serviceDate":"2026-10-08","grossAmount":123},403],
+                  ["structural_config_read","GET","/api/v1/config/categories","big",None,403],
+                  ["structural_config_create","POST","/api/v1/config/categories","big",{"name":"Denied configuration "+suffix},403],
+                ]
+                owner_base=page.evaluate("""async a => {
+                   const csrf=sessionStorage.getItem('imperio-v96-shadow-csrf')||'';
+                   const paths=['/api/v1/cash-sessions','/api/v1/commands',
+                     '/api/v1/stock/balances?locationId=shopping-contagem','/api/v1/stock/movements?locationId=shopping-contagem',
+                     '/api/v1/config/categories'];
+                   return await Promise.all(paths.map(async path=>{
+                     let r=await fetch(a.origin+path,{credentials:'include',headers:{'X-Unit-Id':'shopping-contagem','X-CSRF-Token':csrf}});
+                     let body=await r.json().catch(()=>null);
+                     return {path,status:r.status,count:Array.isArray(body)?body.length:undefined,body:JSON.stringify(body)};
+                   }))
+                }""",{"origin":API_ORIGIN})
+                restricted_results=limited.evaluate("""async a=>{
+                   let csrf=sessionStorage.getItem('imperio-v96-shadow-csrf')||'';
+                   let result=[];
+                   for(const [name,method,path,unit,body,expected] of a.probes){
+                     let response=await fetch(a.origin+path,{
+                       method,credentials:'include',headers:{'Accept':'application/json','X-Unit-Id':unit,
+                         ...(csrf?{'X-CSRF-Token':csrf}:{}),...(body?{'Content-Type':'application/json'}:{})},
+                       ...(body?{body:JSON.stringify(body)}:{})
+                     });
+                     result.push({name,method,unit,status:response.status,expected,
+                       reason:response.ok?'':String(await response.text()).slice(0,150)});
+                   }
+                   return result;
+                }""",{"origin":API_ORIGIN,"probes":probes})
+                print(json.dumps({"scenario":"3F-cross-unit-real-http-boundaries","requests":restricted_results},ensure_ascii=False))
+                assert all(p["status"]==p["expected"] for p in restricted_results),"Cross-unit or cross-domain backend privilege boundary violated"
+                owner_after=page.evaluate("""async a => {
+                   const csrf=sessionStorage.getItem('imperio-v96-shadow-csrf')||'';
+                   return await Promise.all(a.paths.map(async path=>{
+                     let r=await fetch(a.origin+path,{credentials:'include',headers:{'X-Unit-Id':'shopping-contagem','X-CSRF-Token':csrf}});
+                     let body=await r.json().catch(()=>null);
+                     return {path,status:r.status,count:Array.isArray(body)?body.length:undefined,body:JSON.stringify(body)};
+                   }))
+                }""",{"origin":API_ORIGIN,"paths":[x["path"] for x in owner_base]})
+                assert owner_after==owner_base,"Forbidden write changed central facts despite HTTP 403"
+                print(json.dumps({"scenario":"3F-denied-writes-no-side-effects","counts":[{"path":x["path"],"status":x["status"],"count":x["count"]} for x in owner_after]},ensure_ascii=False))
+                owner_access=page.evaluate("""async a=>{
+                  let csrf=sessionStorage.getItem('imperio-v96-shadow-csrf')||'',out=[];
+                  for(const unit of ['centro','big','shopping-contagem']){
+                    let r=await fetch(a.origin+'/api/v1/cash-sessions',{credentials:'include',headers:{'X-Unit-Id':unit,'X-CSRF-Token':csrf}});
+                    out.push({unit,status:r.status});
+                  }
+                  let p=JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'{}');
+                  return {networkAdmin:p.networkAdmin,cash:out}
+                }""",{"origin":API_ORIGIN})
+                print(json.dumps({"scenario":"3F-network-admin-global-contract","result":owner_access},ensure_ascii=False))
+                assert owner_access["networkAdmin"] and all(x["status"]==200 for x in owner_access["cash"]),"networkAdmin lost global access"
+                limited_context.close()
+                print(json.dumps({"ok":True,"scenario":"3F-real-Chromium-cross-unit-authorization-boundaries"},ensure_ascii=False))
+
+
 
 
 
