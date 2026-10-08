@@ -321,16 +321,22 @@ def main():
                         page.locator("#rClientSearch").fill(client_name)
                         page.locator("#rClientResults").get_by_role("button",name="Selecionar").click()
                     booked_date=(monday+timedelta(days=7*index)).isoformat()
-                    assert page.locator(".res-line .res-pro option").count()>=1, f"No eligible professional at {unit}"
+                    # Select the actual newly configured service/professional; default seed
+                    # selections may have no Monday schedule in a freshly isolated CI DB.
+                    row=page.locator(".res-line").first
+                    row.locator(".res-service").select_option(label=service_name)
+                    row.locator(".res-pro").select_option(label=pro_edited)
+                    expected_pro=row.locator(".res-pro").input_value()
+                    assert expected_pro, f"Configured E2E professional missing at {unit}"
                     page.locator("#rDate").fill(booked_date)
-                    page.locator(".res-line .res-time").fill("11:00")
+                    row.locator(".res-time").fill("11:00")
                     page.locator("#modalHost").get_by_role("button",name="Salvar",exact=True).click()
                     page.wait_for_timeout(1450)
                     booked=page.evaluate("""(args)=>db.bookings.filter(b=>b.clientId===args.client&&b.unit===args.unit&&b.date===args.date).map(b=>({id:b.id,items:b.items.map(i=>({pro:i.pro,serviceId:i.serviceId})),status:b.status}))""",
                         {"client":identity[0]["id"],"unit":unit,"date":booked_date})
                     print(json.dumps({"scenario":"3C-booking-saved-by-browser","unit":unit,"date":booked_date,"bookings":booked,"visibleToast":page.locator("body").inner_text()[:230]},ensure_ascii=False))
                     assert len(booked)==1 and len(booked[0]["items"])==1, f"Real booking not persisted for {unit}"
-                    assert booked[0]["items"][0]["pro"]==choices[0]["value"], f"Professional mismatch in {unit}"
+                    assert booked[0]["items"][0]["pro"]==expected_pro, f"Configured professional mismatch in {unit}"
                     booking_ids.append(booked[0]["id"])
                 assert len(set(booking_ids))==3,"Cross-unit bookings were not distinct"
                 print(json.dumps({"ok":True,"scenario":"3C-three-unit-cross-booking-persisted","bookings":booking_ids,"clientId":identity[0]["id"]},ensure_ascii=False))
