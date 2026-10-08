@@ -11,9 +11,9 @@ from playwright.sync_api import sync_playwright
 ROOT=Path(__file__).resolve().parents[2]
 BACKEND=ROOT/"backend"
 FRONTEND_PORT=3101
-UI_ORIGIN=f"http://ui.imperio.test:{FRONTEND_PORT}"
+UI_ORIGIN=f"http://ui.imperio.localhost:{FRONTEND_PORT}"
 BACKEND_PORT=int(os.environ.get("PORT","3100"))
-API_ORIGIN=f"http://api.imperio.test:{BACKEND_PORT}"
+API_ORIGIN=f"http://api.imperio.localhost:{BACKEND_PORT}"
 ALLOWED="imperio_ci"
 def check_isolated():
     url=os.environ.get("DATABASE_URL","")
@@ -47,11 +47,11 @@ def main():
         wait_http(f"http://127.0.0.1:{FRONTEND_PORT}/index.html")
         wait_http(f"http://127.0.0.1:{BACKEND_PORT}/api/v1/health")
         with sync_playwright() as pw:
-            browser=pw.chromium.launch(headless=True,args=["--no-proxy-server","--host-resolver-rules=MAP ui.imperio.test 127.0.0.1, MAP api.imperio.test 127.0.0.1","--unsafely-treat-insecure-origin-as-secure="+UI_ORIGIN])
+            browser=pw.chromium.launch(headless=True,args=["--no-proxy-server","--host-resolver-rules=MAP ui.imperio.localhost 127.0.0.1, MAP api.imperio.localhost 127.0.0.1"])
             try:
                 page=browser.new_page(viewport={"width":1280,"height":800})
                 page.add_init_script(f"window.IMPERIO_API_BASE={json.dumps(API_ORIGIN)};")
-                page.route("**/*",lambda route: route.continue_() if urlsplit(route.request.url).hostname in ("ui.imperio.test","api.imperio.test") else route.abort())
+                page.route("**/*",lambda route: route.continue_() if urlsplit(route.request.url).hostname in ("ui.imperio.localhost","api.imperio.localhost") else route.abort())
                 page.goto(f"{UI_ORIGIN}/index.html",wait_until="domcontentloaded",timeout=30000)
                 page.wait_for_timeout(1500)
                 title=page.title()
@@ -61,6 +61,9 @@ def main():
                                   "body":page.locator("body").inner_text()[:1300]},ensure_ascii=False))
                 assert page.locator("body").is_visible(),"Real frontend body did not render"
                 assert page.url.startswith(UI_ORIGIN),"Browser failed to use production-mode local hostname"
+                secure_boot=page.evaluate("() => ({secure:window.isSecureContext,subtle:!!window.crypto?.subtle})")
+                print(json.dumps({"scenario":"3A-localhost-secure-browser-context","security":secure_boot},ensure_ascii=False))
+                assert secure_boot["secure"] and secure_boot["subtle"],"Chromium .localhost E2E origin must provide WebCrypto"
                 assert page.locator("button:visible").count()>0,"Frontend contains no working buttons"
                 page.get_by_role("button",name="Área da equipe").click()
                 page.wait_for_timeout(800)
