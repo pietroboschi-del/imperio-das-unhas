@@ -71,6 +71,7 @@
     "diagnostic:three-units": "node tools/three-unit-readiness.mjs",
     "release:preflight": "node tools/release-preflight.mjs",
     "release:delta": "node tools/release-delta.mjs",
+    "test:release-migration-manifest": "node test/v99-release-migration-manifest.contract.mjs",
     "test:release-hardening": "node test/v99-release-hardening.contract.mjs",
     "test:migration-upgrade-rehearsal": "node tools/synthetic-migration-upgrade-rehearsal.mjs",
     "test:three-unit-readiness": "node test/v99-three-unit-readiness.contract.mjs && node test/v99-three-unit-readiness.integration.mjs && node test/v99-three-unit-readiness-teardown.integration.mjs",
