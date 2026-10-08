@@ -53,6 +53,14 @@ def main():
                                   "body":page.locator("body").inner_text()[:1300]},ensure_ascii=False))
                 assert page.locator("body").is_visible(),"Real frontend body did not render"
                 assert page.locator("button:visible").count()>0,"Frontend contains no working buttons"
+                page.get_by_role("button",name="Área da equipe").click()
+                page.wait_for_timeout(800)
+                auth_snapshot={"scenario":"3B-auth-form-discovery","url":page.url,
+                   "buttons":page.locator("button:visible").all_text_contents()[:40],
+                   "inputs":[{"id":e.get_attribute("id"),"type":e.get_attribute("type"),"placeholder":e.get_attribute("placeholder")} for e in page.locator("input:visible").all()[:20]],
+                   "body":page.locator("body").inner_text()[:1400]}
+                print(json.dumps(auth_snapshot,ensure_ascii=False))
+                assert any(i["type"]=="password" for i in auth_snapshot["inputs"]), "Team login did not render a visible password input"
                 print(json.dumps({"ok":True,"scenario":"3A-real-browser-bootstrap"}))
             except Exception:
                 page.screenshot(path="/tmp/imperio-e2e-bootstrap-failure.png",full_page=True)
