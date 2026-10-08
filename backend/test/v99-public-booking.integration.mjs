@@ -54,7 +54,18 @@ async function main(){
   const proRow=await prisma.professional.findUniqueOrThrow({where:{id:'p-all'}}),proLegacy=proRow.legacyPayload||{};await prisma.professional.update({where:{id:'p-all'},data:{legacyPayload:{...proLegacy,schedule:{...(proLegacy.schedule||{}),'shopping-contagem-2':{work:true,start:'09:00',end:'18:00'}}}}});
   shoppingCatalogResponse=await fetch(base+'/api/v1/public/catalog?unitId=shopping-contagem');shoppingCatalog=await shoppingCatalogResponse.json();ok(shoppingCatalog.bookingEnabled===true&&shoppingCatalog.professionals[0].schedule['shopping-contagem-2'],'cadastrar escala abre booking público sem alterar gate operacional');
   r=await book('shopping-contagem','2026-10-06T12:00','31999990002','site-shopping-open');ok(r.ok,'site booking shopping após escala válida');
-  r=await book('shopping-contagem','2026-10-06T15:00','3199999040','idem','short');ok(r.ok,'idempotency first');const a=await r.json();
+  r=await book('shopping-contagem','2026-10-06T13:00','3199999030','network-shopping','short');ok(r.ok,'same global client books Shopping');
+  ok(await prisma.client.count({where:{phone:networkPhone}})===1,'one global client identity after three units');
+  ok(await prisma.clientUnitLink.count({where:{client:{phone:networkPhone}}})===3,'three unit links for same client');
+  const ownerLogin=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});
+  ok(ownerLogin.ok,'real owner login for global history');
+  const ownerCookie=(ownerLogin.headers.get('set-cookie')||'').split(';')[0];
+  const globalClient=await prisma.client.findUniqueOrThrow({where:{phone:networkPhone}});
+  const historyResponse=await fetch(base+'/api/v1/clients/'+globalClient.id+'/history',{headers:{cookie:ownerCookie,'x-unit-id':'centro'}});
+  ok(historyResponse.ok,'owner reads global client history from Centro');
+  const globalHistory=await historyResponse.json();
+  ok(['centro','big','shopping-contagem'].every(unitId=>globalHistory.bookings.some(x=>x.unitId===unitId)),'global history includes visits from all three units');
+    r=await book('shopping-contagem','2026-10-06T15:00','3199999040','idem','short');ok(r.ok,'idempotency first');const a=await r.json();
   r=await book('shopping-contagem','2026-10-06T15:00','3199999040','idem','short');ok(r.ok,'idempotency repeat');const b=await r.json();ok(a.id===b.id,'same booking id');
   const concurrent=await Promise.all([book('centro','2026-10-06T16:00','3199999051','race-a','short'),book('centro','2026-10-06T16:00','3199999052','race-b','short')]);
   const statuses=concurrent.map(x=>x.status).sort((a,b)=>a-b);ok(statuses[0]>=200&&statuses[0]<300,'one concurrent booking accepted');ok(statuses[1]===409,'other concurrent booking rejected');
@@ -65,7 +76,7 @@ async function main(){
   r=await book('big','2026-10-06T18:00','---','invalid-phone','short');ok(r.status===409,'empty normalized phone rejected');
   await prisma.booking.create({data:{id:'all-day-block',unitId:'big',serviceDate:new Date('2026-10-06T00:00:00.000Z'),startAt:new Date('2026-10-06T12:00:00.000Z'),serviceId:null,professionalId:'p-all',status:'Bloqueado',blockAllDay:true,legacyPayload:{source:'test'}}});
   r=await book('big','2026-10-06T16:00','3199999080','all-day-blocked','short');ok(r.status===409,'bloqueio de dia inteiro rejeita POST público');
-  ok(await prisma.auditEvent.count({where:{action:'booking.created_online'}})===9,'online bookings audited');
+  ok(await prisma.auditEvent.count({where:{action:'booking.created_online'}})===10,'online bookings audited');
   console.log(JSON.stringify({ok:true,tests:n,feature:'public_booking_three_units'}));
  }finally{if(server.exitCode===null&&server.signalCode===null){server.kill('SIGTERM');await Promise.race([once(server,'exit'),sleep(3000)]).catch(()=>{})}await cleanupStockLocationDependencies().catch(()=>{});await prisma.$disconnect()}
 }
