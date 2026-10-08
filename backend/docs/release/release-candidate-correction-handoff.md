@@ -153,3 +153,24 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - NEXT_EXACT_TASK: start 3C from HEAD 7916016874e02755b3cf943ae74c0b2decc1cb92 after checking V98 Backend CI #563 result; do not repeat 3A or 3B browser setup/professional/config diagnosis.
 - DO_NOT_REPEAT: Checkpoints 1/2/3A; 3B login, canonical unit selector, professional button, category/service/professional/workstation browser closure.
 - PRODUCTION_MUTATIONS: NONE.
+
+
+## CHECKPOINT 3C — PARTIAL / RECOVERABLE (2026-10-08)
+- START_HEAD: 334202bf78596d2e38c5aac625c9b515d9c647c1; CI #564 SUCCESS at this SHA. Do not reopen checkpoints 1, 2, 3A or 3B.
+- CURRENT_HEAD_BEFORE_HANDOFF: d86af72d091307be9f67cbcc122c695da5f81a35.
+- LAST_COMPLETED_SUBCHECKPOINT: 3B — COMPLETE (browser E2E #18 SUCCESS and backend CI #563 SUCCESS; #564 SUCCESS on 3B docs HEAD).
+- CURRENT_SUBCHECKPOINT: 3C — PARTIAL / BLOCKED. No 3C feature is declared complete.
+- IMPLEMENTED: appended a real-browser scenario to backend/test/three-unit-ui-e2e.py to register one synthetic client at Big, assert a central identity, then find the exact same client ID in Centro and Shopping Contagem. The script is not API-only and creates neither SQL fixture nor a fake booking. Sought to configure the necessary client acquisition option through visible UI. All attempted changes are committed and pushed.
+- COMMITS: 7399fc6c (first 3C global-client UI attempt), 4ce4354f (initial client-origin UI setup), d86af72d (adapt setup to V71 Campos e opções route).
+- FILES_CHANGED_SINCE_3C_START: backend/test/three-unit-ui-e2e.py and this handoff.
+- TESTS_PASSED: full CI #564 SUCCESS on 334202b; preexisting 3B browser setup, category/service/professional/workstation persistence assertions continued to pass before 3C assertion in targeted browser runs #19–#21.
+- CI_STATUS_AT_HANDOFF: targeted browser #19, #20, #21 FAILED in new 3C segment; #21 run 37802301614 failed because visible source configuration #v71NewOption never appeared after clicking Como conheceu?. Newest aggregate runs must be rechecked; never claim final green.
+- FINDINGS: blank commercial dataset cannot provide source selection automatically. The V71 wrapper openSourceManagerV71 transitions from Clients to Settings/Campos e opções and schedules openOptionSet('clients.source'). Browser operation has not yet made its option-editing control visible. This may be permission/navigation/async bridge; root cause is NOT confirmed.
+- FIXES_APPLIED: test-only adaptation to attempt to configure acquisition source via visible V71 settings UI rather than bypass with raw SQL/API. No business logic or source rules changed.
+- KNOWN_BLOCKERS: #v71NewOption not visible in 3C even after clicking Como conheceu?. Check actual rendered page/modals and V71 ensureAdmin/openOptionSet path first. Then create client via browser and verify same global Client ID in Big, Centro and Shopping. Availability, bookings across units, three-unit history, two BookingItems/different professionals are all NOT VERIFIED.
+- NEXT_SUBCHECKPOINT: 3C (not 3D).
+- NEXT_EXACT_TASK: confirm current branch HEAD and CI status; reproduce #21 screenshot/log in isolated browser; after clicking Como conheceu? capture rendered UI, determine if V71 settings is gated or modal is delayed; correct only proven bridge or selector. Rerun targeted browser; do not declare 3C until global customer/booking/history all browser-verified. Then update handoff.
+- DO_NOT_REPEAT: CP1/CP2/3A/3B; migrations; WhatsApp WA1–WA5; the established browser harness and admin/config workflow.
+- REMAINING: finish 3C; 3D, 3E, 3F, 3G NOT STARTED. CP4 P2 NOT STARTED.
+- LIVE_READ_ONLY: live Prisma migration ledger, checksums, effective flags, backup NOT VERIFIED.
+- PRODUCTION_MUTATIONS: NONE.
