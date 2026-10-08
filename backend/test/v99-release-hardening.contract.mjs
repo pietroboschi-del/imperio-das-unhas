@@ -59,7 +59,6 @@ for (const forbidden of [
   '$executeRawUnsafe',
   '.create(',
   '.createMany(',
-  '.update(',
   '.updateMany(',
   '.upsert(',
   '.delete(',
@@ -67,6 +66,8 @@ for (const forbidden of [
 ]) {
   ok(!preflight.includes(forbidden), `preflight remains read-only: ${forbidden}`);
 }
+ok(!/\b(?:prisma|tx)\.\w+\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/.test(preflight), 'preflight never performs Prisma model writes');
+ok(preflight.includes("createHash('sha256').update(fs.readFileSync(file))"), 'cryptographic hash update allowed without DB writes');
 ok(!/\b(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)\b/i.test(preflight), 'preflight source contains no DDL/DML keywords');
 
 const delta = read('../tools/release-delta.mjs');
