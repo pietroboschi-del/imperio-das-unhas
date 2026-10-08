@@ -53,8 +53,23 @@ export class StockService {
     throw new ForbiddenException('Permissão funcional insuficiente');
   }
   private async assertLocations(p:ImperioPrincipal,ids:string[],perm:'stock.read'|'stock.manage',db:any=this.prisma){
+    // Denied requests must not trigger location creation/updates, including when
+    // an unauthorized destination is mixed with an authorized source.
+    this.assertAny(p,perm);
+    const unique=[...new Set(ids)];
+    for(const id of unique){
+      if(CANONICAL_UNITS.includes(id as any)){
+        if(!this.unitAccess(p,id,perm))throw new ForbiddenException('Usuário sem acesso ao estoque desta localização');
+      }else if(id==='central'){
+        if(!this.centralAccess(p,perm))throw new ForbiddenException('Usuário sem acesso ao estoque central');
+      }else{
+        const existing=await db.stockLocation.findUnique({where:{id}});
+        if(!existing)throw new NotFoundException('Localização de estoque inválida ou inativa');
+        this.assertLocation(p,existing,perm);
+      }
+    }
     const out=[];
-    for(const id of [...new Set(ids)]){const x=await this.location(id,db);this.assertLocation(p,x,perm);out.push(x)}
+    for(const id of unique){const x=await this.location(id,db);this.assertLocation(p,x,perm);out.push(x)}
     return out;
   }
   async locations(p:ImperioPrincipal){
