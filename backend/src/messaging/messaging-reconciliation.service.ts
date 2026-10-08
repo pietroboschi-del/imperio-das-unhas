@@ -8,6 +8,15 @@ export type ReconciliationAction='CONFIRM_SENT'|'CONFIRM_NOT_SENT'|'CANCEL';
 @Injectable()
 export class MessagingReconciliationService {
   constructor(private readonly prisma:PrismaService){}
+  async listPending(limit=50){
+    const safeLimit=Math.min(100,Math.max(1,Math.trunc(limit||50)));
+    return this.prisma.messagingOutbox.findMany({
+      where:{status:MessagingOutboxStatus.RECONCILIATION_REQUIRED},
+      orderBy:[{lastAttemptAt:'asc'},{id:'asc'}],
+      take:safeLimit,
+      select:{id:true,unitId:true,channelId:true,messageType:true,trigger:true,status:true,attempts:true,lastAttemptAt:true,lastError:true,createdAt:true},
+    });
+  }
   async reconcile(id:string,action:ReconciliationAction,operatorId:string,providerMessageId?:string){
     if(!['CONFIRM_SENT','CONFIRM_NOT_SENT','CANCEL'].includes(action))throw new ConflictException('Invalid reconciliation action');
     const externalId=String(providerMessageId||'').trim();
