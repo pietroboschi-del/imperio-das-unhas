@@ -2,21 +2,27 @@ import assert from 'node:assert/strict';
 import {cp,mkdtemp,writeFile,mkdir,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
+import {spawnSync} from 'node:child_process';
 import {PrismaClient} from '@prisma/client';
 import {buildReadinessReport} from '../tools/three-unit-readiness.mjs';
 
-const prisma=new PrismaClient();
+let prisma;
+let adminPrisma;
+const ISOLATED_SCHEMA='readiness_integration_fixture';
 let tests=0;
 const ok=(value,message)=>{tests++;assert.ok(value,message)};
 const equal=(actual,expected,message)=>{tests++;assert.equal(actual,expected,message)};
 
 async function assertSafeTestDatabase(){
-  const rows=await prisma.$queryRaw`SELECT current_database() AS database_name`;
+  const rows=await adminPrisma.$queryRaw`SELECT current_database() AS database_name`;
   const current=String(rows[0]?.database_name||''),expected=String(process.env.READINESS_TEST_DATABASE||'');
   const url=new URL(String(process.env.DATABASE_URL||''));
   assert.ok(expected&&current===expected,'READINESS_TEST_DATABASE must exactly match the connected database');
   assert.match(current,/(?:_ci|_test)$/,'readiness integration requires a dedicated CI/test database');
   assert.ok(['localhost','127.0.0.1','::1'].includes(url.hostname),'readiness integration requires a local isolated PostgreSQL host');
+  assert.ok(!url.searchParams.has('schema')||url.searchParams.get('schema')==='public','readiness integration requires the original public schema');
+  const existing=await adminPrisma.$queryRaw`SELECT schema_name FROM information_schema.schemata WHERE schema_name=${ISOLATED_SCHEMA}`;
+  assert.equal(existing.length,0,'readiness fixture schema must not preexist; manual CI cleanup required');
 }
 
 async function cleanup(){
@@ -63,7 +69,16 @@ async function addProfessional({id,active=true,link=true,published=true,services
 
 let fixture;
 try{
+  adminPrisma=new PrismaClient();
   await assertSafeTestDatabase();
+  await adminPrisma.$executeRawUnsafe('CREATE SCHEMA "'+ISOLATED_SCHEMA+'"');
+  const fixtureUrl=new URL(process.env.DATABASE_URL);
+  fixtureUrl.searchParams.set('schema',ISOLATED_SCHEMA);
+  const migrated=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{
+    cwd:new URL('../',import.meta.url),env:{...process.env,DATABASE_URL:fixtureUrl.toString()},encoding:'utf8',timeout:120000
+  });
+  assert.equal(migrated.status,0,'isolated readiness migrations failed: '+String(migrated.stderr||'').slice(0,500));
+  prisma=new PrismaClient({datasources:{db:{url:fixtureUrl.toString()}}});
   await cleanup();
   fixture=await localMigrationFixture();
   let report=await buildReadinessReport(prisma,{migrationsDir:fixture.root,now:new Date('2026-10-08T12:00:00.000Z')});
@@ -133,8 +148,13 @@ try{
 
   console.log(JSON.stringify({ok:true,tests,feature:'three_unit_readiness_integration'}));
 }finally{
-  await prisma.$executeRaw`DELETE FROM "_prisma_migrations" WHERE id IN ('readiness-incomplete','readiness-unexpected')`.catch(()=>{});
-  await cleanup().catch(()=>{});
+  if(prisma){
+    await prisma.$executeRaw`DELETE FROM "_prisma_migrations" WHERE id IN ('readiness-incomplete','readiness-unexpected')`.catch(()=>{});
+    await prisma.$disconnect();
+  }
   if(fixture?.root)await rm(fixture.root,{recursive:true,force:true});
-  await prisma.$disconnect();
+  if(adminPrisma){
+    if(prisma)await adminPrisma.$executeRawUnsafe('DROP SCHEMA "'+ISOLATED_SCHEMA+'" CASCADE').catch(()=>{});
+    await adminPrisma.$disconnect();
+  }
 }
