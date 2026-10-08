@@ -683,7 +683,10 @@ def main():
                 inventory_line=page.locator(f"#stockInventoryBody tbody tr[data-pid='{product[0]['id']}']")
                 assert inventory_line.count()==1,"Synthetic product absent from real inventory"
                 inventory_line.locator(".stock-inventory-input").fill("3")
-                page.locator("#stockInvReason").fill("Contagem de validação E2E 3E")
+                # V73 turned the former free-text inventory reason into a controlled select.
+                reason=page.locator("#stockInvReason")
+                assert reason.evaluate("(el)=>el.tagName")==="SELECT","Inventory reason must use the configured taxonomy"
+                assert reason.input_value(),"Select a nonempty existing inventory reason, never invent one"
                 page.get_by_role("button",name="Aplicar contagem",exact=True).click()
                 page.wait_for_function("""pid => (db.stockBalances||[]).some(b=>b.productId===pid&&b.locationId==='u3'&&Math.abs(b.qty-3)<.001)""",arg=product[0]["id"],timeout=20000)
                 print(json.dumps({"scenario":"3E-inventory-applied-real-ui","stock":page.evaluate("""pid => db.stockBalances.filter(b=>b.productId===pid).map(b=>({loc:b.locationId,qty:b.qty,central:b.central}))""",product[0]["id"])},ensure_ascii=False))
