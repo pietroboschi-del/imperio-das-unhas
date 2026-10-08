@@ -28,4 +28,10 @@ must(html.includes("createConfigWorkstation(body){return centralRequest('/api/v1
 must(html.includes("updateConfigWorkstation(id,body){return centralRequest('/api/v1/config/workstations/"),'workstation update goes through central API');
 must(html.includes("window.v77SaveWorkstation=async function"),'central workstation UI save handler exists');
 must(html.includes("db.workstations=rows.map"),'central workstations replace local display data');
+must(html.includes("configCategories(){return centralRequest('/api/v1/config/categories'"),'categories read from central API');
+must(html.includes("createConfigCategory(body){return centralRequest('/api/v1/config/categories'"),'categories can be created from admin UI');
+must(html.includes("updateConfigCategory(id,body){return centralRequest('/api/v1/config/categories/"),'categories can be edited from admin UI');
+must(html.includes("window.centralSaveCategory=async function"),'service category DOM save handler exists');
+must(html.includes("window.v63OpenUser=function"),'users DOM editor connected to central mode');
+must(html.includes("central-user-unit-permission"),'user editor exposes permissions for each unit');
 console.log(JSON.stringify({ok:true,checks,feature:'client_network_history_frontend_contract'}));
