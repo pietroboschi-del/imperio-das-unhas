@@ -691,6 +691,48 @@ def main():
                 page.wait_for_function("""pid => (db.stockBalances||[]).some(b=>b.productId===pid&&b.locationId==='u3'&&Math.abs(b.qty-3)<.001)""",arg=product[0]["id"],timeout=20000)
                 print(json.dumps({"scenario":"3E-inventory-applied-real-ui","stock":page.evaluate("""pid => db.stockBalances.filter(b=>b.productId===pid).map(b=>({loc:b.locationId,qty:b.qty,central:b.central}))""",product[0]["id"])},ensure_ascii=False))
 
+                # Real INPUT consumption flow: distinct from inventory adjustment and sale.
+                # Cost allocation is to the synthetic service category, never the central
+                # technical stock location pretending to be a commercial salon.
+                page.locator(".stock-nav").get_by_role("button",name="Produtos",exact=True).click()
+                page.get_by_role("button",name="+ Novo produto").click()
+                input_name="Insumo Consumo E2E "+suffix
+                page.locator("#spName").fill(input_name)
+                page.locator("#spSku").fill("IN"+suffix[-9:])
+                page.locator("#spType").select_option(value="INPUT")
+                page.locator("#spCost").fill("6")
+                alloc_row=page.locator(".stock-allocation-row",has_text=category_name)
+                assert alloc_row.count()==1,"Synthetic category is absent from stock cost allocation"
+                alloc_row.locator(".stock-alloc").fill("100")
+                page.get_by_role("button",name="Salvar produto").click()
+                page.wait_for_function("(name)=>document.querySelector('#adminPage')?.innerText.includes(name)",arg=input_name,timeout=15000)
+                consumed_product=page.evaluate("""name => db.stockProducts.filter(p=>p.name===name&&p.type==='INPUT').map(p=>({id:p.id,allocations:p.allocations,central:p.central}))""",input_name)
+                assert len(consumed_product)==1 and consumed_product[0]["central"],"Input product did not reach central catalog"
+                page.locator(".stock-nav").get_by_role("button",name="Compras",exact=True).click()
+                page.get_by_role("button",name="+ Nova compra").click()
+                page.locator("#stockBuySupplier").fill("Fornecedor Consumo E2E "+suffix)
+                page.locator("#stockBuyDest").select_option(value="u3")
+                page.locator("#stockBuyFreight").fill("0")
+                page.locator("#stockPurchaseLines .stk-buy-prod").first.select_option(value=consumed_product[0]["id"])
+                page.locator("#stockPurchaseLines .stk-buy-qty").first.fill("2")
+                page.locator("#stockPurchaseLines .stk-buy-cost").first.fill("6")
+                page.get_by_role("button",name="Receber compra").click()
+                page.wait_for_function("""pid => db.stockBalances.some(b=>b.productId===pid&&b.locationId==='u3'&&Math.abs(b.qty-2)<.001)""",arg=consumed_product[0]["id"],timeout=15000)
+                page.locator(".stock-nav").get_by_role("button",name="Visão Geral",exact=True).click()
+                page.get_by_role("button",name="Registrar consumo",exact=True).click()
+                page.locator("#stkConsUnit").select_option(value="u3")
+                page.locator("#stkConsProduct").select_option(value=consumed_product[0]["id"])
+                page.locator("#stkConsQty").fill("1")
+                page.locator("#stkConsNote").fill("Consumo operacional sintético 3E")
+                page.locator("#modalHost").get_by_role("button",name="Registrar consumo",exact=True).click()
+                page.wait_for_function("""pid => db.stockBalances.some(b=>b.productId===pid&&b.locationId==='u3'&&Math.abs(b.qty-1)<.001)""",arg=consumed_product[0]["id"],timeout=15000)
+                consumed_state=page.evaluate("""pid => ({
+                   balance:db.stockBalances.filter(b=>b.productId===pid).map(b=>({qty:b.qty,locationId:b.locationId,central:b.central})),
+                   movements:db.stockMovements.filter(m=>m.productId===pid).map(m=>({type:m.type,qty:m.qty,locationId:m.locationId}))
+                })""",consumed_product[0]["id"])
+                print(json.dumps({"scenario":"3E-stock-input-consumed-real-ui","product":consumed_product,"state":consumed_state},ensure_ascii=False))
+                assert any(b["locationId"]=="u3" and b["central"] and abs(b["qty"]-1)<.001 for b in consumed_state["balance"]),"Input consumption not centrally persisted"
+
                 # No company cash was received; physical opening must remain unchanged.
                 page.get_by_role("button",name="Caixa",exact=True).click()
                 page.wait_for_function("() => document.querySelector('#adminPage')?.innerText.includes('Caixa aberto')",timeout=15000)
