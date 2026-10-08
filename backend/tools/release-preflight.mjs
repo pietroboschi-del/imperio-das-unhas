@@ -1,11 +1,23 @@
 import { PrismaClient } from '@prisma/client';
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const prisma = new PrismaClient();
 const EXPECTED_UNITS = ['centro', 'big', 'shopping-contagem'];
+
+export const localMigrationChecksums = (dir = path.resolve(__dirname, '../prisma/migrations')) => {
+  const result = new Map();
+  const missingLocalMigrationSql = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true }).filter(entry => entry.isDirectory())) {
+    const file = path.join(dir, entry.name, 'migration.sql');
+    if (!fs.existsSync(file)) { missingLocalMigrationSql.push(entry.name); continue; }
+    result.set(entry.name, createHash('sha256').update(fs.readFileSync(file)).digest('hex'));
+  }
+  return {checksums: result, missingLocalMigrationSql};
+};
 
 const localMigrationNames = () => {
   const dir = path.resolve(__dirname, '../prisma/migrations');
@@ -47,6 +59,7 @@ export async function buildReleasePreflightReport() {
     canonicalUnitRows(),
   ]);
   const localNames = localMigrationNames();
+  const {checksums: localHashes, missingLocalMigrationSql} = localMigrationChecksums();
   const dbNames = dbMigrations.map((row) => row.migration_name);
   const dbSet = new Set(dbNames);
   const localSet = new Set(localNames);
@@ -58,7 +71,12 @@ export async function buildReleasePreflightReport() {
   const rolledBackMigrations = dbMigrations
     .filter((row) => row.rolled_back_at)
     .map((row) => row.migration_name);
+  const checksumMismatches = dbMigrations.filter(row => localHashes.has(row.migration_name) && row.checksum && localHashes.get(row.migration_name) !== row.checksum).map(row => row.migration_name);
+  const missingDatabaseChecksum = dbMigrations.filter(row => !row.checksum).map(row => row.migration_name);
   const checksumEvidence = dbMigrations.map((row) => ({
+    localChecksum: localHashes.get(row.migration_name) || null,
+    databaseChecksum: row.checksum || null,
+    checksumMatches: Boolean(row.checksum && localHashes.has(row.migration_name) && row.checksum === localHashes.get(row.migration_name)),
     migrationName: row.migration_name,
     checksum: row.checksum,
     finishedAt: row.finished_at,
@@ -77,7 +95,10 @@ export async function buildReleasePreflightReport() {
       && unexpectedDbMigrations.length === 0
       && incompleteMigrations.length === 0
       && rolledBackMigrations.length === 0
-      && canonicalUnits.missing.length === 0,
+      && canonicalUnits.missing.length === 0
+      && checksumMismatches.length === 0
+      && missingDatabaseChecksum.length === 0
+      && missingLocalMigrationSql.length === 0,
     opMode: 'READ_ONLY',
     generatedAt: new Date().toISOString(),
     database: identity,
@@ -91,6 +112,9 @@ export async function buildReleasePreflightReport() {
       incompleteMigrations,
       rolledBackMigrations,
       checksumEvidence,
+      checksumMismatches,
+      missingLocalMigrationSql,
+      missingDatabaseChecksum,
     },
     canonicalUnits,
     flagsToVerifyExternally: [
