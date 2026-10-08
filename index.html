@@ -4507,8 +4507,47 @@ window.v56PublicSearchSlots=function(){let date=document.getElementById('bkPubli
  const REPORT_TAB_MAP={overview:'overview',clients:'clients',retention:'retention',agenda:'agenda',pros:'pros',professionals:'pros',services:'services',stock:'stock',finance:'finance',marketing:'marketing',audit:'audit'};
  const MAIN_ORDER=['agenda','clients','pros','services','cash','stock','finance','reports','actions','settings'];
  function clone(x){try{return typeof structuredClone==='function'?structuredClone(x):JSON.parse(JSON.stringify(x))}catch{return x}}
- function centralPermissionUserV99(){try{let p=JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'null');if(p?.networkAdmin===true)return {id:p.id||p.userId||'central-network-admin',name:p.displayName||p.name||p.username||'Administrador de rede',username:p.username||'central-network-admin',role:'admin',active:p.active!==false,central:true,networkAdmin:true}}catch(e){}return null}
- function user(){return window.__imperioV63?.currentUser?.()||centralPermissionUserV99()||null}
+ function centralPermissionUserV99(){
+  try{
+   if(sessionStorage.getItem('imperio-v99-central-authenticated')!=='1')return null;
+   const p=JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'null');
+   if(!p?.id&&!p?.userId)return null;
+   const identity={id:p.id||p.userId,name:p.displayName||p.name||p.username||'Operador central',username:p.username||'',active:p.active!==false,central:true};
+   if(p.networkAdmin===true)return {...identity,role:'admin',networkAdmin:true};
+   // Visible UI permissions are projected only from the authenticated backend principal.
+   // Per-request access and X-Unit-Id are always checked again by the API.
+   const granted=new Set([...(Array.isArray(p.permissions)?p.permissions:[]),...(Array.isArray(p.unitAccesses)?p.unitAccesses.flatMap(a=>Array.isArray(a.permissions)?a.permissions:[]):[])]);
+   const has=(...names)=>names.some(name=>granted.has(name));
+   const domains={
+    agenda:['agenda.read','agenda.manage'],clients:['clients.read','clients.manage'],
+    pros:['professionals.read','professionals.manage'],services:['catalog.read','catalog.manage'],
+    cash:['cash.read','cash.open','cash.adjust','cash.close','cash.reopen'],
+    stock:['stock.read','stock.manage'],finance:['finance.read','finance.manage'],
+    reports:['reports.read'],actions:['tasks.read','tasks.manage']
+   };
+   const permissionForKey=(key)=>{
+    if(key.startsWith('page.'))return key==='page.settings'?false:has(...(domains[key.slice(5)]||[]));
+    if(key.startsWith('pros.'))return has(...domains.pros);
+    if(key.startsWith('cash.'))return has(...domains.cash);
+    if(key.startsWith('stock.'))return has(...domains.stock);
+    if(key.startsWith('finance.'))return has(...domains.finance);
+    if(key.startsWith('reports.'))return has(...domains.reports);
+    if(key==='action.clients.duplicates.review')return has('clients.duplicates.review');
+    if(key.startsWith('action.agenda.'))return has('agenda.manage');
+    if(key.startsWith('action.clients.'))return has('clients.manage');
+    if(key.startsWith('action.pros.'))return has('professionals.manage','professionals.compensation.manage');
+    if(key.startsWith('action.services.'))return has('catalog.manage');
+    if(key.startsWith('action.cash.'))return has('cash.open','cash.adjust','cash.close','cash.reopen');
+    if(key.startsWith('action.finance.'))return has('finance.manage','finance.receivables.settle');
+    if(key.startsWith('action.stock.'))return has('stock.manage');
+    if(key.startsWith('action.tasks.'))return has('tasks.manage');
+    return false;
+   };
+   return {...identity,role:'reception',networkAdmin:false,permissionMode:'custom',
+     permissions:Object.fromEntries(ALL_KEYS.map(key=>[key,permissionForKey(key)]))};
+  }catch(e){return null}
+ }
+ function user(){return centralPermissionUserV99()||window.__imperioV63?.currentUser?.()||null}
  function isAdmin(u=user()){return !!u&&u.active!==false&&u.role==='admin'}
  function roleMap(role){let out={};for(const k of ALL_KEYS)out[k]=false;if(role==='admin'){for(const k of ALL_KEYS)out[k]=true;return out}for(const k of ROLE_ALLOWED[role]||[])out[k]=true;return out}
  function effectiveMap(u=user()){if(!u)return {};let base=roleMap(u.role);if(u.role==='admin')return base;if(u.permissionMode!=='custom'||!u.permissions||typeof u.permissions!=='object')return base;for(const k of ALL_KEYS){if(Object.prototype.hasOwnProperty.call(u.permissions,k))base[k]=!!u.permissions[k]}return base}
@@ -7538,7 +7577,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  if(legacyUnitChangeV99){let wrapped=function(){let requested=document.getElementById('unitPicker')?.value||'';let out=legacyUnitChangeV99.apply(this,arguments);if(officialProductionMode()&&centralAuthenticated()){applyCentralUnitGate();let picker=document.getElementById('unitPicker');if(picker&&[...picker.options].some(x=>x.value===requested))picker.value=requested}return out};window.handleUnitChange=wrapped;try{handleUnitChange=wrapped}catch(e){}}
 
  const legacyStaffLoginV99=window.doLogin||((typeof doLogin==='function')?doLogin:null);
- if(legacyStaffLoginV99){let wrapped=function(){if(!officialProductionMode())return legacyStaffLoginV99.apply(this,arguments);let ue=document.getElementById('loginUser'),pe=document.getElementById('loginPass'),username=ue?.value.trim()||'',password=pe?.value||'';if(!username||!password){toast('Informe usuário e senha');return false}return (async()=>{try{let res=await fetch(endpoint()+'/api/v1/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({username,password})}),txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}if(!res.ok||!data.user)throw centralError(data,res.status);let local=(db.userAccounts||[]).find(x=>String(x.username||'').trim().toLowerCase()===username.toLowerCase()&&x.active!==false);if(!local&&data.user.networkAdmin!==true){await fetch(endpoint()+'/api/v1/auth/logout',{method:'POST',credentials:'include',headers:{'X-CSRF-Token':data.csrfToken||''}}).catch(()=>{});throw new Error('Usuário central não está vinculado ao cadastro local migrado')}let healthRes=await fetch(endpoint()+'/api/v1/health',{credentials:'include',headers:{'Accept':'application/json'}}),health=healthRes.ok?await healthRes.json():{};setCentralWriteUnits(health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)?health.operationalWriteUnits:[]);setCentralSession(data.user,data.csrfToken||'');if(local)window.__imperioV63?.sessionSet?.(local.id);if(pe)pe.value='';showOnly('adminApp');buildAdminNav();applyCentralUnitGate();renderAdmin();toast('Sessão central autenticada ✓');return true}catch(e){setCentralSession(null);toast('Login não realizado: '+(e?.message||e));return false}})()};window.doLogin=wrapped;try{doLogin=wrapped}catch(e){}}
+ if(legacyStaffLoginV99){let wrapped=function(){if(!officialProductionMode())return legacyStaffLoginV99.apply(this,arguments);let ue=document.getElementById('loginUser'),pe=document.getElementById('loginPass'),username=ue?.value.trim()||'',password=pe?.value||'';if(!username||!password){toast('Informe usuário e senha');return false}return (async()=>{try{let res=await fetch(endpoint()+'/api/v1/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({username,password})}),txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}if(!res.ok||!data.user)throw centralError(data,res.status);let local=(db.userAccounts||[]).find(x=>String(x.username||'').trim().toLowerCase()===username.toLowerCase()&&x.active!==false);/* In central mode the verified backend principal can log in without a migrated local identity. */let healthRes=await fetch(endpoint()+'/api/v1/health',{credentials:'include',headers:{'Accept':'application/json'}}),health=healthRes.ok?await healthRes.json():{};setCentralWriteUnits(health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)?health.operationalWriteUnits:[]);setCentralSession(data.user,data.csrfToken||'');if(local)window.__imperioV63?.sessionSet?.(local.id);if(pe)pe.value='';showOnly('adminApp');buildAdminNav();applyCentralUnitGate();renderAdmin();toast('Sessão central autenticada ✓');return true}catch(e){setCentralSession(null);toast('Login não realizado: '+(e?.message||e));return false}})()};window.doLogin=wrapped;try{doLogin=wrapped}catch(e){}}
 const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  if(legacyLogoutV99){let wrapped=function(){if(!officialProductionMode()){setCentralSession(null);return legacyLogoutV99.apply(this,arguments)}let args=arguments,self=this,token=centralCsrf();return (async()=>{if(centralAuthenticated())await fetch(endpoint()+'/api/v1/auth/logout',{method:'POST',credentials:'include',headers:{...(token?{'X-CSRF-Token':token}:{})}}).catch(()=>{});setCentralSession(null);return legacyLogoutV99.apply(self,args)})()};window.logout=wrapped;try{logout=wrapped}catch(e){}}
  window.__imperioCentralApi=centralApi;
