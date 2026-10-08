@@ -79,7 +79,9 @@ try{
   injectFailure('after_schema');
   const fixtureUrl=new URL(process.env.DATABASE_URL);
   fixtureUrl.searchParams.set('schema',ISOLATED_SCHEMA);
-  const migrated=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{
+  const migrationArgs=['node_modules/prisma/build/index.js','migrate','deploy'];
+  if(process.env.READINESS_INJECT_FAILURE==='migration_failure')migrationArgs.push('--schema','__readiness_nonexistent_schema__.prisma');
+  const migrated=spawnSync(process.execPath,migrationArgs,{
     cwd:new URL('../',import.meta.url),env:{...process.env,DATABASE_URL:fixtureUrl.toString()},encoding:'utf8',timeout:120000
   });
   assert.equal(migrated.status,0,'isolated readiness migrations failed (diagnostics withheld)');
