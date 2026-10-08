@@ -13,7 +13,7 @@ ok(provider.includes('implements MessagingProvider')&&provider.includes('/messag
 ok(provider.includes('AbortController')&&provider.includes('evolutionHttpTimeoutMs()'),'HTTP client possui timeout/cancelamento');
 ok(!/while\s*\(/i.test(provider),'HTTP client não contém retry invisível');
 ok(dispatch.includes('updateMany')&&dispatch.includes('MessagingOutboxStatus.SENDING'),'dispatcher faz claim atômico antes do envio');
-ok(dispatch.includes("action:'communication.sent'")&&dispatch.includes("action:'communication.failed'"),'dispatcher audita sucesso e falha');
+ok(dispatch.includes("action:'communication.sent'")&&dispatch.includes("communication.failed")&&dispatch.includes("communication.reconciliation_required"),'dispatcher audita sucesso e falha');
 ok(guard.includes('timingSafeEqual')&&guard.includes('x-evolution-webhook-secret'),'webhook usa segredo dedicado em header e comparação segura');
 ok(controller.includes('@Public()')&&controller.includes('@UseGuards(EvolutionWebhookGuard)'),'endpoint escapa sessão humana mas aplica guard próprio');
 ok(controller.includes("api/v1/integrations/evolution")&&controller.includes("@Post('webhook')"),'endpoint Evolution específico criado');
