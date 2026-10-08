@@ -65,6 +65,20 @@ async function main(){
   ok(historyResponse.ok,'owner reads global client history from Centro');
   const globalHistory=await historyResponse.json();
   ok(['centro','big','shopping-contagem'].every(unitId=>globalHistory.bookings.some(x=>x.unitId===unitId)),'global history includes visits from all three units');
+    await prisma.professional.create({data:{id:'p-history-second',name:'Segunda Profissional Histórico',active:true,units:{create:[{unitId:'centro',active:true}]},legacyPayload:{show:true,online:true,services:['short']}}});
+  const multiResponse=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{'content-type':'application/json',cookie:ownerCookie,'x-unit-id':'centro','x-csrf-token':(await ownerLogin.clone().json()).csrfToken,'idempotency-key':'history-multi-pro'},body:JSON.stringify({
+    clientId:globalClient.id,serviceDate:'2026-10-06',
+    items:[
+      {serviceId:'long',professionalId:'p-all',startAt:'2026-10-06T17:30:00.000Z'},
+      {serviceId:'short',professionalId:'p-history-second',startAt:'2026-10-06T17:30:00.000Z'}
+    ]
+  })});
+  ok(multiResponse.ok,'authenticated multi-item booking with two professionals');
+  const multiBooking=await multiResponse.json();
+  const detailedHistory=await fetch(base+'/api/v1/clients/'+globalClient.id+'/history',{headers:{cookie:ownerCookie,'x-unit-id':'centro'}});
+  ok(detailedHistory.ok,'multi-service history is readable');
+  const multiHistory=(await detailedHistory.json()).bookings.find(x=>x.id===multiBooking.id);
+  ok(multiHistory?.items?.length===2&&new Set(multiHistory.items.map(x=>x.professionalId)).size===2&&multiHistory.items.some(x=>x.serviceId==='short'&&x.professionalId==='p-history-second'),'BookingItem preserves each service to correct professional');
     r=await book('shopping-contagem','2026-10-06T15:00','3199999040','idem','short');ok(r.ok,'idempotency first');const a=await r.json();
   r=await book('shopping-contagem','2026-10-06T15:00','3199999040','idem','short');ok(r.ok,'idempotency repeat');const b=await r.json();ok(a.id===b.id,'same booking id');
   const concurrent=await Promise.all([book('centro','2026-10-06T16:00','3199999051','race-a','short'),book('centro','2026-10-06T16:00','3199999052','race-b','short')]);
