@@ -146,6 +146,8 @@ jobs:
         run: npm run test:catalog-config
       - name: Employee configuration readiness
         run: npm run test:employee-config-readiness
+      - name: Read-only three-unit readiness diagnostic
+        run: npm run test:three-unit-readiness
       - name: Multi-unit operational write tests
         run: npm run test:operational-writes
       - name: Three-unit stock foundation
