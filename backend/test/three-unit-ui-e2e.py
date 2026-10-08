@@ -287,6 +287,17 @@ def main():
                     current=page.evaluate("""(name)=>db.clients.filter(c=>c.name===name).map(c=>c.id)""",client_name)
                     assert current==[identity[0]["id"]],f"Client identity changed or duplicated in {unit}"
                 print(json.dumps({"ok":True,"scenario":"3C-client-global-cross-unit-visible","name":client_name,"identity":identity[0],"units":["big","centro","shopping-contagem"]},ensure_ascii=False))
+                page.locator("#unitPicker").select_option(value="u3")
+                page.get_by_role("button",name="Agenda",exact=True).click()
+                page.wait_for_timeout(800)
+                page.get_by_role("button",name="+ Novo agendamento").click()
+                page.wait_for_timeout(450)
+                print(json.dumps({"scenario":"3C-booking-form-browser-discovery",
+                    "modal":page.locator("#modalHost").inner_text()[:2400],
+                    "inputs":[{"id":el.get_attribute("id"),"type":el.get_attribute("type"),"placeholder":el.get_attribute("placeholder")} for el in page.locator("#modalHost input:visible").all()[:35]],
+                    "selects":[{"id":el.get_attribute("id"),"options":el.locator("option").all_text_contents()[:8]} for el in page.locator("#modalHost select:visible").all()[:18]],
+                    "buttons":page.locator("#modalHost button:visible").all_text_contents()[:35]},ensure_ascii=False))
+
 
             except Exception:
                 page.screenshot(path="/tmp/imperio-e2e-bootstrap-failure.png",full_page=True)
