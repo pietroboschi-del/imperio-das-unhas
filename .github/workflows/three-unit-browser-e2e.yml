@@ -1,0 +1,66 @@
+name: Three-unit browser E2E (isolated)
+on:
+  push:
+    branches: [official-three-units-integration]
+    paths:
+      - 'backend/test/three-unit-ui-e2e.py'
+      - '.github/workflows/three-unit-browser-e2e.yml'
+  workflow_dispatch:
+
+jobs:
+  ui:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: imperio
+          POSTGRES_PASSWORD: imperio_ci
+          POSTGRES_DB: imperio_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U imperio -d imperio_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://imperio:imperio_ci@127.0.0.1:5432/imperio_ci?schema=public
+      PORT: '3100'
+      COOKIE_SECURE: 'false'
+      CORS_ORIGINS: http://127.0.0.1:3101
+      ADMIN_USERNAME: ci_owner
+      ADMIN_PASSWORD: ci-owner-password-123
+      ADMIN_NAME: CI Owner
+      OPERATIONAL_WRITES_ENABLED: 'false'
+      WHATSAPP_AUTOMATION_ENABLED: 'false'
+      EVOLUTION_WEBHOOK_ENABLED: 'false'
+      WHATSAPP_AGENT_API_ENABLED: 'false'
+      OPENAPI_ENABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install backend and generate Prisma
+        run: |
+          npm install --no-audit --no-fund
+          npm run prisma:generate
+          npm run prisma:migrate
+          npm run build
+          npm run admin:create
+      - name: Install isolated Chromium
+        run: |
+          python3 -m pip install --user playwright
+          python3 -m playwright install chromium
+      - name: Real browser scenario
+        run: npm run test:three-unit-ui-e2e
+      - name: Upload failed browser screenshot
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: three-unit-browser-e2e-failure
+          path: /tmp/imperio-e2e-bootstrap-failure.png
+          if-no-files-found: ignore
