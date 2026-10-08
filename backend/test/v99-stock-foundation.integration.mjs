@@ -31,16 +31,18 @@ async function main(){
  const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem'},stdio:['ignore','pipe','pipe']});
  try{
   await wait();
-  let r=await req('/api/v1/stock/locations',{headers:mh});ok(r.ok,'locations available');let locs=await r.json();eq(locs.length,4,'four stock locations');
-  let central=locs.find(x=>x.id==='central');ok(central&&central.kind==='CENTRAL'&&central.unitId===null,'central is technical stock location');
-  for(const id of ['centro','big','shopping-contagem']){const x=locs.find(v=>v.id===id);ok(x&&x.kind==='UNIT'&&x.unitId===id,'unit stock location '+id)}
-  eq(await prisma.unit.count({where:{id:'central'}}),0,'central was never created as Unit');
+  let r;const beforeRead=await prisma.stockLocation.count();
+  r=await req('/api/v1/stock/locations',{headers:mh});ok(r.ok,'locations read available before configuration');await r.json();eq(await prisma.stockLocation.count(),beforeRead,'GET locations never initializes data');
 
   for(const body of [
     {id:'stock-ci-a',sku:'A-CI',name:'Produto A',type:'INPUT',unit:'un',defaultCost:10,minStock:1,allocations:{cat:100},active:true},
     {id:'stock-ci-b',sku:'B-CI',name:'Produto B',type:'RESALE',unit:'un',defaultCost:20,salePrice:40,active:true},
     {id:'stock-ci-open',sku:'OPEN-CI',name:'Produto Opening',type:'INPUT',unit:'un',defaultCost:5,allocations:{cat:100},active:true},
   ]){r=await req('/api/v1/stock/products',{method:'POST',headers:mh,body});ok(r.ok,'global product '+body.id)}
+  r=await req('/api/v1/stock/locations',{headers:mh});ok(r.ok,'locations available');let locs=await r.json();eq(locs.length,4,'four stock locations');
+  let central=locs.find(x=>x.id==='central');ok(central&&central.kind==='CENTRAL'&&central.unitId===null,'central is technical stock location');
+  for(const id of ['centro','big','shopping-contagem']){const x=locs.find(v=>v.id===id);ok(x&&x.kind==='UNIT'&&x.unitId===id,'unit stock location '+id)}
+  eq(await prisma.unit.count({where:{id:'central'}}),0,'central was never created as Unit');
   r=await req('/api/v1/stock/products',{headers:ch});ok(r.ok,'restricted user reads global products');eq((await r.json()).filter(x=>x.id.startsWith('stock-ci-')).length,3,'product catalog is global, not duplicated per unit');
   r=await req('/api/v1/stock/products',{method:'POST',headers:rh,body:{id:'forbidden',name:'No',type:'INPUT'}});eq(r.status,403,'stock.read cannot manage product');
 
