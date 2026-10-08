@@ -194,3 +194,15 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - NEXT_SUBCHECKPOINT: 3D only, public booking empty state and three-unit scheduling in isolated browser. NEXT_EXACT_TASK: confirm HEAD/CI, extend current real Chromium harness for public booking, keep backend/database isolated; do not reopen prior checkpoints.
 - DO_NOT_REPEAT: Checkpoints 1, 2, 3A, 3B, 3C or WA1–WA5.
 - PRODUCTION_MUTATIONS: NONE. PRODUCTION: UNCHANGED.
+
+
+## SUBCHECKPOINT 3D — COMPLETE (2026-10-08)
+- START_HEAD: 934c91e183b10586383a99be8246f017510f28b4.
+- #577 V98 aggregate failure root cause: legacy first/default booking professional was p-all with no Monday schedule in CI; browser test did not select the specific service/professional created by 3B. No backend scheduling rule was defective. Fixed test selection to explicitly choose 3B-created service and professional, preserving backend validation (commit 8d97143fee8f164ebdcdec0d6e2097289141f85b). Browser #30, run 37839536752 SUCCESS.
+- 3D REAL BROWSER: isolated Chromium #31 run 37839881463 SUCCESS on code HEAD c1d1744dbbb29ac52e06b9d2cccdf1e08a10262d.
+- 3D coverage: public home showed exactly three canonical unit cards, each booking enabled; visible Tuesday empty-state with no selectable Monday-only professional slot; clicked each unit's public booking card; selected published service/professional, future available Monday and real time slot; submitted three distinct public client bookings through the public UI; returned to authenticated admin Clients UI and verified each persisted appointment in global historical dossier after server round-trip.
+- CHANGED FILES: backend/test/three-unit-ui-e2e.py only (3C regression hardening and 3D browser scenario). No SQL fixture, no direct API injection, no deployment.
+- Full V98 Backend CI #578 run 37839536753 and #579 run 37839881597 were IN PROGRESS at 3D browser closure. Do not call full aggregate green until confirmed at exact final HEAD.
+- LAST_COMPLETED_SUBCHECKPOINT: 3D COMPLETE (directed isolated Chromium). 3E–3G NOT STARTED. CHECKPOINT 3 OVERALL: PARTIAL / RECOVERABLE.
+- NEXT_SUBCHECKPOINT: 3E — comanda/payment/cash/stock/reports real Chromium plus isolated persistence, then 3F permission boundaries and 3G final regression.
+- PRODUCTION MUTATIONS: NONE; no live migrations, Railway writes, live flags, WhatsApp or deployment.
