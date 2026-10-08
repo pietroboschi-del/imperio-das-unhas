@@ -84,3 +84,12 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - NEXT_EXACT_TASK: commit and push this recovery progress, wait for `Three-unit browser E2E (isolated)` and main `V98 Backend CI`; if the first real browser failure is in the newly expanded 3B flow, inspect the failure log/screenshot and correct only that confirmed UI/bridge issue. Do not start 3C until 3B browser CI is green.
 - DO_NOT_REPEAT: login proof, session proof, three-unit selector proof, canonical IDs proof, and the V67 `networkAdmin` permission root-cause diagnosis.
 - PRODUCTION_MUTATIONS: NONE.
+
+## CHECKPOINT 3B CI #12 FOLLOW-UP — SETTINGS ROUTE FOR STRUCTURAL UI (2026-10-08)
+- REMOTE_HEAD_TESTED: 91b06d71d2fc6ef3b24674e30654ea2838414257.
+- CI_RESULT: Three-unit browser E2E #12, run 37797951526, FAILURE at `Real browser scenario`.
+- EVIDENCE: browser #12 proved the V67 central `networkAdmin` permission bridge fixed the original blocker: `+ Nova profissional` became visible and the professional modal rendered `#pfName`, unit checkboxes for Centro/Big/Shopping Contagem, schedule/services tabs and `Salvar profissional`.
+- FIRST_NEW_FAILURE: test attempted to click a `Categorias` button from the Serviços page; CI timed out because that shortcut was not rendered there in this state. This is a test route issue, not the original professional-navigation blocker.
+- FIX: browser E2E now reaches structural category and workstation screens through the existing real UI route `Configurações` → `Categorias de Serviços` / `Estações de trabalho`, keeping category/workstation creation as browser actions.
+- NEXT_EXACT_TASK: push this E2E route correction on top of remote HEAD 91b06d71d2fc6ef3b24674e30654ea2838414257; rerun browser #13 and inspect the first remaining real failure.
+- PRODUCTION_MUTATIONS: NONE.
