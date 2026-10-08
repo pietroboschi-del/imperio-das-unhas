@@ -67,6 +67,17 @@ try{
  const before=fake.calls.length;
  await Promise.all([dispatch.processOne(concurrent.id),dispatch.processOne(concurrent.id)]);
  eq(fake.calls.length,before+1,'concurrent workers call provider only once');
+ const late=await queued(foundation,'late-ack');
+ fake.delayMs=350;
+ const inFlight=dispatch.processOne(late.id);
+ for(let i=0;i<100&&fake.calls.at(-1)?.outboxId!==late.id;i++)await new Promise(r=>setTimeout(r,5));
+ ok(fake.calls.at(-1)?.outboxId===late.id,'late send entered provider');
+ await db.messagingOutbox.update({where:{id:late.id},data:{lastAttemptAt:new Date(Date.now()-600000)}});
+ await dispatch.recoverStaleSending(20);
+ const lateOutcome=await inFlight;
+ eq(lateOutcome.outcome,'SKIPPED','late ACK cannot falsely report persisted SENT');
+ eq((await db.messagingOutbox.findUniqueOrThrow({where:{id:late.id}})).status,'RECONCILIATION_REQUIRED','late response cannot overwrite quarantine');
+ fake.delayMs=0;
  const stale=await queued(foundation,'stale');
  await db.messagingOutbox.update({where:{id:stale.id},data:{status:'SENDING',attempts:1,lastAttemptAt:new Date(Date.now()-600000)}});
  const recovered=await dispatch.recoverStaleSending(20);
