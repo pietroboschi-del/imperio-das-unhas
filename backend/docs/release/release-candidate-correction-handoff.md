@@ -174,3 +174,23 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - REMAINING: finish 3C; 3D, 3E, 3F, 3G NOT STARTED. CP4 P2 NOT STARTED.
 - LIVE_READ_ONLY: live Prisma migration ledger, checksums, effective flags, backup NOT VERIFIED.
 - PRODUCTION_MUTATIONS: NONE.
+
+
+## SUBCHECKPOINT 3C — COMPLETE (2026-10-08)
+- START_HEAD: bb8efb405729e22e37d189ac669ff5c47aa2a2ef; CP1/CP2/3A/3B preserved.
+- CURRENT_HEAD_BEFORE_HANDOFF: 676cd2c07161bc7d6c43a14ce5e6b92776be472c.
+- LAST_COMPLETED_SUBCHECKPOINT: 3C COMPLETE. CHECKPOINT 3 OVERALL: PARTIAL / RECOVERABLE.
+- ROOT CAUSE #21: V71 ensureAdmin used legacy V63 local settings permission, rejecting authenticated networkAdmin without legacy user. Screenshot artifact #11561117648 shows Clients page without option manager. UI guard now recognizes authenticated central networkAdmin only, with backend permissions unchanged.
+- CLIENT GLOBAL: browser #22 run 37806403430 SUCCESS; created one synthetic Client from visible Big UI and found same central ID without duplicate in Centro and Shopping Contagem.
+- AGENDA BRIDGE: browser #24 found no eligible professional because refreshCentralAgenda overwrote configured ProfessionalUnit/service rules with core minimal projections. For centrally authorized admin only, agenda refresh now rehydrates authoritative central professional/catalog configuration. Browser #25 run 37807534598 SUCCESS.
+- CROSS-UNIT BOOKING: browser #26 run 37807880018 SUCCESS; visible Agenda created separate Centro (u3), Big (u1), Shopping Contagem (u2) appointments for the same central client with the appropriate eligible professional.
+- GLOBAL HISTORY: browser displayed Centro, Big, Shopping, date, time, service, public professional name, translated Agendado status and Booking IDs. Assertion updated from internal professional name to actual published name.
+- MULTI-SERVICE TWO PROFESSIONALS: browser #29 run 37809056966 SUCCESS at 676cd2c07161bc7d6c43a14ce5e6b92776be472c. A second service and second professional were created through admin UI. The same central client was booked at Centro with two different BookingItems/professional IDs. The global client dossier visually mapped Service A to Pro A and Service B to Pro B, with five historical service rows overall.
+- FILES_CHANGED: index.html; backend/test/three-unit-ui-e2e.py. 8 code/test commits since bb8efb405.
+- COMMITS: 18fee8dd (V71 permission), f07ce447 (booking form), 28e69f77 (eligibility diagnosis), 362d8daa (agenda professional rules), 4a5963f1 (three-unit booking), 3e92a196 (history), f89e03d2 (diagnosis), 676cd2c0 (two-professional booking/history).
+- TESTS_PASSED: isolated Chromium E2E #22, #23, #25, #26, #29 SUCCESS. V98 Backend CI #564 passed on 3B; CI #576 run 37809057125 for final 3C code was pending verification when this documentation was prepared. Verify green on exact HEAD; never claim full CI success before actual completion.
+- UI EVIDENCE: Chromium opened/clicked/filled/submitted; no direct SQL/API data injection. Backend client dossier returns persisted global BookingItem details.
+- KNOWN_BLOCKERS: no remaining targeted 3C browser assertion; full aggregate CI outcome to confirm. 3D–3G NOT STARTED; live ledger/checksums/flags/backup NOT VERIFIED.
+- NEXT_SUBCHECKPOINT: 3D only, public booking empty state and three-unit scheduling in isolated browser. NEXT_EXACT_TASK: confirm HEAD/CI, extend current real Chromium harness for public booking, keep backend/database isolated; do not reopen prior checkpoints.
+- DO_NOT_REPEAT: Checkpoints 1, 2, 3A, 3B, 3C or WA1–WA5.
+- PRODUCTION_MUTATIONS: NONE. PRODUCTION: UNCHANGED.
