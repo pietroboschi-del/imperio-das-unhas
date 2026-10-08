@@ -80,6 +80,8 @@ jobs:
       - name: WA2.2 safe Outbox reconciliation
         working-directory: backend
         run: npm run test:wa2.2
+      - name: WhatsApp read-only preflight contract
+        run: npm run test:whatsapp-preflight
       - name: WA3A server-side availability
         run: npm run test:wa3a
       - name: WA3B authoritative agent booking
