@@ -26,11 +26,11 @@
 
 | COMMAND / ACTION | SUCCESS CRITERIA | STOP CONDITION | ROLLBACK ACTION |
 |---|---|---|---|
-| Re-run live ledger read-only | Baseline still exactly 13 migrations | Any mismatch or incomplete row | Stop; no migration |
-| Compare live ledger with manifest | Names and checksums are consistent with approved baseline | Unknown migration or checksum mismatch | Stop; owner/auditor review |
+| Re-run live ledger read-only | Baseline still exactly 13 migrations, with SHA-256 checksums verified | Any mismatch, checksum mismatch, incomplete or rolled-back row | Stop; no migration |
+| Compare live ledger with manifest (read-only release:preflight); abort on any unknown, missing, reverted or hash-mismatched migration | Names and computed SHA-256 checksums of each migration.sql agree with the stored Prisma ledger; no unknown, incomplete or rolled-back migration | Unknown migration or checksum mismatch | Stop; owner/auditor review |
 | Owner authorizes migration | Written approval captured | Approval missing | Stop |
-| `npm run prisma:migrate` | Applies 8 expected pending migrations | Command fails | Stop; inspect ledger, prepare restore decision |
-| `DATABASE_URL='<authorized-readonly-url>' npm run release:preflight` | 21 migrations, no pending, no incomplete, no rolled back | Any failed or partial state | Stop; database restore may be required |
+| `npm run prisma:migrate` | Applies 9 expected pending migrations, including 20261008_wa2_outbox_reconciliation_required | Command fails | Stop; inspect ledger, prepare restore decision |
+| `DATABASE_URL='<authorized-readonly-url>' npm run release:preflight` | 22 migrations, no pending, no incomplete, no rolled back | Any failed or partial state | Stop; database restore may be required |
 
 ## FASE D - BACKEND
 
