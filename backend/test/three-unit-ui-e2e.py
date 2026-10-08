@@ -430,6 +430,98 @@ def main():
                 print(json.dumps({"ok":True,"scenario":"3C-two-professionals-global-history","rows":visible[:8]},ensure_ascii=False))
 
 
+                # 3D — genuine public booking from public unit cards, with no SQL/API fixture.
+                # Retain the synthetic catalogue/professional built by 3B, but start from
+                # the actual public landing page as an unaided browser visitor.
+                page.goto(f"{UI_ORIGIN}/index.html",wait_until="domcontentloaded",timeout=30000)
+                page.wait_for_function("() => document.querySelectorAll('#publicUnits .v99-public-unit-card').length === 3",timeout=20000)
+                cards=page.locator("#publicUnits .v99-public-unit-card")
+                visible_units=cards.evaluate_all("(els)=>els.map(x=>({unit:x.dataset.unit,booking:!!x.querySelector('.v99-public-unit-booking')}))")
+                print(json.dumps({"scenario":"3D-public-units-visible","cards":visible_units},ensure_ascii=False))
+                assert set(x["unit"] for x in visible_units)=={"centro","big","shopping-contagem"},"Public page omitted a canonical unit"
+                assert all(x["booking"] for x in visible_units),"A public unit has booking disabled despite configured online service/professional"
+
+                # Empty availability must be displayed, without inventing times. The
+                # synthetic E2E professional works Mondays only, never on Tuesday.
+                page.locator("#publicUnits .v99-public-unit-card[data-unit='centro'] .v99-public-unit-booking").click()
+                page.locator("#bkPublicServices .v56-public-service",has_text=service_name).locator("input").check()
+                page.locator("#bk2").get_by_role("button",name="Continuar").click()
+                page.locator("#bkPublicDate").fill((monday+timedelta(days=1)).isoformat())
+                page.wait_for_function("() => !!document.querySelector('#bkPublicSlots') && !document.querySelector('#bkPublicSlots').innerText.includes('Consultando disponibilidade') && !document.querySelector('#bkPublicSlots').innerText.includes('Procurando opções')",timeout=25000)
+                empty_text=page.locator("#bkPublicSlots").inner_text()
+                print(json.dumps({"scenario":"3D-public-empty-state","text":empty_text[:600]},ensure_ascii=False))
+                assert page.locator("#bkPublicSlots .slot-btn").count()==0,"Tuesday unexpectedly presents selectable slots for Monday-only E2E professional"
+                assert any(x in empty_text for x in ("Não encontramos horário","Nenhum horário","Não há escala","Nenhuma alternativa","Não há profissional")),"Public empty state lacks an understandable explanation"
+                page.locator("#modalHost").get_by_role("button",name="Cancelar").click()
+
+                public_records=[]
+                for index,unit in enumerate(("centro","big","shopping-contagem")):
+                    booking_day=(monday+timedelta(days=28+7*index)).isoformat()
+                    public_client="Cliente Público E2E "+unit+" "+suffix
+                    public_phone="319"+suffix[-7:]+str(index)
+                    page.locator(f"#publicUnits .v99-public-unit-card[data-unit='{unit}'] .v99-public-unit-booking").click()
+                    page.wait_for_function("() => document.querySelector('#bk2.booking-step.active') !== null",timeout=15000)
+                    service_option=page.locator("#bkPublicServices .v56-public-service",has_text=service_name)
+                    assert service_option.count()==1, f"Configured service missing in public {unit} catalog"
+                    service_option.locator("input").check()
+                    page.locator("#bk2").get_by_role("button",name="Continuar").click()
+                    page.locator("#bkPublicDate").fill(booking_day)
+                    page.wait_for_function("() => document.querySelector('#bkPublicPro')?.options.length > 1",timeout=15000)
+                    page.locator("#bkPublicPro").select_option(label="Pro E2E Editada")
+                    page.wait_for_function("() => document.querySelectorAll('#bkPublicSlots .slot-btn').length > 0",timeout=25000)
+                    slots=page.locator("#bkPublicSlots .slot-btn")
+                    first_slot=slots.first.inner_text()
+                    print(json.dumps({"scenario":"3D-public-availability","unit":unit,"date":booking_day,"professional":"Pro E2E Editada","slot":first_slot[:250]},ensure_ascii=False))
+                    assert service_name in first_slot,"Public slot does not display selected service"
+                    assert "Pro E2E Editada" in first_slot,"Public slot does not display selected professional"
+                    slots.first.click()
+                    assert page.locator("#bk4.booking-step.active").is_visible(),"Public slot did not advance to visitor details"
+                    page.locator("#bkName").fill(public_client)
+                    page.locator("#bkPhone").fill(public_phone)
+                    page.locator("#bkBirth").fill("1996-05-15")
+                    page.locator("#bkContinue").click()
+                    assert page.locator("#bk5.booking-step.active").is_visible(),"Public identification failed to reach final step"
+                    source=page.locator("#bkSource")
+                    if source.count():
+                        opts=source.locator("option").evaluate_all("(els)=>els.map(e=>e.value).filter(Boolean)")
+                        assert opts, f"Public new-client source options missing at {unit}"
+                        source.select_option(value=opts[0])
+                    confirmation=page.locator("#bkFinalContent").inner_text()
+                    assert service_name in confirmation and "Pro E2E Editada" in confirmation,"Public confirmation lost service/professional assignment"
+                    page.locator("#bkFinish").click()
+                    page.wait_for_function("() => !document.querySelector('#bk5.booking-step.active')",timeout=20000)
+                    page.wait_for_timeout(500)
+                    public_records.append({"unit":unit,"date":booking_day,"client":public_client,"phone":public_phone})
+                    print(json.dumps({"scenario":"3D-public-booking-submitted","record":public_records[-1],"toast":page.locator("body").inner_text()[:200]},ensure_ascii=False))
+
+                # Read the resulting bookings back from the authenticated real admin UI
+                # after navigating from the public page. No direct backend or SQL reads.
+                page.get_by_role("button",name="Área da equipe").click()
+                page.wait_for_timeout(700)
+                if page.locator("#loginPass").is_visible():
+                    page.locator("#loginUser").fill(os.environ["ADMIN_USERNAME"])
+                    page.locator("#loginPass").fill(os.environ["ADMIN_PASSWORD"])
+                    page.get_by_role("button",name="Entrar",exact=True).click()
+                    page.wait_for_timeout(1500)
+                page.get_by_role("button",name="Clientes",exact=True).click()
+                page.wait_for_timeout(700)
+                for record in public_records:
+                    page.locator("#clientSearch").fill(record["client"])
+                    page.wait_for_function("(name) => [...document.querySelectorAll('#clientRows tr')].some(x=>x.innerText.includes(name))",arg=record["client"],timeout=15000)
+                    found=page.locator("#clientRows tr",has_text=record["client"])
+                    assert found.count()==1,f"Public {record['unit']} client not centrally persisted"
+                    found.get_by_role("button",name="Abrir").click()
+                    page.locator('[data-client-tab="historico"]').click()
+                    page.wait_for_function("(name) => document.querySelector('#clientTabContent')?.innerText.includes(name)",arg=service_name,timeout=15000)
+                    history=page.locator("#clientTabContent").inner_text()
+                    assert record["unit"] in ("centro","big","shopping-contagem") and "Pro E2E Editada" in history, f"Missing public booking detail for {record['unit']}"
+                    assert page.locator("#clientTabContent table tbody tr").count()>=1,f"No persisted public booking history for {record['unit']}"
+                    print(json.dumps({"scenario":"3D-public-booking-persisted-admin-ui","unit":record["unit"],"client":record["client"],"history":history[:580]},ensure_ascii=False))
+                    page.locator("#modalHost button.x").click()
+                print(json.dumps({"ok":True,"scenario":"3D-three-unit-public-booking-and-empty-state","count":len(public_records)},ensure_ascii=False))
+
+
+
 
 
 
