@@ -45,6 +45,19 @@ try{
  await prisma.$executeRaw`UPDATE "_prisma_migrations" SET checksum = ${checksums.get(name)} WHERE migration_name=${name}`.catch(()=>{});
  await prisma.$disconnect();
 }
+// Verify missing/pending local migrations and unexpected applied names in the disposable CI ledger.
+const synthetic='__ci_unknown_migration_fixture__';
+const auditDb=new PrismaClient();
+try {
+ await auditDb.$executeRaw`UPDATE "_prisma_migrations" SET migration_name = ${synthetic} WHERE migration_name = ${name}`;
+ const invalid=await buildReleasePreflightReport();
+ ok(invalid.migrations.pendingMigrations.includes(name),'unapplied local migration flagged pending');
+ ok(invalid.migrations.unexpectedDbMigrations.includes(synthetic),'unknown database migration flagged');
+ eq(invalid.ok,false,'unknown plus pending migration fails gate');
+} finally {
+ await auditDb.$executeRaw`UPDATE "_prisma_migrations" SET migration_name = ${name} WHERE migration_name = ${synthetic}`.catch(()=>{});
+ await auditDb.$disconnect();
+}
 const source=readFileSync(new URL('../tools/release-preflight.mjs',import.meta.url),'utf8');
 ok(!/\$executeRaw|\.(create|update|delete|upsert|executeRaw|createMany|updateMany|deleteMany)\s*\(/.test(source),'preflight implementation contains no DB writes');
 ok(!source.includes('process.env.DATABASE_URL')&&!source.includes('console.log(process.env'),'preflight never prints credential URLs');
