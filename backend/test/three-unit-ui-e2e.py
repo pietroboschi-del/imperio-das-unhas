@@ -61,6 +61,16 @@ def main():
                    "body":page.locator("body").inner_text()[:1400]}
                 print(json.dumps(auth_snapshot,ensure_ascii=False))
                 assert any(i["type"]=="password" for i in auth_snapshot["inputs"]), "Team login did not render a visible password input"
+                page.locator("#loginUser").fill(os.environ["ADMIN_USERNAME"])
+                page.locator("#loginPass").fill(os.environ["ADMIN_PASSWORD"])
+                page.get_by_role("button",name="Entrar",exact=True).click()
+                page.wait_for_timeout(1800)
+                after={"scenario":"3B-real-admin-authentication","url":page.url,
+                       "loginVisible":page.locator("#loginPass").is_visible(),
+                       "buttons":page.locator("button:visible").all_text_contents()[:35],
+                       "body":page.locator("body").inner_text()[:1500]}
+                print(json.dumps(after,ensure_ascii=False))
+                assert not after["loginVisible"], "CI admin login did not leave authentication screen; potential central/legacy bridge failure"
                 print(json.dumps({"ok":True,"scenario":"3A-real-browser-bootstrap"}))
             except Exception:
                 page.screenshot(path="/tmp/imperio-e2e-bootstrap-failure.png",full_page=True)
