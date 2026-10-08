@@ -253,6 +253,34 @@ def main():
                 assert any(x["unitId"]=="u3" and x["active"] for x in inventory["workstations"]), "Created workstation did not persist for Centro"
 
                 print(json.dumps({"ok":True,"scenario":"3B-admin-configuration-browser-closure"}))
+                # 3C: use the visible client form and centrally backed client list; no API/SQL fixture.
+                client_name="Cliente E2E Rede "+suffix
+                client_phone="319"+suffix[-8:]
+                page.locator("#unitPicker").select_option(value="u1")
+                page.get_by_role("button",name="Clientes",exact=True).click()
+                page.wait_for_timeout(800)
+                page.get_by_role("button",name="+ Nova cliente").click()
+                page.locator("#cfName").fill(client_name)
+                page.locator("#cfPhone").fill(client_phone)
+                sources=page.locator("#cfSource option").evaluate_all("(els)=>els.map(e=>({value:e.value,text:e.textContent}))")
+                selectable=[x for x in sources if x["value"]]
+                assert selectable, "Client registration source is unavailable in visible UI"
+                page.locator("#cfSource").select_option(value=selectable[0]["value"])
+                page.get_by_role("button",name="Salvar cliente").click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=client_name,timeout=15000)
+                page.locator("#clientSearch").fill(client_name)
+                assert page.locator("#clientRows tr",has_text=client_name).count()==1,"Client registration did not yield exactly one visible global client"
+                identity=page.evaluate("""(name)=>db.clients.filter(c=>c.name===name).map(c=>({id:c.id,registrationUnit:c.registrationUnit,central:c.central}))""",client_name)
+                assert len(identity)==1 and identity[0]["central"],"Client was not persisted as a central global Client"
+                for unit in ("u3","u2","u1"):
+                    page.locator("#unitPicker").select_option(value=unit)
+                    page.wait_for_timeout(600)
+                    page.locator("#clientSearch").fill(client_name)
+                    assert page.locator("#clientRows tr",has_text=client_name).count()==1,f"Global client not visible in {unit}"
+                    current=page.evaluate("""(name)=>db.clients.filter(c=>c.name===name).map(c=>c.id)""",client_name)
+                    assert current==[identity[0]["id"]],f"Client identity changed or duplicated in {unit}"
+                print(json.dumps({"ok":True,"scenario":"3C-client-global-cross-unit-visible","name":client_name,"identity":identity[0],"units":["big","centro","shopping-contagem"]},ensure_ascii=False))
+
             except Exception:
                 page.screenshot(path="/tmp/imperio-e2e-bootstrap-failure.png",full_page=True)
                 raise
