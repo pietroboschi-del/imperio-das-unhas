@@ -106,7 +106,7 @@ for (const needle of [
 ok(!/railway|proxy|production/i.test(rehearsal), 'synthetic rehearsal does not target production/Railway/proxy');
 
 const workflow = read('../../.github/workflows/backend-ci.yml');
-ok(workflow.includes('Synthetic 13-to-21 migration rehearsal'), 'CI includes synthetic migration rehearsal step');
+ok(workflow.includes('Synthetic 13-to-22 migration rehearsal'), 'CI includes synthetic migration rehearsal step');
 ok(workflow.includes('npm run test:migration-upgrade-rehearsal'), 'CI runs migration upgrade rehearsal');
 ok(workflow.includes('npm run test:release-hardening'), 'CI runs release hardening contracts');
 
