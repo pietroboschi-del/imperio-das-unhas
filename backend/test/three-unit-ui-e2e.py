@@ -520,6 +520,113 @@ def main():
                     page.locator("#modalHost button.x").click()
                 print(json.dumps({"ok":True,"scenario":"3D-three-unit-public-booking-and-empty-state","count":len(public_records)},ensure_ascii=False))
 
+                # 3E — real operational UI, isolated PostgreSQL. No raw API or SQL writes.
+                page.locator("#unitPicker").select_option(value="u3")
+                page.get_by_role("button",name="Estoque",exact=True).click()
+                page.wait_for_function("() => !!document.querySelector('.stock-nav')",timeout=15000)
+                page.locator(".stock-nav").get_by_role("button",name="Produtos",exact=True).click()
+                page.wait_for_function("() => !!document.querySelector('#adminPage button[onclick=\"openStockProduct()\"]')",timeout=15000)
+                product_name="Produto E2E Caixa Estoque "+suffix
+                page.get_by_role("button",name="+ Novo produto").click()
+                page.locator("#spName").fill(product_name)
+                page.locator("#spSku").fill("UI"+suffix[-9:])
+                page.locator("#spType").select_option(value="RESALE")
+                page.locator("#spCost").fill("10")
+                page.locator("#spSale").fill("25")
+                page.locator("#spMin").fill("1")
+                page.locator("#spSupplier").fill("Fornecedor E2E")
+                page.get_by_role("button",name="Salvar produto").click()
+                page.wait_for_function("(name)=>document.querySelector('#adminPage')?.innerText.includes(name)",arg=product_name,timeout=15000)
+                product=page.evaluate("""name => db.stockProducts.filter(p=>p.name===name).map(p=>({id:p.id,central:p.central}))""",product_name)
+                assert len(product)==1 and product[0]["central"],"Stock product was not projected as PostgreSQL central"
+                print(json.dumps({"scenario":"3E-stock-product-saved-via-browser","product":product},ensure_ascii=False))
+
+                page.locator(".stock-nav").get_by_role("button",name="Compras",exact=True).click()
+                page.get_by_role("button",name="+ Nova compra").click()
+                supplier="Fornecedor Compra UI "+suffix
+                page.locator("#stockBuySupplier").fill(supplier)
+                page.locator("#stockBuyDest").select_option(value="u3")
+                page.locator("#stockBuyFreight").fill("5")
+                page.locator("#stockPurchaseLines .stk-buy-prod").first.select_option(value=product[0]["id"])
+                page.locator("#stockPurchaseLines .stk-buy-qty").first.fill("4")
+                page.locator("#stockPurchaseLines .stk-buy-cost").first.fill("10")
+                page.get_by_role("button",name="Receber compra").click()
+                page.wait_for_function("(name)=>document.querySelector('#adminPage')?.innerText.includes(name)",arg=supplier,timeout=15000)
+                balances=page.evaluate("""pid=>db.stockBalances.filter(b=>b.productId===pid).map(x=>({loc:x.locationId,qty:x.qty,avgCost:x.avgCost,central:x.central}))""",product[0]["id"])
+                print(json.dumps({"scenario":"3E-stock-purchase-central-balance","balances":balances},ensure_ascii=False))
+                assert any(b["loc"]=="u3" and abs(b["qty"]-4)<0.001 and abs(b["avgCost"]-11.25)<0.02 and b["central"] for b in balances),"Stock purchase/freight average cost not centrally projected"
+
+                # A fresh browser reload must reread PostgreSQL rather than browser-local state.
+                page.reload(wait_until="domcontentloaded",timeout=30000)
+                page.wait_for_timeout(1600)
+                if page.get_by_role("button",name="Área da equipe").is_visible():
+                    page.get_by_role("button",name="Área da equipe").click()
+                    page.wait_for_timeout(600)
+                if page.locator("#loginPass").is_visible():
+                    page.locator("#loginUser").fill(os.environ["ADMIN_USERNAME"])
+                    page.locator("#loginPass").fill(os.environ["ADMIN_PASSWORD"])
+                    page.get_by_role("button",name="Entrar",exact=True).click()
+                    page.wait_for_timeout(1500)
+                page.locator("#unitPicker").select_option(value="u3")
+                page.get_by_role("button",name="Estoque",exact=True).click()
+                page.wait_for_function("() => !!document.querySelector('.stock-nav')",timeout=15000)
+                page.locator(".stock-nav").get_by_role("button",name="Produtos",exact=True).click()
+                page.wait_for_function("(name)=>document.querySelector('#adminPage')?.innerText.includes(name)",arg=product_name,timeout=15000)
+                persisted_stock=page.evaluate("""pid=>db.stockBalances.filter(b=>b.productId===pid).map(x=>({loc:x.locationId,qty:x.qty,avgCost:x.avgCost}))""",product[0]["id"])
+                assert any(b["loc"]=="u3" and abs(b["qty"]-4)<0.001 for b in persisted_stock),"Central stock balance did not survive browser reload"
+                print(json.dumps({"scenario":"3E-stock-central-persisted-after-reload","balances":persisted_stock},ensure_ascii=False))
+
+                # Cash session must persist in backend and remain visible after revisiting.
+                page.get_by_role("button",name="Caixa",exact=True).click()
+                page.wait_for_function("() => document.querySelector('#adminPage')?.innerText.includes('Caixa do dia')",timeout=15000)
+                open_cash=page.get_by_role("button",name="Abrir caixa",exact=True)
+                assert open_cash.is_visible(),"Empty Centro cash session cannot be opened from UI"
+                open_cash.click()
+                page.locator("#cashOpeningAmount").fill("100")
+                page.locator("#modalHost").get_by_role("button",name="Abrir caixa",exact=True).click()
+                page.wait_for_function("() => document.querySelector('#adminPage')?.innerText.includes('Caixa aberto')",timeout=15000)
+                cash_check=page.evaluate("""() => db.cashSessions.filter(x=>x.unitId==='u3'&&x.status==='open').map(x=>({id:x.id,opening:x.openingAmount,central:x.central}))""")
+                assert len(cash_check)==1 and abs(cash_check[0]["opening"]-100)<.001,"Cash opening missing from central projection"
+                print(json.dumps({"scenario":"3E-cash-open-browser","cash":cash_check},ensure_ascii=False))
+                page.get_by_role("button",name="Estoque",exact=True).click()
+                page.get_by_role("button",name="Caixa",exact=True).click()
+                page.wait_for_function("() => document.querySelector('#adminPage')?.innerText.includes('Caixa aberto')",timeout=15000)
+
+                # Multi-service command is opened from an actual existing Agenda booking.
+                page.get_by_role("button",name="Agenda",exact=True).click()
+                page.locator(".agenda-date-controls input[type='date']").fill(two_date)
+                page.wait_for_function("(name)=>[...document.querySelectorAll('.agenda-wrap .booking')].some(x=>x.innerText.includes(name))",arg=client_name,timeout=15000)
+                page.locator(".agenda-wrap .booking",has_text=client_name).first.click()
+                page.get_by_role("button",name="Abrir comanda").click()
+                page.wait_for_function("() => document.querySelector('#modalHost')?.innerText.includes('Comanda aberta')",timeout=15000)
+                command_lines=page.locator("#modalHost [data-command-line]").count()
+                assert command_lines>=2,"Multi-service Agenda booking did not produce multi-item command"
+                command=page.evaluate("""() => db.clientCommands.filter(c=>c.clientName?.includes('Cliente E2E Rede')&&c.unitId==='u3').map(c=>({id:c.id,central:c.central,lines:c.lines.length,status:c.status}))""")
+                print(json.dumps({"scenario":"3E-command-open-real-browser","lines":command_lines,"commands":command},ensure_ascii=False))
+                assert any(c["central"] and c["lines"]>=2 for c in command),"Command did not reach central PostgreSQL"
+
+                page.get_by_role("button",name="Finalizar pagamento").click()
+                methods=page.locator("#paymentLines .pay-method").first.locator("option").evaluate_all("(els)=>els.map(e=>({v:e.value,t:e.textContent}))")
+                print(json.dumps({"scenario":"3E-payment-methods","methods":methods},ensure_ascii=False))
+                assert any(m["v"]=="pm_direct" for m in methods),"Direct-professional payment method missing"
+                page.locator("#paymentLines .pay-method").first.select_option(value="pm_direct")
+                assert page.locator("#paymentLines .pay-account").first.is_disabled(),"DIRECT_PROFESSIONAL incorrectly requires company account"
+                amount=float(page.locator("#paymentLines .pay-amount").first.input_value())
+                assert amount>0,"Command due must be positive for payment test"
+                page.get_by_role("button",name="Confirmar pagamento").click()
+                page.wait_for_function("() => !document.querySelector('#modalHost .payment-shell')",timeout=20000)
+                paid=page.evaluate("""() => db.clientCommands.filter(c=>c.clientName?.includes('Cliente E2E Rede')&&c.unitId==='u3').map(c=>({id:c.id,status:c.status,central:c.central,payments:c.paymentDraft?.map(x=>x.methodId)}))""")
+                print(json.dumps({"scenario":"3E-direct-payment-central-ui","commands":paid},ensure_ascii=False))
+                assert any(c["central"] and c["status"]!="Aberta" for c in paid),"Payment finalization did not mark central command complete"
+
+                page.get_by_role("button",name="Relatórios",exact=True).click()
+                page.wait_for_function("() => document.querySelector('#adminPage')?.innerText.includes('Relatórios') && !!document.querySelector('.report-nav')",timeout=15000)
+                report=page.locator("#adminPage").inner_text()
+                assert "Relatórios" in report and len(report)>120,"Essential reports do not render from operational dashboard"
+                print(json.dumps({"scenario":"3E-reports-visible-after-operations","summary":report[:950]},ensure_ascii=False))
+                print(json.dumps({"ok":True,"scenario":"3E-command-payment-cash-stock-reports-browser"},ensure_ascii=False))
+
+
 
 
 
