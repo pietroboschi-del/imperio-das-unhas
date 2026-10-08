@@ -7176,6 +7176,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   updateConfigProfessional(id,body){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id),{method:'PATCH',body,unitRequired:false})},
   setConfigProfessionalActive(id,active){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id)+'/active',{method:'PATCH',body:{active},unitRequired:false})},
   clients(q=''){return centralRequest('/api/v1/clients'+(q?'?q='+encodeURIComponent(q):''))},
+  clientHistory(id){return centralRequest('/api/v1/clients/'+encodeURIComponent(id)+'/history')},
   bookings(date=''){return centralRequest('/api/v1/bookings'+(date?'?date='+encodeURIComponent(date):''))},
   waitlist(){return centralRequest('/api/v1/waitlist')},tasks(){return centralRequest('/api/v1/tasks')},
   createClient(body,key=operationKey('client')){return centralRequest('/api/v1/clients',{method:'POST',body,key})},
@@ -7255,6 +7256,41 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  if(legacySavePro){let wrapped=function(id=''){if(!centralConfigAvailable('professionals.manage'))return legacySavePro.apply(this,arguments);if(!pfName.value.trim()){toast('Informe o nome completo da profissional');return}let units=[...document.querySelectorAll('.pfUnit:checked')];if(!units.length){toast('Selecione pelo menos uma unidade');return}return (async()=>{try{let body=centralProfessionalPayload(id),row=id?await centralApi.updateConfigProfessional(id,body):await centralApi.createConfigProfessional(body);await refreshCentralProfessionalConfig();closeModal();legacyRenderPros();buildAdminNav();toast(id?'Profissional atualizada no banco central ✓':'Profissional cadastrada no banco central ✓');return row}catch(e){toast('Profissional não salva: '+e.message);return false}})()};try{Object.assign(wrapped,legacySavePro)}catch(e){}window.savePro=wrapped;try{savePro=wrapped}catch(e){}}
  const legacyTogglePro=window.togglePro||((typeof togglePro==='function')?togglePro:null);
  if(legacyTogglePro){let wrapped=function(id){if(!centralConfigAvailable('professionals.manage'))return legacyTogglePro.apply(this,arguments);return (async()=>{let p=db.pros.find(x=>x.id===id);if(!p)return;try{await centralApi.setConfigProfessionalActive(id,!p.active);await refreshCentralProfessionalConfig();legacyRenderPros();toast(!p.active?'Profissional ativada':'Profissional desativada')}catch(e){toast('Status da profissional não alterado: '+e.message)}})()};try{Object.assign(wrapped,legacyTogglePro)}catch(e){}window.togglePro=wrapped;try{togglePro=wrapped}catch(e){}}
+
+ // The canonical client dossier always reads the network-wide PostgreSQL history.
+ function centralHistoryHtml(data){
+  const units={centro:'Centro de Contagem',big:'Big Shopping','shopping-contagem':'Shopping Contagem'};
+  const esc=v=>escapeHtml(String(v??'—'));
+  const bs=Array.isArray(data.bookings)?data.bookings:[],cs=Array.isArray(data.commands)?data.commands:[];
+  const rows=bs.flatMap(b=>(b.items?.length?b.items:[{serviceName:b.service?.name,professionalName:b.professional?.publicName||b.professional?.name,startAt:b.startAt}]).map(it=>{
+   const when=it.startAt?new Date(it.startAt):null;
+   const clock=when&&!Number.isNaN(when.getTime())?when.toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'}):'—';
+   return '<tr><td>'+esc(formatDateBR(b.serviceDate))+' · '+esc(clock)+'</td><td>'+esc(units[b.unitId]||b.unitId)+'</td><td>'+esc(it.serviceName||it.service?.name)+'</td><td>'+esc(it.professionalName||it.professional?.publicName||it.professional?.name)+'</td><td>'+esc(b.status)+'</td><td>'+(it.unitPrice==null?'—':money(Number(it.unitPrice)))+'</td><td><small>'+esc(b.id)+'</small>'+(b.notes?'<div class="muted">'+esc(b.notes)+'</div>':'')+'</td></tr>';
+  }));
+  return '<div class="client-section"><h3>Atendimentos das três unidades</h3>'+(rows.length?'<div class="client-table-wrap"><table class="client-table"><thead><tr><th>Quando</th><th>Unidade</th><th>Serviço</th><th>Profissional</th><th>Status</th><th>Valor</th><th>Booking/observações</th></tr></thead><tbody>'+rows.join('')+'</tbody></table></div>':'<div class="client-empty">Nenhum atendimento encontrado na rede.</div>')+'</div>'+
+  '<div class="client-section"><h3>Comandas vinculadas</h3>'+(cs.length?cs.map(c=>'<div class="timeline-item"><b>'+esc(units[c.unitId]||c.unitId)+' · '+esc(formatDateBR(c.serviceDate))+'</b><div class="muted">'+esc(c.status)+' · Total: '+money(Number(c.grossAmount||0))+' · Saldo: '+money(Number(c.remainingAmount||0))+' · '+esc(c.id)+'</div></div>').join(''):'<div class="client-empty">Nenhuma comanda encontrada.</div>')+'</div>';
+ }
+ const originalCentralProfileTab=window.renderClientProfileTab||((typeof renderClientProfileTab==='function')?renderClientProfileTab:null);
+ if(originalCentralProfileTab){
+  const patched=function(tab){
+   const result=originalCentralProfileTab.apply(this,arguments);
+   const id=window.clientProfileId,c=(db.clients||[]).find(x=>x.id===id);
+   if(tab==='historico'&&centralAuthenticated()&&centralUnitId()&&c?.central){
+    let target=document.getElementById('clientTabContent');if(target)target.innerHTML='<div class="client-empty">Carregando histórico da rede…</div>';
+    centralApi.clientHistory(id).then(history=>{
+     if(window.clientProfileId===id&&document.querySelector('[data-client-tab="historico"].active')){
+      const el=document.getElementById('clientTabContent');if(el)el.innerHTML=centralHistoryHtml(history);
+     }
+    }).catch(error=>{
+     if(window.clientProfileId===id&&document.querySelector('[data-client-tab="historico"].active')){
+      const el=document.getElementById('clientTabContent');if(el)el.innerHTML='<div class="client-empty">Histórico central indisponível: '+escapeHtml(error.message||'Erro')+'</div>';
+     }
+    });
+   }
+   return result;
+  };
+  window.renderClientProfileTab=patched;try{renderClientProfileTab=patched}catch(e){}
+ }
  const legacyRenderClients=window.renderClients||((typeof renderClients==='function')?renderClients:null);
  if(legacyRenderClients){let wrapped=function(){let out=legacyRenderClients.apply(this,arguments);if(centralEnabled())refreshCentralClients(document.getElementById('clientSearch')?.value||'').then(()=>{if(typeof renderClientRows==='function')renderClientRows()}).catch(e=>toast('Clientes centrais indisponíveis: '+e.message));return out};window.renderClients=wrapped;try{renderClients=wrapped}catch(e){}}
  const legacyRenderAgenda=window.renderAgenda||((typeof renderAgenda==='function')?renderAgenda:null);
