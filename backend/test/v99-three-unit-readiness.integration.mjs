@@ -171,7 +171,7 @@ try{
  }catch(error){mainFailure=error;
 }finally{
   const teardownErrors=[];
-  async function step(label,fn){try{await fn()}catch(error){teardownErrors.push(new Error(label+': '+String(error?.code||error?.name||'FAILED')))}}
+  async function step(label,fn){try{await fn()}catch(error){teardownErrors.push(new Error(label+': '+String(error?.message||error?.code||error?.name||'FAILED'),{cause:error}))}}
   if(prisma)await step('isolated Prisma disconnect',()=>prisma.$disconnect());
   if(fixture?.root)await step('temporary migration directory removal',()=>rm(fixture.root,{recursive:true,force:true}));
   if(adminPrisma){
