@@ -78,6 +78,29 @@ export class CoreReadController {
     })),commands};
   }
 
+  @Get('reports/operational-summary')
+  @UnitScoped()
+  @RequirePermissions('reports.read')
+  async operationalSummary(@Req() req:ImperioRequest,@Query('date') date?:string){
+    const unitId=req.unitId!;
+    const day=/^\d{4}-\d{2}-\d{2}$/.test(String(date||''))?String(date):null;
+    const serviceDate=day?new Date(day+'T00:00:00.000Z'):null;
+    const bookingWhere={unitId,...(serviceDate?{serviceDate}:{})};
+    const commandWhere={unitId,...(serviceDate?{serviceDate}:{})};
+    const paymentWhere={unitId,status:'CONFIRMED',...(day?{receivedAt:{gte:new Date(day+'T00:00:00.000Z'),lt:new Date(new Date(day+'T00:00:00.000Z').getTime()+86400000)}}:{})};
+    const [bookingCount,bookingItemCount,commandCount,payments,clientLinks,stockMovementCount]=await Promise.all([
+      this.prisma.booking.count({where:bookingWhere}),
+      this.prisma.bookingItem.count({where:{unitId,...(serviceDate?{booking:{serviceDate}}:{})}}),
+      this.prisma.openCommand.count({where:commandWhere}),
+      this.prisma.commandPayment.aggregate({where:paymentWhere,_sum:{amount:true},_count:{_all:true}}),
+      this.prisma.clientUnitLink.count({where:{unitId,active:true,client:{active:true}}}),
+      this.prisma.stockMovement.count({where:{locationId:unitId,...(day?{createdAt:{gte:new Date(day+'T00:00:00.000Z'),lt:new Date(new Date(day+'T00:00:00.000Z').getTime()+86400000)}}:{})}}),
+    ]);
+    return {unitId,date:day,bookings:bookingCount,bookingItems:bookingItemCount,commands:commandCount,
+      confirmedPayments:payments._count._all,confirmedPaymentAmount:payments._sum.amount||0,
+      linkedClients:clientLinks,stockMovements:stockMovementCount};
+  }
+
   @Get('waitlist')
   @UnitScoped()
   @RequirePermissions('agenda.read')
