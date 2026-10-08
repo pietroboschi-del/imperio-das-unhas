@@ -54,7 +54,7 @@ async function main(){
   const proRow=await prisma.professional.findUniqueOrThrow({where:{id:'p-all'}}),proLegacy=proRow.legacyPayload||{};await prisma.professional.update({where:{id:'p-all'},data:{legacyPayload:{...proLegacy,schedule:{...(proLegacy.schedule||{}),'shopping-contagem-2':{work:true,start:'09:00',end:'18:00'}}}}});
   shoppingCatalogResponse=await fetch(base+'/api/v1/public/catalog?unitId=shopping-contagem');shoppingCatalog=await shoppingCatalogResponse.json();ok(shoppingCatalog.bookingEnabled===true&&shoppingCatalog.professionals[0].schedule['shopping-contagem-2'],'cadastrar escala abre booking público sem alterar gate operacional');
   r=await book('shopping-contagem','2026-10-06T12:00','31999990002','site-shopping-open');ok(r.ok,'site booking shopping após escala válida');
-  r=await book('shopping-contagem','2026-10-06T13:00','3199999030','network-shopping','short');ok(r.ok,'same global client books Shopping');
+  r=await book('shopping-contagem','2026-10-06T14:00','3199999030','network-shopping','short');ok(r.ok,'same global client books Shopping');
   ok(await prisma.client.count({where:{phone:networkPhone}})===1,'one global client identity after three units');
   ok(await prisma.clientUnitLink.count({where:{client:{phone:networkPhone}}})===3,'three unit links for same client');
   const ownerLogin=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});
