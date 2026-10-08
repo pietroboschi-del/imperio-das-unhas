@@ -68,10 +68,13 @@ async function addProfessional({id,active=true,link=true,published=true,services
 }
 
 let fixture;
+let schemaCreated=false;
+let mainFailure;
 try{
   adminPrisma=new PrismaClient();
   await assertSafeTestDatabase();
   await adminPrisma.$executeRawUnsafe('CREATE SCHEMA "'+ISOLATED_SCHEMA+'"');
+  schemaCreated=true;
   const fixtureUrl=new URL(process.env.DATABASE_URL);
   fixtureUrl.searchParams.set('schema',ISOLATED_SCHEMA);
   const migrated=spawnSync(process.execPath,['node_modules/prisma/build/index.js','migrate','deploy'],{
@@ -79,6 +82,11 @@ try{
   });
   assert.equal(migrated.status,0,'isolated readiness migrations failed: '+String(migrated.stderr||'').slice(0,500));
   prisma=new PrismaClient({datasources:{db:{url:fixtureUrl.toString()}}});
+  const schemaIdentity=await prisma.$queryRaw`SELECT current_schema() AS schema_name,current_database() AS database_name`;
+  equal(schemaIdentity[0]?.schema_name,ISOLATED_SCHEMA,'Prisma must use isolated schema');
+  equal(schemaIdentity[0]?.database_name,process.env.READINESS_TEST_DATABASE,'Prisma must use expected CI database');
+  const sharedAdminBefore=await adminPrisma.user.count({where:{username:process.env.ADMIN_USERNAME}});
+  ok(sharedAdminBefore>0,'shared CI owner fixture exists before isolated test');
   await cleanup();
   fixture=await localMigrationFixture();
   let report=await buildReadinessReport(prisma,{migrationsDir:fixture.root,now:new Date('2026-10-08T12:00:00.000Z')});
@@ -153,14 +161,28 @@ try{
   ok(report.migrations.unexpected.some(x=>x.migrationName===unexpected),'migration inesperada é detectada');
 
   console.log(JSON.stringify({ok:true,tests,feature:'three_unit_readiness_integration'}));
+ }catch(error){mainFailure=error;
 }finally{
-  if(prisma){
-    await prisma.$executeRaw`DELETE FROM "_prisma_migrations" WHERE id IN ('readiness-incomplete','readiness-unexpected')`.catch(()=>{});
-    await prisma.$disconnect();
-  }
-  if(fixture?.root)await rm(fixture.root,{recursive:true,force:true});
+  const teardownErrors=[];
+  async function step(label,fn){try{await fn()}catch(error){teardownErrors.push(new Error(label+': '+String(error?.code||error?.name||'FAILED')))}}
+  if(prisma)await step('isolated Prisma disconnect',()=>prisma.$disconnect());
+  if(fixture?.root)await step('temporary migration directory removal',()=>rm(fixture.root,{recursive:true,force:true}));
   if(adminPrisma){
-    if(prisma)await adminPrisma.$executeRawUnsafe('DROP SCHEMA "'+ISOLATED_SCHEMA+'" CASCADE').catch(()=>{});
-    await adminPrisma.$disconnect();
+    if(schemaCreated){
+      await step('isolated schema removal',()=>adminPrisma.$executeRawUnsafe('DROP SCHEMA "'+ISOLATED_SCHEMA+'" CASCADE'));
+      await step('isolated schema removal verification',async()=>{
+        const rows=await adminPrisma.$queryRaw`SELECT schema_name FROM information_schema.schemata WHERE schema_name=${ISOLATED_SCHEMA}`;
+        assert.equal(rows.length,0,'isolated schema still exists');
+      });
+      await step('shared administrator preserved',async()=>{
+        const count=await adminPrisma.user.count({where:{username:process.env.ADMIN_USERNAME}});
+        assert.ok(count>0,'shared administrator fixture disappeared');
+      });
+    }
+    await step('administrator Prisma disconnect',()=>adminPrisma.$disconnect());
   }
+  if(mainFailure||teardownErrors.length)throw new AggregateError(
+    [...(mainFailure?[mainFailure]:[]),...teardownErrors],
+    'readiness integration failed ('+(mainFailure?'body':'no body failure')+', '+teardownErrors.length+' teardown error(s))'
+  );
 }
