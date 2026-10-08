@@ -912,7 +912,8 @@ def main():
                    for(const [name,method,path,unit,body,expected] of a.probes){
                      let response=await fetch(a.origin+path,{
                        method,credentials:'include',headers:{'Accept':'application/json','X-Unit-Id':unit,
-                         ...(csrf?{'X-CSRF-Token':csrf}:{}),...(body?{'Content-Type':'application/json'}:{})},
+                         ...(csrf?{'X-CSRF-Token':csrf}:{}),...(body?{'Content-Type':'application/json'}:{}),
+                         ...(name==='stock_shopping_inventory'?{'Idempotency-Key':'cp3f-denied-stock-'+Date.now()}:{})},
                        ...(body?{body:JSON.stringify(body)}:{})
                      });
                      result.push({name,method,unit,status:response.status,expected,
