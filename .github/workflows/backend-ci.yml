@@ -158,7 +158,7 @@ jobs:
         run: npm run test:three-unit-readiness
       - name: Release hardening contracts
         run: npm run test:release-hardening
-      - name: Synthetic 13-to-21 migration rehearsal
+      - name: Synthetic 13-to-22 migration rehearsal
         env:
           DATABASE_URL: postgresql://imperio:imperio_ci@localhost:5432/imperio_ci?schema=public
           SYNTHETIC_REHEARSAL: "1"
