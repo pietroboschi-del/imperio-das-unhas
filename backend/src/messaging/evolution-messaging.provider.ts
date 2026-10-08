@@ -20,7 +20,7 @@ export class EvolutionMessagingProvider implements MessagingProvider {
     const payload=(message.payload||{}) as EvolutionTextPayload;
     const number=String(payload.number||payload.to||'').replace(/\D/g,'');
     const text=typeof payload.text==='string'?payload.text:'';
-    if(!number||!text)throw new MessagingProviderError('EVOLUTION_PAYLOAD_INVALID','Outbound message payload is invalid',false);
+    if(!number||!text)throw new MessagingProviderError('EVOLUTION_PAYLOAD_INVALID','Outbound message payload is invalid',false,'DEFINITE_FAILURE');
     const baseUrl=evolutionBaseUrl(),apiKey=evolutionApiKey(),instance=this.instances.instanceForChannel(message.channelId),timeoutMs=evolutionHttpTimeoutMs();
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs);
     try{
@@ -31,18 +31,18 @@ export class EvolutionMessagingProvider implements MessagingProvider {
         signal:controller.signal,
       });
       if(!response.ok){
-        if(response.status>=500||response.status===429)throw new MessagingProviderError('EVOLUTION_HTTP_RETRYABLE','Evolution provider temporarily unavailable',true);
-        throw new MessagingProviderError('EVOLUTION_HTTP_REJECTED','Evolution provider rejected the request',false);
+        if(response.status>=500||response.status===429)throw new MessagingProviderError('EVOLUTION_HTTP_RETRYABLE','Evolution provider temporarily unavailable',true,'DELIVERY_UNKNOWN');
+        throw new MessagingProviderError('EVOLUTION_HTTP_REJECTED','Evolution provider rejected the request',false,'DEFINITE_FAILURE');
       }
       let body:unknown=null;
-      try{body=await response.json()}catch{throw new MessagingProviderError('EVOLUTION_RESPONSE_INVALID','Evolution provider returned an invalid response',true)}
+      try{body=await response.json()}catch{throw new MessagingProviderError('EVOLUTION_RESPONSE_INVALID','Evolution provider returned an invalid response',true,'DELIVERY_UNKNOWN')}
       const id=providerMessageId(body);
-      if(!id)throw new MessagingProviderError('EVOLUTION_MESSAGE_ID_MISSING','Evolution provider response did not include a message id',true);
+      if(!id)throw new MessagingProviderError('EVOLUTION_MESSAGE_ID_MISSING','Evolution provider response did not include a message id',true,'DELIVERY_UNKNOWN');
       return {providerMessageId:id,acceptedAt:new Date()};
     }catch(error){
       if(error instanceof MessagingProviderError)throw error;
-      if((error as {name?:string})?.name==='AbortError')throw new MessagingProviderError('EVOLUTION_TIMEOUT','Evolution provider request timed out',true);
-      throw new MessagingProviderError('EVOLUTION_UNAVAILABLE','Evolution provider unavailable',true);
+      if((error as {name?:string})?.name==='AbortError')throw new MessagingProviderError('EVOLUTION_TIMEOUT','Evolution provider request timed out',true,'DELIVERY_UNKNOWN');
+      throw new MessagingProviderError('EVOLUTION_UNAVAILABLE','Evolution provider unavailable',true,'DELIVERY_UNKNOWN');
     }finally{clearTimeout(timer)}
   }
 }
