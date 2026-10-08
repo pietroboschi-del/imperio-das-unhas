@@ -60,7 +60,7 @@ async function main(){
   const ownerLogin=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:process.env.ADMIN_USERNAME,password:process.env.ADMIN_PASSWORD})});
   ok(ownerLogin.ok,'real owner login for global history');
   const ownerCookie=(ownerLogin.headers.get('set-cookie')||'').split(';')[0];
-  const globalClient=await prisma.client.findUniqueOrThrow({where:{phone:networkPhone}});
+  const globalClient=await prisma.client.findFirstOrThrow({where:{phone:networkPhone}});
   const historyResponse=await fetch(base+'/api/v1/clients/'+globalClient.id+'/history',{headers:{cookie:ownerCookie,'x-unit-id':'centro'}});
   ok(historyResponse.ok,'owner reads global client history from Centro');
   const globalHistory=await historyResponse.json();
