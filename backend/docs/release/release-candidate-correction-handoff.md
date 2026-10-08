@@ -112,3 +112,12 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - FIX: scoped the professional modal tab click to `#modalHost`.
 - NEXT_EXACT_TASK: publish this selector-only E2E correction on top of remote 6a0ec9685302a0a527051bc1ddfa35ceaf201360 and wait for browser #15.
 - PRODUCTION_MUTATIONS: NONE.
+
+## CHECKPOINT 3B CI #15 FOLLOW-UP — RELOAD RE-ENTRY HANDLING (2026-10-08)
+- REMOTE_HEAD_TESTED: c2f306f4306d7b27ce2d5f6158d9b744cabb7851.
+- CI_RESULT: Three-unit browser E2E #15, run 37799309836, FAILURE at `Real browser scenario`.
+- EVIDENCE: #15 progressed further: category, service and professional creation all succeeded via real browser UI.
+- FIRST_NEW_FAILURE: after full page reload, the test attempted to click admin `Profissionais` without first re-entering the team/admin shell when the public landing page was visible. This is reload re-entry handling in the test harness.
+- FIX: after reload, the E2E now clicks `Área da equipe` if visible and performs visible login again only if the login form appears, then continues to the persisted professional check.
+- NEXT_EXACT_TASK: publish this reload handling correction on top of remote c2f306f4306d7b27ce2d5f6158d9b744cabb7851 and wait for browser #16.
+- PRODUCTION_MUTATIONS: NONE.
