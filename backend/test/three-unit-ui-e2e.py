@@ -47,7 +47,7 @@ def main():
         wait_http(f"http://127.0.0.1:{FRONTEND_PORT}/index.html")
         wait_http(f"http://127.0.0.1:{BACKEND_PORT}/api/v1/health")
         with sync_playwright() as pw:
-            browser=pw.chromium.launch(headless=True,args=["--no-proxy-server","--host-resolver-rules=MAP ui.imperio.test 127.0.0.1, MAP api.imperio.test 127.0.0.1"])
+            browser=pw.chromium.launch(headless=True,args=["--no-proxy-server","--host-resolver-rules=MAP ui.imperio.test 127.0.0.1, MAP api.imperio.test 127.0.0.1","--unsafely-treat-insecure-origin-as-secure="+UI_ORIGIN])
             try:
                 page=browser.new_page(viewport={"width":1280,"height":800})
                 page.add_init_script(f"window.IMPERIO_API_BASE={json.dumps(API_ORIGIN)};")
@@ -633,6 +633,7 @@ def main():
                 page.on("console",lambda msg: payment_console.append(msg.text[:300]) if msg.type=="error" else None)
                 secure_state=page.evaluate("""() => ({secure:window.isSecureContext,crypto:!!window.crypto,subtle:!!window.crypto?.subtle,draft:db.clientCommands.at(-1)?.paymentDraft?.map(p=>({id:p.id,method:p.methodId,amount:p.amount,account:p.accountId}))})""")
                 print(json.dumps({"scenario":"3E-before-payment-confirm","security":secure_state},ensure_ascii=False))
+                assert secure_state["secure"] and secure_state["subtle"],"Isolated Chromium must emulate HTTPS WebCrypto for financial reconciliation"
                 page.get_by_role("button",name="Confirmar pagamento").click()
                 page.wait_for_timeout(3000)
                 pay_after=page.evaluate("""() => ({modal:document.querySelector('#modalHost')?.innerText?.slice(-450),paymentVisible:!!document.querySelector('#modalHost .payment-shell'),toast:document.querySelector('#toast')?.innerText||document.querySelector('.toast')?.innerText||'',commands:db.clientCommands.filter(c=>c.central).slice(-2).map(c=>({id:c.id,status:c.status,paymentDraft:c.paymentDraft?.map(p=>({id:p.id,method:p.methodId,amount:p.amount}))})),cash:db.cashSessions.filter(c=>c.unitId==='u3').map(c=>({id:c.id,status:c.status}))})""")
