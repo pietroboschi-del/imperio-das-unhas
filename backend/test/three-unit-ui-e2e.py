@@ -667,7 +667,7 @@ def main():
                     draft:c.legacyPayload?.operationalSnapshot?.paymentDraft?.map(p=>({methodId:p.methodId,professionalId:p.professionalId}))}
                 }""",command_id)
                 local_finance=page.evaluate("""id => ({companyPayments:db.demoCashMovements.filter(m=>m.commandId===id).map(m=>m.id),
-                  directAdjustments:db.demoFinancialEntries.filter(e=>e.nature==='Compensação com profissional'&&String(e.origin||'').includes(id.replace(/\D/g,''))).map(e=>({professionalId:e.professionalId,cashImpact:e.cashImpact,treasuryImpact:e.treasuryImpact}))})""",command_id)
+                  directAdjustments:db.demoFinancialEntries.filter(e=>e.nature==='Compensação com profissional'&&String(e.origin||'').includes(id.replace(/\\D/g,''))).map(e=>({professionalId:e.professionalId,cashImpact:e.cashImpact,treasuryImpact:e.treasuryImpact}))})""",command_id)
                 print(json.dumps({"scenario":"3E-direct-central-payment-posted-once","command":remote,"companyFinance":local_finance},ensure_ascii=False))
                 assert remote["status"]=="CLOSED" and len(remote["payments"] or [])==1,"Payment was not exactly once or command did not close"
                 assert remote["payments"][0]["method"]=="DIRECT_PROFESSIONAL" and remote["payments"][0]["cashSessionId"] is None,"Direct receipt contaminated company cash"
@@ -685,7 +685,7 @@ def main():
                 inventory_line.locator(".stock-inventory-input").fill("3")
                 # V73 turned the former free-text inventory reason into a controlled select.
                 reason=page.locator("#stockInvReason")
-                assert reason.evaluate("(el)=>el.tagName")==="SELECT","Inventory reason must use the configured taxonomy"
+                assert reason.evaluate("(el)=>el.tagName")=="SELECT","Inventory reason must use the configured taxonomy"
                 assert reason.input_value(),"Select a nonempty existing inventory reason, never invent one"
                 page.get_by_role("button",name="Aplicar contagem",exact=True).click()
                 page.wait_for_function("""pid => (db.stockBalances||[]).some(b=>b.productId===pid&&b.locationId==='u3'&&Math.abs(b.qty-3)<.001)""",arg=product[0]["id"],timeout=20000)
