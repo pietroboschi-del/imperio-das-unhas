@@ -297,6 +297,19 @@ def main():
                     "inputs":[{"id":el.get_attribute("id"),"type":el.get_attribute("type"),"placeholder":el.get_attribute("placeholder")} for el in page.locator("#modalHost input:visible").all()[:35]],
                     "selects":[{"id":el.get_attribute("id"),"options":el.locator("option").all_text_contents()[:8]} for el in page.locator("#modalHost select:visible").all()[:18]],
                     "buttons":page.locator("#modalHost button:visible").all_text_contents()[:35]},ensure_ascii=False))
+                page.locator("#rClientSearch").fill(client_name)
+                page.wait_for_timeout(250)
+                assert page.locator("#rClientResults").get_by_text(client_name).is_visible(),"Global client absent in cross-unit booking search"
+                page.locator("#rClientResults").get_by_role("button",name="Selecionar").click()
+                assert client_name in page.locator("#modalHost").inner_text(),"Selected existing global client not retained"
+                choices=page.locator(".res-line .res-pro option").evaluate_all("(els)=>els.map(e=>({value:e.value,name:e.textContent}))")
+                config=page.evaluate("""(serviceName)=>({
+                  pros:db.pros.map(p=>({id:p.id,name:p.name,units:p.units,services:p.services,active:p.active,online:p.online})),
+                  services:db.services.filter(s=>s.name===serviceName).map(s=>({id:s.id,name:s.name,proRules:s.proRules}))
+                })""",service_name)
+                print(json.dumps({"scenario":"3C-cross-unit-booking-professional-choices","choices":choices,"config":config},ensure_ascii=False))
+                assert choices,"No eligible professional shown in Centro booking form despite 3B configured professional"
+
 
 
             except Exception:
