@@ -5,6 +5,8 @@ on:
     paths:
       - 'backend/test/three-unit-ui-e2e.py'
       - 'index.html'
+      - 'backend/src/**'
+      - 'backend/docs/release/final-audit-correction-report.md'
       - '.github/workflows/three-unit-browser-e2e.yml'
   workflow_dispatch:
 

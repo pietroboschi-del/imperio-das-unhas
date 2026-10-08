@@ -71,6 +71,10 @@ jobs:
         run: npm run build
       - name: Typecheck
         run: npm run typecheck
+      - name: Final audit boundary regressions
+        run: node --test test/final-audit-boundaries.test.mjs
+      - name: Final audit PostgreSQL regressions
+        run: node test/final-audit.integration.mjs
       - name: WA1 messaging foundation
         run: npm run test:wa1
       - name: WA2 Evolution messaging

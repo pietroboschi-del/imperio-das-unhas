@@ -1,4 +1,4 @@
-import { assertBookingResourceCapacity } from './booking-resource-capacity';
+import { hasPhysicalCapacity } from './booking-capacity';
 import { ConflictException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
@@ -109,6 +109,7 @@ function hashAgentPayload(input:CanonicalInput){
   clientEmail:input.clientEmail?.trim().toLowerCase()||null,
   source:input.source,
   channelId:input.channelId||null,
+  ...(input.source==='website'?{clientProfile:input.clientProfile||{}}:{}),
  };
  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
@@ -143,7 +144,7 @@ export class BookingCreationService {
    auditAction:'booking.created_online',
    key,
    strictIdempotency:false,
-   requireGrid:false,
+   requireGrid:true,
   });
  }
 
@@ -299,7 +300,7 @@ export class BookingCreationService {
   const bookingId=input.strictIdempotency
    ?operationId('whatsapp-agent-booking',key,'wa_')
    :operationId(input.unitId+'|site-booking',key,'pub_');
-  const idempotencyHash=input.strictIdempotency?(input.idempotencyHashOverride||hashAgentPayload(input)):null;
+  const idempotencyHash=input.idempotencyHashOverride||hashAgentPayload(input);
 
   const existingBefore=await this.prisma.booking.findUnique({where:{id:bookingId},include:{items:true}});
   if(existingBefore){
@@ -325,6 +326,10 @@ export class BookingCreationService {
       throw new ConflictException('O horário não pertence ao grid canônico de disponibilidade');
      }
      const startAt=localDateTimeToUtc(it.startAt,unit.timezone);
+     if(startAt<=new Date())throw new ConflictException('Horário passado não pode ser agendado online');
+     const parts=zonedParts(startAt,unit.timezone);
+     const calendar=String(parts.year).padStart(4,'0')+'-'+String(parts.month).padStart(2,'0')+'-'+String(parts.day).padStart(2,'0');
+     if(calendar!==it.startAt.slice(0,10))throw new ConflictException('Data inválida');
      const [service,pro]=await Promise.all([
       tx.service.findFirst({where:{id:it.serviceId,active:true},select:{id:true,categoryId:true,price:true,durationMin:true,legacyPayload:true}}),
       tx.professionalUnit.findFirst({
@@ -356,6 +361,7 @@ export class BookingCreationService {
     const serviceDate=new Date(firstDate+'T00:00:00.000Z');
     const lockKeys=[...new Set([
      ...prepared.map(x=>x.professionalId+'|'+firstDate),
+     'physical|'+firstDate,
     ])].sort();
     for(const lock of lockKeys)await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.unitId}), hashtext(${lock}))`;
 
@@ -391,8 +397,8 @@ export class BookingCreationService {
      }
     }
 
-    await assertBookingResourceCapacity(tx,input.unitId,firstDate,prepared);
-    if(input.requirePhysicalCapacity){
+    const configuredStations=await tx.workstation.findMany({where:{unitId:input.unitId,active:true},select:{id:true,allowedCategoryIds:true},orderBy:{id:'asc'}});
+    if(input.requirePhysicalCapacity||configuredStations.length){
      for(let i=0;i<prepared.length;i++)for(let j=0;j<i;j++){
       const a=prepared[j],b=prepared[i],as=a.startAt.getTime(),ae=as+a.durationMin*60000,bs=b.startAt.getTime(),be=bs+b.durationMin*60000;
       if(a.clientArea!=='none'&&b.clientArea!=='none'&&a.clientArea===b.clientArea){
@@ -401,7 +407,7 @@ export class BookingCreationService {
        if(as<be&&ae>bs)throw new ConflictException('Serviços incompatíveis da mesma área não podem se sobrepor');
       }
      }
-     const stations=await tx.workstation.findMany({where:{unitId:input.unitId,active:true},select:{id:true,allowedCategoryIds:true},orderBy:{id:'asc'}});
+     const stations=configuredStations;
      const stationRows=stations.map(x=>({id:x.id,categories:Array.isArray(x.allowedCategoryIds)?x.allowedCategoryIds.map(String):[]}));
      const existingDemands=await tx.bookingItem.findMany({
       where:{unitId:input.unitId,booking:{serviceDate,status:{notIn:[...TERMINAL,'Bloqueado']}}},
@@ -411,20 +417,11 @@ export class BookingCreationService {
       ...existingDemands.map(x=>{if(x.durationMin==null)throw new ConflictException('Agenda contém item histórico sem duração confiável; revise antes de calcular capacidade');return {id:'existing:'+x.id,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.service?.categoryId||''}}),
       ...prepared.map((x:any,i:number)=>({id:'candidate:'+i,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.categoryId||''})),
      ];
-     const marks=[...new Set(demands.flatMap(x=>[x.start,x.end]))].sort((a,b)=>a-b);
-     for(let mi=0;mi<marks.length-1;mi++){
-      const a=marks[mi],z=marks[mi+1],active=demands.filter(x=>x.start<z&&x.end>a);if(!active.length)continue;
-      const candidates=active.map(d=>stationRows.filter(st=>st.categories.includes(d.categoryId)).map(st=>st.id));
-      if(active.some((d,i)=>!d.categoryId||!candidates[i].length))throw new ConflictException('Não há estação/recurso compatível para a combinação selecionada');
-      const stationToDemand=new Map<string,number>();
-      const assign=(di:number,seen:Set<string>):boolean=>{for(const sid of candidates[di]){if(seen.has(sid))continue;seen.add(sid);const prev=stationToDemand.get(sid);if(prev===undefined||assign(prev,seen)){stationToDemand.set(sid,di);return true}}return false};
-      const order=active.map((_,i)=>i).sort((i,j)=>candidates[i].length-candidates[j].length||active[i].id.localeCompare(active[j].id));
-      let allocated=0;for(const di of order)if(assign(di,new Set()))allocated++;
-      if(allocated<active.length)throw new ConflictException('Capacidade física da unidade esgotada para a combinação selecionada');
-     }
+     if(!hasPhysicalCapacity(stationRows,demands.filter(x=>x.id.startsWith('existing:')),demands.filter(x=>x.id.startsWith('candidate:'))))throw new ConflictException('Capacidade física da unidade esgotada para a combinação selecionada');
     }
 
     const client=await this.resolveClient(tx,input);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.unitId}),hashtext(${'client|'+client.id+'|'+firstDate}))`;
     const sameClientItems=await tx.bookingItem.findMany({
      where:{unitId:input.unitId,booking:{clientId:client.id,serviceDate,status:{notIn:TERMINAL}}},
      select:{startAt:true,durationMin:true,clientAreaSnapshot:true,mustFinishBeforeSameAreaSnapshot:true},
@@ -470,7 +467,7 @@ export class BookingCreationService {
    await this.bookingAutomations.materializeCreatedBooking(row.id);
    return row;
   }catch(error){
-   if(input.strictIdempotency&&(error as {code?:string})?.code==='P2002'){
+   if((error as {code?:string})?.code==='P2002'){
     const raced=await this.prisma.booking.findUnique({where:{id:bookingId},include:{items:true}});
     if(raced){
      const verified=this.verifyExisting(raced,idempotencyHash,true);
@@ -483,7 +480,7 @@ export class BookingCreationService {
  }
 
  private verifyExisting(row:any,idempotencyHash:string|null,strict:boolean){
-  if(strict){
+  if(strict||idempotencyHash){
    const legacy=obj(row.legacyPayload);
    if(!idempotencyHash||legacy.idempotencyHash!==idempotencyHash)throw new ConflictException('Idempotency-Key já utilizada para outro agendamento');
   }
@@ -508,7 +505,7 @@ export class BookingCreationService {
     return !(p?.birthDate&&String(p.birthDate)!==String(input.clientProfile?.birthDate));
    });
   }
-  if(input.source==='whatsapp_agent'&&matches.length>1)throw new ConflictException('Mais de um cadastro ativo corresponde ao nome e telefone informados');
+  if(matches.length>1)throw new ConflictException('Mais de um cadastro ativo corresponde ao nome e telefone informados');
   let client=matches[0];
   const email=input.clientEmail?.trim().toLowerCase()||null;
   if(!client){
@@ -519,6 +516,8 @@ export class BookingCreationService {
    return client;
   }
 
+  // Public booking cannot enrich an existing dossier without authenticated client-management permission.
+  if(input.source==='website')return client;
   const old=obj(client.legacyPayload);
   const oldProfile=obj(old.operationalProfile);
   const incoming=input.clientProfile||{};

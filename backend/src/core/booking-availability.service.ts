@@ -1,3 +1,4 @@
+import { hasPhysicalCapacity } from './booking-capacity';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { operationalWriteStatus } from '../common/operational-write-gate';
@@ -299,6 +300,10 @@ export class BookingAvailabilityService {
       occupied.get(item.professionalId)?.push({start,end});
     }
 
+    const stations=await this.prisma.workstation.findMany({where:{unitId,active:true},select:{id:true,allowedCategoryIds:true}});
+    const stationRows=stations.map(x=>({id:x.id,categories:Array.isArray(x.allowedCategoryIds)?x.allowedCategoryIds.map(String):[]}));
+    const resourceItems=stations.length?await this.prisma.bookingItem.findMany({where:{unitId,booking:{serviceDate,status:{notIn:[...TERMINAL_BOOKING_STATUSES,'Bloqueado']}}},select:{id:true,startAt:true,durationMin:true,service:{select:{categoryId:true}}}}):[];
+    const demands=resourceItems.map(x=>{if(x.durationMin==null)throw new ConflictException('Agenda contém duração histórica desconhecida');return {id:x.id,start:x.startAt.getTime(),end:x.startAt.getTime()+x.durationMin*60000,categoryId:x.service?.categoryId||''};});
     const slots:any[]=[];
     for(const pro of eligible){
       if(blocked.has(pro.id))continue;
@@ -314,6 +319,7 @@ export class BookingAvailabilityService {
         const startMs=startAt.getTime(),endMs=endAt.getTime();
         const conflict=(occupied.get(pro.id)||[]).some(x=>x.start<endMs&&x.end>startMs);
         if(conflict)continue;
+        if(stations.length&&!hasPhysicalCapacity(stationRows,demands,[{id:'candidate',start:startMs,end:endMs,categoryId:service.categoryId||''}]))continue;
         slots.push({
           startAt:startAt.toISOString(),
           endAt:endAt.toISOString(),

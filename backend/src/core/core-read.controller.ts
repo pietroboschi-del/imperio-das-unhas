@@ -2,6 +2,8 @@ import { Controller, Get, NotFoundException, Param, Query, Req } from '@nestjs/c
 import { PrismaService } from '../prisma/prisma.service';
 import { RequirePermissions } from '../common/permissions.decorator';
 import { UnitScoped } from '../common/unit-scope.decorator';
+import { evaluateAccess } from '../auth/permission-policy';
+import { businessDayRange } from './business-day-range';
 import type { ImperioRequest } from '../common/request-context';
 
 @Controller('api/v1')
@@ -52,9 +54,11 @@ export class CoreReadController {
   @Get('clients/:id/history')
   @UnitScoped()
   @RequirePermissions('clients.read')
-  async clientHistory(@Param('id') id:string) {
+  async clientHistory(@Param('id') id:string,@Req() req:ImperioRequest) {
     const client=await this.prisma.client.findFirst({where:{id,active:true},select:{id:true,name:true}});
     if(!client)throw new NotFoundException('Cliente não encontrada');
+    const p=req.principal!;
+    const financeUnits=p.networkAdmin?null:p.unitAccesses.filter(a=>evaluateAccess({networkAdmin:false,globalPermissions:p.permissions,unitAccesses:p.unitAccesses,unitScoped:true,unitId:a.unitId,requiredPermissions:['finance.read']}).allowed).map(a=>a.unitId);
     const [bookings,commands]=await Promise.all([
       this.prisma.booking.findMany({
         where:{clientId:id},
@@ -65,7 +69,7 @@ export class CoreReadController {
         orderBy:[{serviceDate:'desc'},{createdAt:'desc'}],take:500,
       }),
       this.prisma.openCommand.findMany({
-        where:{clientId:id},
+        where:{clientId:id,...(financeUnits?{unitId:{in:financeUnits}}:{})},
         select:{id:true,unitId:true,serviceDate:true,status:true,grossAmount:true,discountAmount:true,remainingAmount:true,
           items:{select:{id:true,serviceId:true,professionalId:true,quantity:true,unitPrice:true,netServiceAmount:true}},
           payments:{select:{id:true,method:true,amount:true,status:true,receivedAt:true}}},
@@ -87,14 +91,16 @@ export class CoreReadController {
     const serviceDate=day?new Date(day+'T00:00:00.000Z'):null;
     const bookingWhere={unitId,...(serviceDate?{serviceDate}:{})};
     const commandWhere={unitId,...(serviceDate?{serviceDate}:{})};
-    const paymentWhere={unitId,status:'CONFIRMED',...(day?{receivedAt:{gte:new Date(day+'T00:00:00.000Z'),lt:new Date(new Date(day+'T00:00:00.000Z').getTime()+86400000)}}:{})};
+    const unit=await this.prisma.unit.findUniqueOrThrow({where:{id:unitId},select:{timezone:true}});
+    const range=day?businessDayRange(day,unit.timezone):null;
+    const paymentWhere={unitId,status:'CONFIRMED',...(day?{receivedAt:{gte:range!.start,lt:range!.end}}:{})};
     const [bookingCount,bookingItemCount,commandCount,payments,clientLinks,stockMovementCount]=await Promise.all([
       this.prisma.booking.count({where:bookingWhere}),
       this.prisma.bookingItem.count({where:{unitId,...(serviceDate?{booking:{serviceDate}}:{})}}),
       this.prisma.openCommand.count({where:commandWhere}),
       this.prisma.commandPayment.aggregate({where:paymentWhere,_sum:{amount:true},_count:{_all:true}}),
       this.prisma.clientUnitLink.count({where:{unitId,active:true,client:{active:true}}}),
-      this.prisma.stockMovement.count({where:{locationId:unitId,...(day?{createdAt:{gte:new Date(day+'T00:00:00.000Z'),lt:new Date(new Date(day+'T00:00:00.000Z').getTime()+86400000)}}:{})}}),
+      this.prisma.stockMovement.count({where:{locationId:unitId,...(day?{createdAt:{gte:range!.start,lt:range!.end}}:{})}}),
     ]);
     return {unitId,date:day,bookings:bookingCount,bookingItems:bookingItemCount,commands:commandCount,
       confirmedPayments:payments._count._all,confirmedPaymentAmount:payments._sum.amount||0,

@@ -60,3 +60,40 @@ Cutover sequence: freeze/revalidate target and CI → fresh production backup �
 Abort on invalid backup/restore, mismatched or unexpected/incomplete migrations, migration/boot/health/frontend failure, duplicated client or permission segregation failure. Code rollback: previous backend/frontend SHAs only after schema compatibility validation. Database forward-only; no migrate-down. Restore/contingency needs explicit authorization and validated backup.
 
 PRODUCTION MUTATIONS: NONE.
+
+## Supplemental audit and correction pack
+
+Concurrent branch advancement `2e4c85bfb4058cade41e64fd74c5b831ec747043` was preserved. Supplemental finding IDs below use S- to distinguish the prior pack.
+
+# Final audit and correction — 2026-10-08
+
+START HEAD: `4cc95ce5d4e0e1a87559d44ec151241bc8c04db7`.
+Branch: `official-three-units-integration`. Production mutations: NONE.
+
+## Frozen findings (before implementation)
+
+All entries below are CONFIRMED by source review; boundary regressions additionally reproduced S-01/02/04/05 locally against the unmodified compiled backend. No historical migration changes or new migrations are required for these corrections. All fixes use already defined rules and need no commercial/architecture decision.
+
+| ID | Severity/domain | Evidence and reproduction | Impact / required correction / required regression | Production impact |
+|---|---|---|---|---|
+| S-01 | P1 auth | `auth.service.ts`: credential token checked before Argon2/transaction, then unconditional update. Two simultaneous activation/reset calls both succeed. | Atomic token claim inside transaction before password write; concurrent consumption must yield one success, one denial, one password change. | Code after authorized deploy only. |
+| S-02 | P1 finance | `finance-write.controller.ts` accepts DIRECT_PROFESSIONAL without recipient; DTO and payment hash omit recipient. Stock test incorrectly uses direct payment on product-only command. | Enforce persisted service-line recipient, include in payment/audit/idempotency; invalid recipient produces no writes, replay preserves recipient and flags. | No historical rewrite. |
+| S-03 | P1 finance concurrency | Snapshot/payment/item operations lock different keys; cash close/adjust/reopen/payment likewise; client credits read before row lock. | Shared locks per aggregate, payment/cash close serialization, credit rows locked; concurrent structural/financial writes cannot corrupt totals or mutate a paid command. | Transaction logic only. |
+| S-04 | P1 permissions | `core-read.controller.ts` history loads every client's command/payment with only clients.read. | Keep treatment history global; return financial commands only for units authorized for finance.read. Test cross-unit financial denial through dossier. | Restricted read projection. |
+| S-05 | P1 stock | `stock.service.ts` writes never consult operational gate. Global operation key returns previous purchase/transfer without checking payload/location; consumption/inventory replay not serialized; transfer statuses read before locks. | Respect global/unit gates; authorize persisted replay locations, compare payload fingerprint, serialize operations and transfer lifecycle; invalid replays and closed gates have no business effects. | Code only; additive fingerprints in existing audit JSON. |
+| S-06 | P1 client/agenda | Internal create checks duplicates before transaction; public resolve checks under per-professional/unit locks only. Same identity can be created in different units concurrently. Client-area collision uses no shared client lock. | Shared global identity lock across internal/public creation, duplicate recheck inside transaction; shared client/day lock for same-area booking. Concurrent requests preserve global identity. | No automatic merge of historic duplicates. |
+| S-07 | P1 public booking | Public create does not require canonical grid, past-time denial or configured workstation capacity; public key replay skips payload verification. | Reject past/off-grid submissions, enforce configured resources in transaction, fingerprint public payload; race/replay regression. | Existing unconfigured-resource convention preserved; no new commercial rule. |
+| S-08 | P1 input validation | `SyncCommandDto.items` is only IsArray, nested negative price/commission and extra fields accepted. | Nested DTO validation, finite/nonnegative item values, invalid body returns 400 before writes. | HTTP contract hardening. |
+| S-09 | P2 reports | Operational summary applies UTC midnight to receivedAt/createdAt, although units use America/Sao_Paulo. | Use unit timezone boundaries for timestamp filtering; include 23:xx local and exclude previous day. NON-BLOCKING once fixed. | Read-only query correction. |
+
+## Audit coverage and evidence policy
+
+Reviewed session/access/CSRF and assignment policy, user configuration, global clients/history, BookingItem creation/update and availability, financial lifecycle, stock movements/transfers/openings, public endpoints, frontend central hydration/payment bridge, migration delta/preflight/rehearsal, backup workflow, and WhatsApp dispatch/inbound/reconciliation. Reused unchanged green integration/browser evidence only where source and assertions support the stated claim. CI #605 and #603 SUCCESS; isolated Chromium #53 SUCCESS on `b6f452c...`; subsequent commits before START are documentation only.
+
+Test limits: browser #53 does not certify company cash payment UI or transfer UI; existing integration tests exercise those server lifecycles. Stock integration uses injected synthetic sessions as a service authorization test, not as proof of UI login. Public and admin browser data are created via visible UI. Canonical config JSON persisted in PostgreSQL is compatibility storage, not browser authority. Reports can expose cached UI projections during asynchronous hydration; backend remains authorization boundary.
+
+Manual physical-capacity warning/force-fit policy is preserved; this audit does not introduce a new prohibition on authorized internal encaixe. No WhatsApp provider activation, new WA gate, customer import, live write, deployment or flag change is authorized.
+
+## Pending completion evidence
+
+Final HEAD, commits, regression results, CI, Chromium and read-only live state will be recorded after corrections. Until then this report does not approve release or assert zero remaining P1.

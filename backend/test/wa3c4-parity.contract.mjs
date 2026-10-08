@@ -16,7 +16,7 @@ ok(frontend.includes('clientServicePairIssue')&&frontend.includes('mustFinishBef
 ok(availability.includes('mustFinishBeforeSameArea')&&availability.includes("clientArea==='none'"),'backend reutiliza clientArea e mustFinishBeforeSameArea');
 ok(frontend.includes('function maximumMatching(demands,stations)'),'V77 possui maximum matching de estações');
 ok(availability.includes('stationToDemand')&&availability.includes('allowedCategoryIds'),'disponibilidade backend usa matching de Workstation/allowedCategoryIds');
-ok(creation.includes("['physical|'")&&creation.includes('Capacidade física da unidade esgotada'),'criação autoritativa bloqueia corrida de capacidade física');
+ok(creation.includes("'physical|'+firstDate")&&creation.includes('Capacidade física da unidade esgotada'),'criação autoritativa bloqueia corrida de capacidade física');
 ok(creation.includes('Serviços incompatíveis da mesma área não podem se sobrepor'),'criação revalida incompatibilidade da mesma clientArea');
 ok(publicController.includes('this.creation.createPublicBooking(body,key)'),'POST público continua na camada canônica de criação');
 ok(agentController.includes("@UseGuards(WhatsappAgentGuard)")&&agentController.includes("@Post('availability/multi')")&&agentController.includes("@Post('bookings/multi')"),'endpoints multi permanecem server-to-server protegidos');
