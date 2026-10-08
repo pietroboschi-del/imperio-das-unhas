@@ -99,6 +99,7 @@ for (const needle of [
   'MessagingChannel',
   'StockLocation',
   'dist/main.js',
+  'dist/src/main.js',
 ]) {
   ok(rehearsal.includes(needle), `synthetic rehearsal covers ${needle}`);
 }
