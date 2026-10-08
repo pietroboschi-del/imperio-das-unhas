@@ -26,6 +26,7 @@ jobs:
         working-directory: backend
     env:
       DATABASE_URL: postgresql://imperio:imperio_ci@localhost:5432/imperio_ci?schema=public
+      READINESS_TEST_DATABASE: imperio_ci
       PORT: 3100
       COOKIE_SECURE: "false"
       CORS_ORIGINS: http://127.0.0.1:3101

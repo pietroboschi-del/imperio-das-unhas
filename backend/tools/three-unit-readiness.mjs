@@ -7,7 +7,6 @@ import {PrismaClient} from '@prisma/client';
 const UNITS=['centro','big','shopping-contagem'];
 const UNIT_ALIASES=['big-shopping','central'];
 const TERMINAL_BOOKING=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
-const OPERATOR_ROLES=new Set(['admin','administrator','gerente','manager','owner','proprietario','proprietário','recepcao','recepção','reception']);
 const STOCK_TABLES=['Product','StockLocation','StockBalance','StockMovement','StockPurchase','StockTransfer','StockBalanceOpening'];
 const DEFAULT_MIGRATIONS_DIR=fileURLToPath(new URL('../prisma/migrations/',import.meta.url));
 
@@ -20,8 +19,6 @@ function permissions(value){
 }
 function canOperate(user,access){
   if(user.networkAdmin)return true;
-  const role=String(access.role||'').trim().toLowerCase();
-  if(OPERATOR_ROLES.has(role))return true;
   const granted=new Set([...permissions(user.permissions),...permissions(access.permissions)]);
   return granted.has('*')||(granted.has('agenda.manage')&&granted.has('clients.manage'));
 }
@@ -54,14 +51,6 @@ function coveredByResource(service,activeWorkstations){
   if(!service.categoryId)return false;
   return activeWorkstations.some(station=>list(station.allowedCategoryIds).map(String).includes(service.categoryId));
 }
-function redactMigrationLogs(value){
-  const text=String(value||'').trim();
-  if(!text)return null;
-  return text
-    .replace(/postgres(?:ql)?:\/\/[^\s]+/gi,'[REDACTED_DATABASE_URL]')
-    .replace(/(?:password|token|secret|api[_-]?key)\s*[=:]\s*[^\s]+/gi,'$1=[REDACTED]')
-    .slice(0,2000);
-}
 async function localMigrations(migrationsDir){
   const entries=await readdir(migrationsDir,{withFileTypes:true});
   const rows=[];
@@ -84,7 +73,7 @@ async function migrationReport(prisma,migrationsDir,tables){
   const normalized=databaseRows.map(row=>({
     migrationName:row.migration_name,checksum:row.checksum,startedAt:iso(row.started_at),finishedAt:iso(row.finished_at),
     rolledBackAt:iso(row.rolled_back_at),appliedStepsCount:Number(row.applied_steps_count||0),
-    errorLogs:row.finished_at===null&&row.rolled_back_at===null?redactMigrationLogs(row.logs):null,
+    errorLogPresent:row.finished_at===null&&row.rolled_back_at===null&&Boolean(String(row.logs||'').trim()),
   }));
   const applied=normalized.filter(row=>row.finishedAt&&row.rolledBackAt===null);
   const incomplete=normalized.filter(row=>row.finishedAt===null&&row.rolledBackAt===null);
@@ -146,9 +135,9 @@ export async function buildReadinessReport(prisma,{migrationsDir=DEFAULT_MIGRATI
     const reason={NO_PROFESSIONALUNIT:0,INACTIVE:0,NOT_PUBLISHED:0,NO_ELIGIBLE_SERVICE:0,NO_VALID_SCHEDULE:0,NO_RESOURCE:0};
     let publishedCount=0,serviceCount=0,scheduleCount=0,resourceCount=0,catalogCount=0,overrides=0;
     for(const professional of professionals){
-      const anyLink=professional.units.some(link=>link.unitId===unitId),activeLink=professional.units.some(link=>link.unitId===unitId&&link.active);
-      if(!activeLink){if(!anyLink||professional.active)reason.NO_PROFESSIONALUNIT++;continue}
+      const activeLink=professional.units.some(link=>link.unitId===unitId&&link.active);
       if(!professional.active){reason.INACTIVE++;continue}
+      if(!activeLink){reason.NO_PROFESSIONALUNIT++;continue}
       const config=obj(professional.legacyPayload);
       if(!published(config)){reason.NOT_PUBLISHED++;continue}
       publishedCount++;
@@ -183,19 +172,20 @@ export async function buildReadinessReport(prisma,{migrationsDir=DEFAULT_MIGRATI
     const centralLocation=stockLocations.some(location=>location.kind==='CENTRAL'&&location.active);
     const hasStockData=Number(stockCounts.Product||0)>0&&(Number(balanceCount||0)>0||Number(openingCount||0)>0);
     const stockReady=STOCK_TABLES.every(table=>tables.has(table))&&centralLocation&&Boolean(unitStockLocation)&&hasStockData;
-    readinessByUnit[unitId]={usersReady,professionalsReady,servicesReady,schedulesReady,resourcesReady,clientsReady,stockReady,operationalChainReady:usersReady&&professionalsReady&&servicesReady&&schedulesReady&&resourcesReady};
+    const unitReady=Boolean(unit?.active);
+    readinessByUnit[unitId]={unitReady,usersReady,professionalsReady,servicesReady,schedulesReady,resourcesReady,clientsReady,stockReady,operationalChainReady:unitReady&&usersReady&&professionalsReady&&servicesReady&&schedulesReady&&resourcesReady};
   }
   units.aliases=Object.fromEntries(UNIT_ALIASES.map(id=>{const row=unitRows.find(unit=>unit.id===id);return [id,{exists:Boolean(row),active:row?.active??false,timezone:row?.timezone??null}]}));
   const centralLocation=stockLocations.find(location=>location.kind==='CENTRAL'&&location.active);
   const stock={tables:Object.fromEntries(STOCK_TABLES.map(table=>[table,{exists:tables.has(table),count:stockCounts[table]}])),locations:{central:{exists:Boolean(centralLocation)},...Object.fromEntries(UNITS.map(unitId=>[unitId,{exists:stockByUnit[unitId].locationExists}]))}};
-  const migrationBlocked=migrationData.incomplete.length>0||migrationData.checksumStateIssues.length>0||migrationData.unexpected.length>0;
+  const migrationBlocked=!migrationData.tableExists||migrationData.pending.length>0||migrationData.incomplete.length>0||migrationData.checksumStateIssues.length>0||migrationData.unexpected.length>0;
   const approved=UNITS.every(unitId=>Object.values(readinessByUnit[unitId]).every(Boolean))&&!migrationBlocked;
   return {
     ok:true,readOnly:true,
     metadata:{timestamp:now.toISOString(),readOnly:true,database:{provider:'postgresql',schema:String(identity.schema_name||'public'),serverVersion:String(identity.server_version||''),databaseFingerprint},transactionReadOnly:false,enforcement:'Prisma read APIs and SELECT-only raw SQL'},
     units,users:{networkAdminsTotal:networkAdmins,byUnit:usersByUnit},professionals:professionalsByUnit,services:servicesByUnit,schedules:schedulesByUnit,
     workstations:workstationsByUnit,booking:bookingByUnit,clients:{centralClients,staging:stagingTotal,batches:batchesTotal,duplicateReview:duplicateReviewTotal,byUnit:clientsByUnit},
-    stock:{...stock,byUnit:stockByUnit},migrations:migrationData,readiness:{units:readinessByUnit,result:approved?'APPROVED':'BLOCKED'},
+    stock:{...stock,byUnit:stockByUnit},migrations:{...migrationData,ready:!migrationBlocked},readiness:{migrationsReady:!migrationBlocked,units:readinessByUnit,result:approved?'APPROVED':'BLOCKED'},
   };
 }
 

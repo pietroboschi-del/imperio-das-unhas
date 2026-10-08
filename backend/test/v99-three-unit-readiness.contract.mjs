@@ -8,5 +8,6 @@ for(const needle of ['big-shopping','central','_prisma_migrations','information_
 for(const forbidden of ['.$executeRaw','prisma migrate','prisma db seed'])ok(!src.includes(forbidden),'diagnóstico não contém escrita: '+forbidden);
 ok(!/prisma(?:\.\w+)?\.(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\s*\(/.test(src),'diagnóstico não chama APIs Prisma de escrita');
 ok(!/\$queryRaw(?:Unsafe)?\s*[(`]\s*(?:INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|GRANT|REVOKE)/i.test(src),'raw SQL não contém DDL/DML');
+ok(!src.includes('errorLogs')&&src.includes('errorLogPresent'),'diagnóstico não expõe conteúdo de logs de migration');
 ok(src.includes('export async function buildReadinessReport'),'diagnóstico exporta função reutilizável');
 console.log(JSON.stringify({ok:true,tests,feature:'three_unit_readonly_readiness'}));
