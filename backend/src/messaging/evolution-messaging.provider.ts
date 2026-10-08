@@ -31,7 +31,7 @@ export class EvolutionMessagingProvider implements MessagingProvider {
         signal:controller.signal,
       });
       if(!response.ok){
-        if(response.status>=500||response.status===429)throw new MessagingProviderError('EVOLUTION_HTTP_RETRYABLE','Evolution provider temporarily unavailable',true,'DELIVERY_UNKNOWN');
+        if(response.status>=500||response.status===429||response.status===408)throw new MessagingProviderError('EVOLUTION_HTTP_RETRYABLE','Evolution provider temporarily unavailable',true,'DELIVERY_UNKNOWN');
         throw new MessagingProviderError('EVOLUTION_HTTP_REJECTED','Evolution provider rejected the request',false,'DEFINITE_FAILURE');
       }
       let body:unknown=null;
