@@ -346,9 +346,83 @@ def main():
                 assert "Histórico central indisponível" not in history, "Central global client history API failed"
                 for unit_name in ("Centro de Contagem","Big Shopping","Shopping Contagem"):
                     assert unit_name in history, f"Missing {unit_name} in visible global history"
-                assert service_name in history and pro_edited in history and "Agendado" in history,"History lacks service professional or status"
+                assert service_name in history and "Pro E2E Editada" in history and "Agendado" in history,"History lacks service professional or status"
                 assert page.locator("#clientTabContent table tbody tr").count()>=3,"Global history omitted one of three bookings"
                 print(json.dumps({"ok":True,"scenario":"3C-global-history-real-browser","rows":page.locator("#clientTabContent table tbody tr").all_text_contents()[:6]},ensure_ascii=False))
+                # Create the second service/professional via the existing UI, then one booking with two BookingItems.
+                page.locator("#modalHost button.x").click()
+                second_service="Serviço B E2E UI "+suffix
+                second_pro="Profissional B E2E UI "+suffix
+                second_public="Pro B E2E "+suffix
+                page.get_by_role("button",name="Serviços",exact=True).click()
+                page.wait_for_timeout(850)
+                page.get_by_role("button",name="+ Novo serviço").click()
+                page.locator("#sfName").fill(second_service)
+                page.locator("#sfCat").select_option(label=category_name)
+                page.locator("#sfPrice").fill("65")
+                page.locator("#sfDur").fill("35")
+                page.get_by_role("button",name="Site").click()
+                page.locator("#sfPublicName").fill(second_service)
+                page.get_by_role("button",name="Salvar serviço").click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=second_service,timeout=15000)
+                page.get_by_role("button",name="Profissionais",exact=True).click()
+                page.wait_for_timeout(900)
+                page.get_by_role("button",name="+ Nova profissional").click()
+                page.locator("#pfName").fill(second_pro)
+                page.locator("#pfPublicName").fill(second_public)
+                page.locator("#pfSpec").fill("Nail E2E B")
+                page.locator(".pfUnit[value='u3']").check()
+                page.get_by_role("button",name="Horários").click()
+                monday_row=page.locator(".schedule-row[data-unit='u3'][data-day='1']")
+                monday_row.locator(".pfs-work").check()
+                monday_row.locator(".pfs-start").fill("09:00")
+                monday_row.locator(".pfs-end").fill("18:00")
+                page.locator("#modalHost").get_by_role("button",name="Serviços").click()
+                second_row=page.locator(".pro-service-row",has_text=second_service)
+                assert second_row.count()==1,"Second service missing from second professional configuration"
+                second_row.locator(".pfr-enabled").check()
+                page.get_by_role("button",name="Salvar profissional").click()
+                page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=second_pro,timeout=15000)
+
+                page.locator("#unitPicker").select_option(value="u3")
+                page.get_by_role("button",name="Agenda",exact=True).click()
+                page.wait_for_timeout(900)
+                page.get_by_role("button",name="+ Novo agendamento").click()
+                page.locator("#rClientSearch").fill(client_name)
+                page.locator("#rClientResults").get_by_role("button",name="Selecionar").click()
+                page.get_by_role("button",name="+ Adicionar serviço").click()
+                assert page.locator(".res-line").count()==2,"Multi-service booking form did not add second BookingItem"
+                page.locator(".res-line").nth(0).locator(".res-service").select_option(label=service_name)
+                page.locator(".res-line").nth(1).locator(".res-service").select_option(label=second_service)
+                options_one=page.locator(".res-line").nth(0).locator(".res-pro option").all_text_contents()
+                options_two=page.locator(".res-line").nth(1).locator(".res-pro option").all_text_contents()
+                print(json.dumps({"scenario":"3C-two-professionals-choices","A":options_one,"B":options_two},ensure_ascii=False))
+                assert pro_edited in options_one and second_pro in options_two,"Expected different eligible professionals for each service"
+                page.locator(".res-line").nth(0).locator(".res-pro").select_option(label=pro_edited)
+                page.locator(".res-line").nth(1).locator(".res-pro").select_option(label=second_pro)
+                page.locator(".res-line").nth(0).locator(".res-time").fill("11:00")
+                page.locator(".res-line").nth(1).locator(".res-time").fill("12:00")
+                two_date=(monday+timedelta(days=21)).isoformat()
+                page.locator("#rDate").fill(two_date)
+                page.locator("#modalHost").get_by_role("button",name="Salvar",exact=True).click()
+                page.wait_for_timeout(1350)
+                multi=page.evaluate("""(args)=>db.bookings.filter(b=>b.clientId===args.client&&b.unit==='u3'&&b.date===args.day).map(b=>({id:b.id,items:b.items.map(i=>({serviceId:i.serviceId,pro:i.pro}))}))""",{"client":identity[0]["id"],"day":two_date})
+                print(json.dumps({"scenario":"3C-multi-service-booking-saved","rows":multi},ensure_ascii=False))
+                assert len(multi)==1 and len(multi[0]["items"])==2,"Multi-service booking not saved with two items"
+                assert multi[0]["items"][0]["pro"]!=multi[0]["items"][1]["pro"],"BookingItems incorrectly share one professional"
+
+                page.get_by_role("button",name="Clientes",exact=True).click()
+                page.wait_for_timeout(700)
+                page.locator("#clientSearch").fill(client_name)
+                page.locator("#clientRows tr",has_text=client_name).get_by_role("button",name="Abrir").click()
+                page.locator('[data-client-tab="historico"]').click()
+                page.wait_for_function("(name)=>document.querySelector('#clientTabContent')?.innerText.includes(name)",arg=second_service,timeout=15000)
+                visible=page.locator("#clientTabContent table tbody tr").all_text_contents()
+                assert any(second_service in row and second_public in row for row in visible),"Service B mapped to wrong professional in visual global history"
+                assert any(service_name in row and "Pro E2E Editada" in row for row in visible),"Service A mapped to wrong professional in visual global history"
+                assert len(visible)>=5,"Global history has fewer than five service rows"
+                print(json.dumps({"ok":True,"scenario":"3C-two-professionals-global-history","rows":visible[:8]},ensure_ascii=False))
+
 
 
 
