@@ -598,7 +598,10 @@ def main():
                 page.wait_for_function("(name)=>[...document.querySelectorAll('.agenda-wrap .booking')].some(x=>x.innerText.includes(name))",arg=client_name,timeout=15000)
                 page.locator(".agenda-wrap .booking",has_text=client_name).first.click()
                 page.get_by_role("button",name="Abrir comanda").click()
-                page.wait_for_function("() => document.querySelector('#modalHost')?.innerText.includes('Comanda aberta')",timeout=15000)
+                page.wait_for_timeout(1200)
+                command_state=page.evaluate("""() => ({modal:document.querySelector('#modalHost')?.innerText.slice(0,900),toast:document.querySelector('#toast')?.innerText||document.querySelector('.toast')?.innerText||'',commands:db.clientCommands.map(c=>({id:c.id,unit:c.unitId,central:c.central,status:c.status,lines:c.lines?.length})).slice(-5),page:window.page||null})""")
+                print(json.dumps({"scenario":"3E-command-open-diagnostic","state":command_state},ensure_ascii=False))
+                page.wait_for_function("() => document.querySelector('#modalHost')?.innerText.includes('Comanda aberta')",timeout=8000)
                 command_lines=page.locator("#modalHost [data-command-line]").count()
                 assert command_lines>=2,"Multi-service Agenda booking did not produce multi-item command"
                 command=page.evaluate("""() => db.clientCommands.filter(c=>c.clientName?.includes('Cliente E2E Rede')&&c.unitId==='u3').map(c=>({id:c.id,central:c.central,lines:c.lines.length,status:c.status}))""")
