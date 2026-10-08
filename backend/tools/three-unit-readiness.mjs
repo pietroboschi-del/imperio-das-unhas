@@ -179,13 +179,39 @@ export async function buildReadinessReport(prisma,{migrationsDir=DEFAULT_MIGRATI
   const centralLocation=stockLocations.find(location=>location.kind==='CENTRAL'&&location.active);
   const stock={tables:Object.fromEntries(STOCK_TABLES.map(table=>[table,{exists:tables.has(table),count:stockCounts[table]}])),locations:{central:{exists:Boolean(centralLocation)},...Object.fromEntries(UNITS.map(unitId=>[unitId,{exists:stockByUnit[unitId].locationExists}]))}};
   const migrationBlocked=!migrationData.tableExists||migrationData.pending.length>0||migrationData.incomplete.length>0||migrationData.checksumStateIssues.length>0||migrationData.unexpected.length>0;
-  const approved=UNITS.every(unitId=>Object.values(readinessByUnit[unitId]).every(Boolean))&&!migrationBlocked;
+  const stockSchemaReady=STOCK_TABLES.every(table=>tables.has(table));
+  const canonicalUnitsReady=UNITS.every(unitId=>readinessByUnit[unitId].unitReady)&&UNIT_ALIASES.every(id=>!units.aliases[id].exists);
+  const identityReady=networkAdmins>0||UNITS.every(unitId=>readinessByUnit[unitId].usersReady);
+  const structuralReady=canonicalUnitsReady&&identityReady&&stockSchemaReady&&!migrationBlocked;
+  const businessDataConfigured=UNITS.every(unitId=>
+    readinessByUnit[unitId].professionalsReady&&readinessByUnit[unitId].clientsReady&&readinessByUnit[unitId].stockReady);
+  const technicalReadiness={
+    scope:'STRUCTURAL_ONLY_REQUIRES_SEPARATE_EMPTY_STATE_JOURNEY_GATE',
+    result:structuralReady?'STRUCTURAL_READY':'BLOCKED',
+    canonicalUnitsReady,identityReady,stockSchemaReady,migrationsReady:!migrationBlocked,
+    blockers:[
+      ...(!canonicalUnitsReady?['CANONICAL_UNITS']:[]),
+      ...(!identityReady?['ADMIN_IDENTITY_OR_PERMISSIONS']:[]),
+      ...(!stockSchemaReady?['STOCK_SCHEMA']:[]),
+      ...(migrationBlocked?['MIGRATIONS']:[])
+    ]
+  };
+  const businessDataReadiness={
+    result:businessDataConfigured?'CONFIGURED':'EXPECTED_EMPTY_STATE',
+    clientMigration:'POST_GO_LIVE_USER_DRIVEN',
+    perUnit:Object.fromEntries(UNITS.map(unitId=>[unitId,{
+      professionalsConfigured:readinessByUnit[unitId].professionalsReady,
+      clientsConfigured:readinessByUnit[unitId].clientsReady,
+      stockConfigured:readinessByUnit[unitId].stockReady,
+      schedulesConfigured:readinessByUnit[unitId].schedulesReady
+    }]))
+  };
   return {
     ok:true,readOnly:true,
     metadata:{timestamp:now.toISOString(),readOnly:true,database:{provider:'postgresql',schema:String(identity.schema_name||'public'),serverVersion:String(identity.server_version||''),databaseFingerprint},transactionReadOnly:false,enforcement:'Prisma read APIs and SELECT-only raw SQL'},
     units,users:{networkAdminsTotal:networkAdmins,byUnit:usersByUnit},professionals:professionalsByUnit,services:servicesByUnit,schedules:schedulesByUnit,
     workstations:workstationsByUnit,booking:bookingByUnit,clients:{centralClients,staging:stagingTotal,batches:batchesTotal,duplicateReview:duplicateReviewTotal,byUnit:clientsByUnit},
-    stock:{...stock,byUnit:stockByUnit},migrations:{...migrationData,ready:!migrationBlocked},readiness:{migrationsReady:!migrationBlocked,units:readinessByUnit,result:approved?'APPROVED':'BLOCKED'},
+    stock:{...stock,byUnit:stockByUnit},migrations:{...migrationData,ready:!migrationBlocked},technicalReadiness,businessDataReadiness,readiness:{migrationsReady:!migrationBlocked,units:readinessByUnit,result:technicalReadiness.result,scope:technicalReadiness.scope},
   };
 }
 
