@@ -85,6 +85,10 @@ try{
   equal(report.readiness.result,'BLOCKED','banco vazio bloqueia readiness');
   equal(report.units.centro.exists,false,'banco vazio informa unidade ausente');
   equal(report.professionals.centro.publicCatalogEligible,0,'banco vazio não inventa profissionais');
+  equal(report.businessDataReadiness.result,'EXPECTED_EMPTY_STATE','dados comerciais vazios são esperados');
+  equal(report.businessDataReadiness.clientMigration,'POST_GO_LIVE_USER_DRIVEN','migração não bloqueia entrega');
+  equal(report.technicalReadiness.migrationsReady,false,'migration pendente continua bloqueio técnico');
+  ok(report.technicalReadiness.blockers.includes('CANONICAL_UNITS'),'ausência de unidades é bloqueio estrutural');
 
   for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']]){
     await prisma.unit.create({data:{id,name,timezone:'America/Sao_Paulo',active:true}});
@@ -134,6 +138,8 @@ try{
   equal(report.readiness.units.centro.operationalChainReady,true,'cadeia completa é reconhecida');
   ok(report.migrations.pending.some(x=>x.migrationName===fixture.pending),'migration local ausente no banco fica pending');
   equal(report.readiness.migrationsReady,false,'migration pending bloqueia readiness global');
+  equal(report.technicalReadiness.result,'BLOCKED','migration pendente bloqueia readiness técnica, mesmo com profissionais');
+  equal(report.businessDataReadiness.result,'EXPECTED_EMPTY_STATE','ausência de clientes e saldo não bloqueia readiness estrutural');
   await prisma.unit.update({where:{id:'centro'},data:{active:false}});
   report=await buildReadinessReport(prisma,{migrationsDir:fixture.root,now:new Date('2026-10-08T12:00:00.000Z')});
   equal(report.readiness.units.centro.operationalChainReady,false,'unidade inativa bloqueia cadeia operacional');
