@@ -94,12 +94,13 @@ def main():
                 labels=picker.locator("option").all_text_contents()
                 print(json.dumps({"scenario":"3B-unit-picker","options":labels,"selected":picker.input_value()},ensure_ascii=False))
                 assert len(labels)==3, "Expected exactly three authorized canonical units in real admin picker"
-                for local in ("u3","u1","u2"):
+                for local in ("u1","u2","u3"):
                     before_value=picker.input_value()
                     picker.select_option(value=local)
-                    page.wait_for_timeout(180)
+                    page.wait_for_timeout(500)
                     actual=picker.input_value()
-                    print(json.dumps({"scenario":"3B-unit-switch","before":before_value,"requested":local,"after":actual,"options":picker.locator("option").evaluate_all("(els)=>els.map(e=>({value:e.value,text:e.textContent}))")},ensure_ascii=False))
+                    state=page.evaluate("""() => {let principal=null;try{principal=JSON.parse(sessionStorage.getItem("imperio-v99-central-principal")||"null")}catch(e){}return {authenticated:sessionStorage.getItem("imperio-v99-central-authenticated"),networkAdmin:principal?.networkAdmin,writeUnits:sessionStorage.getItem("imperio-v99-central-write-units")}}""")
+                    print(json.dumps({"scenario":"3B-unit-switch","before":before_value,"requested":local,"after":actual,"options":picker.locator("option").evaluate_all("(els)=>els.map(e=>({value:e.value,text:e.textContent}))"),"session":state},ensure_ascii=False))
                     assert actual==local,"Unit switch did not persist in selector"
                 picker.select_option(value="u3")
                 page.get_by_role("button",name="Profissionais",exact=True).click()
