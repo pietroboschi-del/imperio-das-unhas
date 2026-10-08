@@ -93,3 +93,13 @@ NOT YET RELEASE CANDIDATE. Await browser E2E, remaining P2 and final CI.
 - FIX: browser E2E now reaches structural category and workstation screens through the existing real UI route `Configurações` → `Categorias de Serviços` / `Estações de trabalho`, keeping category/workstation creation as browser actions.
 - NEXT_EXACT_TASK: push this E2E route correction on top of remote HEAD 91b06d71d2fc6ef3b24674e30654ea2838414257; rerun browser #13 and inspect the first remaining real failure.
 - PRODUCTION_MUTATIONS: NONE.
+
+## CHECKPOINT 3B CI #13 FOLLOW-UP — CENTRAL SERVICES RERENDER FIX (2026-10-08)
+- REMOTE_HEAD_TESTED: eba018ed838dd8b2121d514aa8f27d5230b2943f.
+- CI_RESULT: Three-unit browser E2E #13, run 37798358994, FAILURE at `Real browser scenario`.
+- EVIDENCE: #13 again proved `+ Nova profissional` and modal render work. Failure occurred before data creation while trying to reach structural categories.
+- FIRST_NEW_FAILURE: after central services async refresh, the central wrapper called the legacy services renderer directly. That bypassed the later V99 structural wrapper and removed/not-added the `Categorias` and `Estações` shortcuts.
+- FIX: central service refresh callback now re-applies `window.__imperioStructuralCentral.patchServiceStructuralActions()` after async `legacyRenderServices()`. Contract added in `v99-frontend-central-bridge.contract.mjs`; E2E returns to the direct Serviços → Categorias/Estações route.
+- TESTS: `node test/v99-frontend-central-bridge.contract.mjs` was red before the fix.
+- NEXT_EXACT_TASK: run targeted contracts/py compile, publish on top of remote eba018ed838dd8b2121d514aa8f27d5230b2943f, then wait for browser #14.
+- PRODUCTION_MUTATIONS: NONE.

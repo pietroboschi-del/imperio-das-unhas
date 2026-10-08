@@ -126,9 +126,7 @@ def main():
                 page.get_by_role("button",name="Serviços",exact=True).click()
                 page.wait_for_timeout(900)
                 assert page.get_by_role("button",name="+ Novo serviço").is_visible(),"Services configuration is not navigable"
-                page.get_by_role("button",name="Configurações",exact=True).click()
-                page.wait_for_timeout(900)
-                page.get_by_role("button",name="Categorias de Serviços",exact=True).click()
+                page.get_by_role("button",name="Categorias",exact=True).click()
                 page.wait_for_timeout(1200)
                 page.get_by_role("button",name="+ Nova categoria").click()
                 page.wait_for_timeout(350)
@@ -206,9 +204,9 @@ def main():
                 assert persisted["serviceEnabled"] and persisted["serviceEnabled"][0]["enabled"],"Professional service eligibility did not persist"
                 page.get_by_role("button",name="Cancelar").click()
 
-                page.get_by_role("button",name="Configurações",exact=True).click()
+                page.get_by_role("button",name="Serviços",exact=True).click()
                 page.wait_for_timeout(900)
-                page.get_by_role("button",name="Estações de trabalho",exact=True).click()
+                page.get_by_role("button",name="Estações",exact=True).click()
                 page.wait_for_timeout(1200)
                 page.get_by_role("button",name="+ Nova estação").click()
                 page.wait_for_timeout(500)
@@ -222,9 +220,9 @@ def main():
                 page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=station_name,timeout=15000)
                 page.reload(wait_until="domcontentloaded",timeout=30000)
                 page.wait_for_timeout(1500)
-                page.get_by_role("button",name="Configurações",exact=True).click()
-                page.wait_for_timeout(900)
-                page.get_by_role("button",name="Estações de trabalho",exact=True).click()
+                page.get_by_role("button",name="Serviços",exact=True).click()
+                page.wait_for_timeout(800)
+                page.get_by_role("button",name="Estações",exact=True).click()
                 page.wait_for_function("(name)=>document.body.innerText.includes(name)",arg=station_name,timeout=15000)
                 inventory=page.evaluate("""() => ({
                   categories:(db.categories||[]).filter(x=>String(x.name||'').includes('Categoria E2E UI')).map(x=>({id:x.id,name:x.name,active:x.active})),
