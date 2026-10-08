@@ -17,6 +17,7 @@ async function queued(foundation,suffix){
 }
 try{
  await db.$connect();await ensureCanonicalUnits(db);
+ await db.user.upsert({where:{id:'wa2-test-operator'},create:{id:'wa2-test-operator',username:'wa2_reconcile_test',displayName:'WA2 Test Operator',networkAdmin:true},update:{networkAdmin:true}});
  await db.auditEvent.deleteMany({where:{entityType:'MessagingOutbox'}});
  await db.messagingOutbox.deleteMany();await db.messagingChannel.updateMany({data:{enabled:false}});
  await db.messagingChannel.update({where:{id:'BIG_CENTRO'},data:{enabled:true}});
@@ -75,5 +76,6 @@ try{
  await db.auditEvent.deleteMany({where:{entityType:'MessagingOutbox'}}).catch(()=>{});
  await db.messagingOutbox.deleteMany().catch(()=>{});
  await db.messagingChannel.updateMany({data:{enabled:false}}).catch(()=>{});
+ await db.user.deleteMany({where:{id:'wa2-test-operator'}}).catch(()=>{});
  await db.$disconnect();
 }
