@@ -4,6 +4,7 @@ It never injects session cookies, mocks API responses, or connects to live infra
 """
 import json, os, subprocess, sys, time, urllib.request
 from pathlib import Path
+from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -47,6 +48,7 @@ def main():
             try:
                 page=browser.new_page(viewport={"width":1280,"height":800})
                 page.add_init_script(f"window.IMPERIO_API_BASE={json.dumps(API_ORIGIN)};")
+                page.route("**/*",lambda route: route.continue_() if urlsplit(route.request.url).hostname in ("ui.imperio.test","api.imperio.test") else route.abort())
                 page.goto(f"{UI_ORIGIN}/index.html",wait_until="domcontentloaded",timeout=30000)
                 page.wait_for_timeout(1500)
                 title=page.title()
