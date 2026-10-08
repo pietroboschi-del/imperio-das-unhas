@@ -25,6 +25,8 @@ Inspect status counts: PENDING, SENDING, SENT, DELIVERED, READ, FAILED, CANCELLE
 
 ## 3. Privileged reconciliation
 
+A logged-in network administrator can first list ambiguous IDs using read-only `GET /api/v1/admin/messaging/outbox/reconciliation`; it returns safe metadata, not phone numbers or message text. Ordinary reception users cannot access this queue.
+
 Only a logged-in network administrator can use `POST /api/v1/admin/messaging/outbox/:id/reconcile` through the normal authenticated + CSRF-protected API. Body shape:
 ```json
 {"action":"CONFIRM_SENT","providerMessageId":"verified-provider-message-id"}
