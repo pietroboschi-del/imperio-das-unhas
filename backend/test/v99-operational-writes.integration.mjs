@@ -38,6 +38,29 @@ async function main(){
   r=await fetch(base+'/api/v1/clients',{method:'POST',headers:{...oh,'x-unit-id':'big','idempotency-key':sharedKey},body:JSON.stringify({name:'Cliente Owner Big',phone:'+5531999990082'})});ok(r.ok,'mesma Idempotency-Key pode ser usada em outra unidade sem colisão');const ownerBig=await r.json();
   ok(ownerCentro.id!==ownerBig.id,'idempotência de cliente é escopada por unidade');
   ok(await prisma.clientUnitLink.count({where:{clientId:ownerCentro.id,unitId:'centro',active:true}})===1&&await prisma.clientUnitLink.count({where:{clientId:ownerBig.id,unitId:'big',active:true}})===1,'cada cliente preserva vínculo com sua unidade');
+  // Domain-scoped network Agenda permission: cross-unit booking, not cash/stock.
+  r=await fetch(base+'/api/v1/admin/users',{method:'POST',headers:oh,body:JSON.stringify({
+    username:'recepcao_agenda_rede_ci',displayName:'Recepção Agenda Rede CI',systemRole:'OPERATOR',
+    permissions:['agenda.read','agenda.manage'],
+    units:[{unitId:'centro',role:'reception',permissions:['clients.read']}]
+  })});ok(r.ok,'owner creates network agenda receptionist');const crossUser=await r.json();
+  r=await fetch(base+'/api/v1/auth/users/'+crossUser.id+'/activation-token',{method:'POST',headers:oh,body:'{}'});
+  ok(r.ok,'network agenda activation token issued');const crossInvite=await r.json();
+  r=await fetch(base+'/api/v1/auth/activate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({token:crossInvite.token,newPassword:'network-agenda-password-123'})});
+  ok(r.ok,'network agenda receptionist activated');
+  r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'recepcao_agenda_rede_ci',password:'network-agenda-password-123'})});
+  ok(r.ok,'network agenda receptionist authenticates through real API');const crossCookie=cookieOf(r),crossAuth=await r.json();
+  const crossHeaders={'content-type':'application/json','x-csrf-token':crossAuth.csrfToken,'cookie':crossCookie,'x-unit-id':'big'};
+  r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{...crossHeaders,'idempotency-key':'cross-agenda-big'},body:JSON.stringify({clientId:client.id,serviceId:'s1',professionalId:'p1',serviceDate:'2026-10-06',startAt:'2026-10-06T14:00:00.000Z'})});
+  ok(r.ok,'globally authorized reception books Centro client in Big');const crossBooking=await r.json();
+  ok(crossBooking.unitId==='big'&&crossBooking.clientId===client.id,'cross-unit booking reuses single global Client identity');
+  r=await fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...crossHeaders,'idempotency-key':'cross-cash-denied'},body:JSON.stringify({businessDate:'2026-10-06',openingAmount:0})});
+  ok(r.status===403,'network agenda grant does not authorize Big cash');
+  r=await fetch(base+'/api/v1/stock/consumptions',{method:'POST',headers:{...crossHeaders,'idempotency-key':'cross-stock-denied'},body:JSON.stringify({locationId:'big',items:[{productId:'synthetic-denied',qty:1}]})});
+  ok(r.status===403,'network agenda grant does not authorize Big stock');
+  r=await fetch(base+'/api/v1/config/workstations',{method:'POST',headers:crossHeaders,body:JSON.stringify({id:'cross-config-denied',unitId:'big',name:'Forbidden',allowedCategoryIds:[]})});
+  ok(r.status===403,'network agenda grant does not authorize structural configuration');
+  ok(await prisma.client.count({where:{id:client.id}})===1,'same Client retained across Centro and Big');
   console.log(JSON.stringify({ok:true,tests,feature:'multi_unit_operational_writes'}));
  }finally{server.kill('SIGTERM');await prisma.$disconnect()}
 }
