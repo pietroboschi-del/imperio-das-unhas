@@ -14,4 +14,8 @@ must(controller.includes("where:{clientId:id}"),'network query uses global Clien
 must(controller.includes("items:{orderBy:{sortOrder:'asc'}"),'BookingItem order is canonical');
 must(controller.includes('professionalName:item.professional?.publicName'),'backend preserves service-professional relationship');
 must(controller.includes("@RequirePermissions('clients.read')"),'history is protected by client permission');
+must(html.includes("operationalSummary(date=''){return centralRequest('/api/v1/reports/operational-summary'"),'frontend consumes canonical operational reporting API');
+must(html.includes("central-operational-summary"),'admin reports page renders central operational summary');
+must(controller.includes("@Get('reports/operational-summary')"),'backend exposes canonical operational reports');
+must(controller.includes("@RequirePermissions('reports.read')"),'report summary enforces report permission');
 console.log(JSON.stringify({ok:true,checks,feature:'client_network_history_frontend_contract'}));
