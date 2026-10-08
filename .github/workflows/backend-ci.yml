@@ -158,6 +158,8 @@ jobs:
         run: npm run test:three-unit-readiness
       - name: Release hardening contracts
         run: npm run test:release-hardening
+      - name: Release migration checksum preflight isolated CI
+        run: npm run test:release-checksum-preflight
       - name: Release migration manifest parity
         run: npm run test:release-migration-manifest
       - name: Synthetic 13-to-22 migration rehearsal
