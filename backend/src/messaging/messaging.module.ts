@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { MessagingReconciliationController } from './messaging-reconciliation.controller';
+import { MessagingReconciliationService } from './messaging-reconciliation.service';
 import { MessagingFoundationService } from './messaging-foundation.service';
 import { MessagingDispatchService } from './messaging-dispatch.service';
 import { MessagingInboundService } from './messaging-inbound.service';
@@ -16,10 +18,11 @@ import { EvolutionWebhookController } from './evolution-webhook.controller';
 import { MESSAGING_PROVIDER } from './messaging.provider';
 
 @Module({
-  controllers:[EvolutionWebhookController],
+  controllers:[EvolutionWebhookController,MessagingReconciliationController],
   providers:[
     MessagingFoundationService,
     MessagingDispatchService,
+    MessagingReconciliationService,
     MessagingInboundService,
     MessagingAutomationService,
     BookingAutomationMaterializationService,
