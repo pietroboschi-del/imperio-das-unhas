@@ -702,6 +702,28 @@ def main():
                 page.wait_for_function("() => db.cashSessions.some(c=>c.unitId==='u3'&&c.status==='closed')",timeout=15000)
                 print(json.dumps({"scenario":"3E-cash-closed-with-no-direct-revenue","sessions":page.evaluate("""() => db.cashSessions.filter(c=>c.unitId==='u3').map(c=>({id:c.id,status:c.status,opening:c.openingAmount,counted:c.countedAmount}))""")},ensure_ascii=False))
 
+                # Report period must contain the synthetic appointment date, not just today.
+                page.get_by_role("button",name="Relatórios",exact=True).click()
+                page.wait_for_function("() => !!document.querySelector('.report-nav')",timeout=15000)
+                page.locator("#repTo").fill(two_date)
+                page.locator("#repUnit").select_option(value="u3")
+                report_facts=page.evaluate("""commandId => {
+                  let current=window.v50ReportCache?.current;
+                  return {period:current?.f,revenue:current?.revenue,paidVisits:current?.paidVisits,
+                    commandVisits:current?.visits?.filter(v=>v.commandId===commandId).map(v=>({revenue:v.revenue,unitId:v.unitId,date:v.date}))}
+                }""",command_id)
+                print(json.dumps({"scenario":"3E-reports-synthetic-command-revenue","facts":report_facts},ensure_ascii=False))
+                assert report_facts["commandVisits"] and report_facts["commandVisits"][0]["unitId"]=="u3","Report did not attribute paid command to Centro"
+                assert report_facts["revenue"]>=amount-.01 and report_facts["paidVisits"]>=1,"Existing report did not reflect synthetic paid service revenue"
+                report_tabs=[]
+                for tab in ("Agenda","Profissionais","Serviços","Estoque","Financeiro"):
+                    page.locator(".report-nav").get_by_role("button",name=tab,exact=False).click()
+                    page.wait_for_timeout(180)
+                    body=page.locator("#adminPage").inner_text()
+                    assert tab in body and len(body)>110,f"Existing report tab {tab} did not render"
+                    report_tabs.append({"tab":tab,"placeholder":("em breve" in body.lower() or "estrutura preparada" in body.lower()),"preview":body[:160]})
+                print(json.dumps({"scenario":"3E-existing-report-tabs-opened","tabs":report_tabs},ensure_ascii=False))
+
                 # Reload proves cash and stock survive client restarts (central PostgreSQL).
                 page.reload(wait_until="domcontentloaded",timeout=30000)
                 page.wait_for_timeout(1550)
