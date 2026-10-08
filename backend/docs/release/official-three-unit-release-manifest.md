@@ -32,7 +32,7 @@ Baseline count: `13`.
 
 ## TARGET_MIGRATIONS
 
-Target count: `21`. Baseline migrations above plus:
+Target count: `22`. Baseline migrations above plus:
 
 1. `20261004_v99_client_duplicate_review_target_client`
 2. `20261004_v99_command_service_quantity`
@@ -42,10 +42,12 @@ Target count: `21`. Baseline migrations above plus:
 6. `20261006_wa2_evolution_inbound`
 7. `20261006_wa4_management_tasks`
 8. `20261006_wa5_1_messaging_automation`
+9. `20261008_wa2_outbox_reconciliation_required`
+9. `20261008_wa2_outbox_reconciliation_required`
 
 ## PENDING_MIGRATIONS
 
-Expected pending from backend live SHA to target:
+Expected pending from backend live SHA to target: `9` migrations (subject to live ledger verification).
 
 1. `20261004_v99_client_duplicate_review_target_client`
 2. `20261004_v99_command_service_quantity`
@@ -70,7 +72,7 @@ LIVE_BACKEND_SHA=920d74cbb5856ab3bdb1c63c1c0c762c82346cba LIVE_FRONTEND_SHA=a5e4
 DATABASE_URL='<authorized-readonly-url>' npm run release:preflight
 ```
 
-Required result: live ledger exactly matches `EXPECTED_BASELINE_MIGRATIONS`, no incomplete rows, no rolled back rows, no unexpected database-only migrations, and canonical units `centro`, `big`, `shopping-contagem` exist.
+Required result: compare the baseline at the *live backend SHA* (13 known migrations) separately from target 22, including checksum SHA-256 for each applied migration. Abort if live contains an unexpected migration. Live ledger remains NOT VERIFIED until queried with authorized read-only credentials. Required result: live ledger exactly matches `EXPECTED_BASELINE_MIGRATIONS`, no incomplete rows, no rolled back rows, no unexpected database-only migrations, and canonical units `centro`, `big`, `shopping-contagem` exist.
 
 ## MIGRATION COMMAND
 
@@ -89,7 +91,7 @@ DATABASE_URL='<authorized-readonly-url>' npm run release:preflight
 npm run diagnostic:three-units
 ```
 
-Required result: target migration count `21`, no pending migrations, no incomplete migrations, no rolled back migrations, and no missing canonical units.
+Required result: target migration count `22`, no pending migrations, no incomplete migrations, no rolled back migrations, and no missing canonical units.
 
 ## BACKEND DEPLOY CHECKS
 
@@ -105,7 +107,7 @@ Use `backend/docs/release/smoke-matrix.md`. Write smokes require owner approval 
 
 ## ABORT CONDITIONS
 
-Abort before migration if backup validation fails, live ledger differs from manifest, checksum evidence is inconsistent, flags are not verified, or CI for target is not green.
+Abort before migration if backup validation fails, live ledger differs from manifest, any checksum mismatch, missing checksum, unknown migration, incomplete or rolled-back entry exists, flags are not verified, or CI for target is not green.
 
 Abort after migration if any migration is failed, incomplete, rolled back, missing, or unexpected.
 
