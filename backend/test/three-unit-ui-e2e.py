@@ -610,7 +610,11 @@ def main():
 
                 # Command-field policy can require observations; complete them in the UI.
                 page.locator("#cmdNotes").fill("Atendimento operacional sintético 3E "+suffix)
-                page.get_by_role("button",name="Finalizar pagamento").click()
+                trigger=page.get_by_role("button",name="Finalizar pagamento")
+                pre_payment=page.evaluate("""() => {let c=db.clientCommands.at(-1);return {permission:window.__imperioV72?.validateCommand?.(c?.id),paymentMethods:(db.paymentMethods||[]).map(x=>x.id),hasCommand:!!c,onclick:document.querySelector('#modalHost .modal-foot button.btn-primary')?.getAttribute('onclick')}}""")
+                print(json.dumps({"scenario":"3E-pre-payment-validation","state":pre_payment},ensure_ascii=False))
+                page.on("pageerror",lambda error: print(json.dumps({"scenario":"3E-browser-pageerror","message":str(error)},ensure_ascii=False)))
+                trigger.click()
                 page.wait_for_timeout(400)
                 payment_dialog=page.locator("#modalHost").inner_text()[:650]
                 payment_toast=page.evaluate("""() => document.querySelector('#toast')?.innerText||document.querySelector('.toast')?.innerText||''""")
