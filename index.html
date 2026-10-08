@@ -7338,10 +7338,14 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  window.v63OpenUser=function(userId=''){
   if(!centralAuthenticated())return localOpenUser?.(userId);
   if(!centralOwnerOnly()){toast('Somente o dono gerencia usuários centrais');return false}
-  const u=(db.userAccounts||[]).find(x=>x.id===userId),unitChecks=(db.units||[]).filter(x=>x.active!==false).map(x=>'<label class="check"><input type="checkbox" class="central-user-unit" value="'+escapeHtml(centralUnitRef(x.id))+'" '+(u?.unitIds?.includes(x.id)?'checked':'')+'> '+escapeHtml(x.name)+'</label>').join('');
-  const perms=['agenda.read','agenda.manage','clients.read','clients.manage','cash.read','cash.open','cash.close','finance.read','finance.manage','stock.read','stock.manage','catalog.manage','professionals.manage','reports.read'];
+  const u=(db.userAccounts||[]).find(x=>x.id===userId);
+  const perms=['agenda.read','agenda.manage','clients.read','clients.manage','cash.read','cash.open','cash.close','cash.adjust','cash.reopen','finance.read','finance.manage','stock.read','stock.manage','catalog.read','catalog.manage','professionals.read','professionals.manage','reports.read'];
+  const unitChecks=(db.units||[]).filter(x=>x.active!==false).map(x=>{
+   const id=centralUnitRef(x.id),access=(u?.accesses||[]).find(a=>a.unitId===id),assigned=u?.unitIds?.includes(x.id)||!!access,granted=new Set(access?.permissions||[]);
+   return '<div class="field"><label class="check"><input type="checkbox" class="central-user-unit" value="'+escapeHtml(id)+'" '+(assigned?'checked':'')+'> '+escapeHtml(x.name)+'</label>'+
+    '<div class="muted">Permissões desta unidade</div>'+perms.map(p=>'<label class="check"><input type="checkbox" class="central-user-unit-permission" data-unit="'+escapeHtml(id)+'" value="'+p+'" '+(granted.has(p)?'checked':'')+'> '+p+'</label>').join('')+'</div>';
+  }).join('');
   const granted=new Set(u?.permissions||[]);
-  const unitPermissionInputs=(u?.accesses||[]);
   modal(userId?'Editar acesso central':'Novo usuário central','<div class="form-grid"><div class="field"><label>Nome</label><input id="centralUserName" value="'+escapeHtml(u?.name||'')+'"></div><div class="field"><label>Login</label><input id="centralUserLogin" value="'+escapeHtml(u?.username||'')+'"></div><div class="field full"><label>Unidades</label>'+unitChecks+'</div><div class="field full"><label>Permissões globais (rede)</label>'+perms.map(p=>'<label class="check"><input type="checkbox" class="central-user-global" value="'+p+'" '+(granted.has(p)?'checked':'')+'> '+p+'</label>').join('')+'</div><div class="field full"><label><input id="centralUserActive" type="checkbox" '+(u?.active!==false?'checked':'')+'> Ativo</label></div></div><div class="inline-note">A senha não é armazenada neste navegador. Novos usuários ativam a conta com um link temporário.</div>','<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="centralSaveUserAccess(\''+escapeHtml(userId)+'\')">Salvar</button>');
  };
  window.centralSaveUserAccess=async function(userId=''){
@@ -7349,7 +7353,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   const unitIds=[...document.querySelectorAll('.central-user-unit:checked')].map(x=>x.value),permissions=[...document.querySelectorAll('.central-user-global:checked')].map(x=>x.value);
   const name=document.getElementById('centralUserName')?.value.trim(),username=document.getElementById('centralUserLogin')?.value.trim();
   if(!name||!username||!unitIds.length){toast('Informe nome, login e ao menos uma unidade');return false}
-  const body={displayName:name,username,active:!!document.getElementById('centralUserActive')?.checked,systemRole:'OPERATOR',permissions,units:unitIds.map(unitId=>({unitId,role:'reception',permissions:[]}))};
+  const body={displayName:name,username,active:!!document.getElementById('centralUserActive')?.checked,systemRole:'OPERATOR',permissions,units:unitIds.map(unitId=>({unitId,role:'reception',permissions:[...document.querySelectorAll('.central-user-unit-permission:checked')].filter(x=>x.dataset.unit===unitId).map(x=>x.value)}))};
   try{
    const row=userId?await centralApi.updateAdminUser(userId,body):await centralApi.createAdminUser(body);
    await refreshCentralAdminUsers();
