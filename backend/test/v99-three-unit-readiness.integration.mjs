@@ -166,6 +166,7 @@ try{
   ok(report.migrations.unexpected.some(x=>x.migrationName===unexpected),'migration inesperada é detectada');
 
   injectFailure('assertion');
+  if(process.env.READINESS_INJECT_FAILURE==='body_and_teardown')throw new Error('READINESS_INJECTED_body_and_teardown');
   console.log(JSON.stringify({ok:true,tests,feature:'three_unit_readiness_integration'}));
  }catch(error){mainFailure=error;
 }finally{
@@ -175,6 +176,7 @@ try{
   if(fixture?.root)await step('temporary migration directory removal',()=>rm(fixture.root,{recursive:true,force:true}));
   if(adminPrisma){
     if(schemaCreated){
+      if(process.env.READINESS_INJECT_FAILURE==='body_and_teardown')await step('injected teardown failure',async()=>{throw new Error('READINESS_INJECTED_teardown')});
       await step('isolated schema removal',()=>adminPrisma.$executeRawUnsafe('DROP SCHEMA "'+ISOLATED_SCHEMA+'" CASCADE'));
       await step('isolated schema removal verification',async()=>{
         const rows=await adminPrisma.$queryRaw`SELECT schema_name FROM information_schema.schemata WHERE schema_name=${ISOLATED_SCHEMA}`;
