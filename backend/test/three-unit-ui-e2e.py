@@ -594,7 +594,7 @@ def main():
 
                 # Multi-service command is opened from an actual existing Agenda booking.
                 page.get_by_role("button",name="Agenda",exact=True).click()
-                page.locator(".agenda-date-controls input[type='date']").fill(two_date)
+                page.locator("#v92DateQuick").fill(two_date)
                 page.wait_for_function("(name)=>[...document.querySelectorAll('.agenda-wrap .booking')].some(x=>x.innerText.includes(name))",arg=client_name,timeout=15000)
                 page.locator(".agenda-wrap .booking",has_text=client_name).first.click()
                 page.get_by_role("button",name="Abrir comanda").click()
