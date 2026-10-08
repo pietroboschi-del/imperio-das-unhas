@@ -608,7 +608,14 @@ def main():
                 print(json.dumps({"scenario":"3E-command-open-real-browser","lines":command_lines,"commands":command},ensure_ascii=False))
                 assert any(c["central"] and c["lines"]>=2 for c in command),"Command did not reach central PostgreSQL"
 
+                # Command-field policy can require observations; complete them in the UI.
+                page.locator("#cmdNotes").fill("Atendimento operacional sintético 3E "+suffix)
                 page.get_by_role("button",name="Finalizar pagamento").click()
+                page.wait_for_timeout(400)
+                payment_dialog=page.locator("#modalHost").inner_text()[:650]
+                payment_toast=page.evaluate("""() => document.querySelector('#toast')?.innerText||document.querySelector('.toast')?.innerText||''""")
+                print(json.dumps({"scenario":"3E-payment-dialog-diagnostic","dialog":payment_dialog,"toast":payment_toast},ensure_ascii=False))
+                page.wait_for_function("() => document.querySelectorAll('#paymentLines .pay-method option').length > 0",timeout=10000)
                 methods=page.locator("#paymentLines .pay-method").first.locator("option").evaluate_all("(els)=>els.map(e=>({v:e.value,t:e.textContent}))")
                 print(json.dumps({"scenario":"3E-payment-methods","methods":methods},ensure_ascii=False))
                 assert any(m["v"]=="pm_direct" for m in methods),"Direct-professional payment method missing"
