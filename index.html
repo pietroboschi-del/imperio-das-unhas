@@ -7335,7 +7335,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function centralOwnerOnly(){return centralAuthenticated()&&centralPrincipal()?.networkAdmin===true}
  async function refreshCentralAdminUsers(){
   const rows=await centralApi.adminUsers();
-  db.userAccounts=rows.map(u=>({id:u.id,name:u.displayName,username:u.username,role:u.systemRole==='ADMINISTRATIVE'?'admin':'reception',active:u.active,allUnits:u.unitAccesses?.length===3,unitIds:(u.unitAccesses||[]).map(x=>localUnitRef(x.unitId)),central:true,permissions:u.permissions||[],accesses:u.unitAccesses||[]}));
+  db.userAccounts=rows.map(u=>({id:u.id,name:u.displayName,username:u.username,role:u.systemRole==='ADMINISTRATIVE'?'admin':'reception',active:u.active,allUnits:u.unitAccesses?.length===3,unitIds:(u.unitAccesses||[]).map(x=>localUnitRef(x.unitId)),central:true,networkAdmin:u.networkAdmin===true,permissions:u.permissions||[],accesses:u.unitAccesses||[]}));
   window.__imperioV63?.renderSettings?.();
  }
  const localOpenUser=window.v63OpenUser,localSaveUser=window.v63SaveUser;
@@ -7343,6 +7343,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(!centralAuthenticated())return localOpenUser?.(userId);
   if(!centralOwnerOnly()){toast('Somente o dono gerencia usuários centrais');return false}
   const u=(db.userAccounts||[]).find(x=>x.id===userId);
+  if(u?.networkAdmin){toast('A conta do dono é protegida');return false}
   const perms=['agenda.read','agenda.manage','clients.read','clients.manage','cash.read','cash.open','cash.close','cash.adjust','cash.reopen','finance.read','finance.manage','stock.read','stock.manage','catalog.read','catalog.manage','professionals.read','professionals.manage','reports.read'];
   const unitChecks=(db.units||[]).filter(x=>x.active!==false).map(x=>{
    const id=centralUnitRef(x.id),access=(u?.accesses||[]).find(a=>a.unitId===id),assigned=u?.unitIds?.includes(x.id)||!!access,granted=new Set(access?.permissions||[]);
@@ -7350,14 +7351,15 @@ button,.btn,input,select,textarea{touch-action:manipulation}
     '<div class="muted">Permissões desta unidade</div>'+perms.map(p=>'<label class="check"><input type="checkbox" class="central-user-unit-permission" data-unit="'+escapeHtml(id)+'" value="'+p+'" '+(granted.has(p)?'checked':'')+'> '+p+'</label>').join('')+'</div>';
   }).join('');
   const granted=new Set(u?.permissions||[]);
-  modal(userId?'Editar acesso central':'Novo usuário central','<div class="form-grid"><div class="field"><label>Nome</label><input id="centralUserName" value="'+escapeHtml(u?.name||'')+'"></div><div class="field"><label>Login</label><input id="centralUserLogin" value="'+escapeHtml(u?.username||'')+'"></div><div class="field full"><label>Unidades</label>'+unitChecks+'</div><div class="field full"><label>Permissões globais (rede)</label>'+perms.map(p=>'<label class="check"><input type="checkbox" class="central-user-global" value="'+p+'" '+(granted.has(p)?'checked':'')+'> '+p+'</label>').join('')+'</div><div class="field full"><label><input id="centralUserActive" type="checkbox" '+(u?.active!==false?'checked':'')+'> Ativo</label></div></div><div class="inline-note">A senha não é armazenada neste navegador. Novos usuários ativam a conta com um link temporário.</div>','<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="centralSaveUserAccess(\''+escapeHtml(userId)+'\')">Salvar</button>');
+  modal(userId?'Editar acesso central':'Novo usuário central','<div class="form-grid"><div class="field"><label>Nome</label><input id="centralUserName" value="'+escapeHtml(u?.name||'')+'"></div><div class="field"><label>Login</label><input id="centralUserLogin" value="'+escapeHtml(u?.username||'')+'"></div><div class="field"><label>Perfil central</label><select id="centralUserRole"><option value="OPERATOR">Operação</option><option value="ADMINISTRATIVE">Administração</option></select></div><div class="field full"><label>Unidades</label>'+unitChecks+'</div><div class="field full"><label>Permissões globais (rede)</label>'+perms.map(p=>'<label class="check"><input type="checkbox" class="central-user-global" value="'+p+'" '+(granted.has(p)?'checked':'')+'> '+p+'</label>').join('')+'</div><div class="field full"><label><input id="centralUserActive" type="checkbox" '+(u?.active!==false?'checked':'')+'> Ativo</label></div></div><div class="inline-note">A senha não é armazenada neste navegador. Novos usuários ativam a conta com um link temporário.</div>','<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="centralSaveUserAccess(\''+escapeHtml(userId)+'\')">Salvar</button>');
+  if(u?.role==='admin')document.getElementById('centralUserRole').value='ADMINISTRATIVE';
  };
  window.centralSaveUserAccess=async function(userId=''){
   if(!centralOwnerOnly())return false;
   const unitIds=[...document.querySelectorAll('.central-user-unit:checked')].map(x=>x.value),permissions=[...document.querySelectorAll('.central-user-global:checked')].map(x=>x.value);
   const name=document.getElementById('centralUserName')?.value.trim(),username=document.getElementById('centralUserLogin')?.value.trim();
   if(!name||!username||!unitIds.length){toast('Informe nome, login e ao menos uma unidade');return false}
-  const body={displayName:name,username,active:!!document.getElementById('centralUserActive')?.checked,systemRole:'OPERATOR',permissions,units:unitIds.map(unitId=>({unitId,role:'reception',permissions:[...document.querySelectorAll('.central-user-unit-permission:checked')].filter(x=>x.dataset.unit===unitId).map(x=>x.value)}))};
+  const body={displayName:name,username,active:!!document.getElementById('centralUserActive')?.checked,systemRole:document.getElementById('centralUserRole')?.value||'OPERATOR',permissions,units:unitIds.map(unitId=>({unitId,role:'reception',permissions:[...document.querySelectorAll('.central-user-unit-permission:checked')].filter(x=>x.dataset.unit===unitId).map(x=>x.value)}))};
   try{
    const row=userId?await centralApi.updateAdminUser(userId,body):await centralApi.createAdminUser(body);
    await refreshCentralAdminUsers();
@@ -7395,7 +7397,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(tab==='users'&&centralAuthenticated()){
    if(!centralOwnerOnly()){toast('Somente o dono acessa usuários centrais');return result}
    centralApi.adminUsers().then(rows=>{
-    db.userAccounts=rows.map(u=>({id:u.id,name:u.displayName,username:u.username,role:u.systemRole==='ADMINISTRATIVE'?'admin':'reception',active:u.active,unitIds:(u.unitAccesses||[]).map(x=>localUnitRef(x.unitId)),permissions:u.permissions||[],central:true}));
+    db.userAccounts=rows.map(u=>({id:u.id,name:u.displayName,username:u.username,role:u.systemRole==='ADMINISTRATIVE'?'admin':'reception',active:u.active,unitIds:(u.unitAccesses||[]).map(x=>localUnitRef(x.unitId)),permissions:u.permissions||[],networkAdmin:u.networkAdmin===true,central:true}));
     window.__imperioV63?.renderSettings?.();
    }).catch(e=>toast('Usuários centrais indisponíveis: '+e.message));
   }
