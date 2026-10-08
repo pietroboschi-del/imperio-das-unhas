@@ -1066,6 +1066,13 @@ function paymentProcessorFee(methodId,accountId,amount){
  let pct=Math.max(0,Number(rule.percent||0)),fixed=Math.max(0,Number(rule.fixed||0));
  return Math.max(0,Number(amount||0))*pct/100+fixed;
 }
+// Shared by the legacy payment editor and the central PostgreSQL settlement bridge.
+// Previously defined only inside the later central IIFE, leaving the payment UI without it.
+function operationKey(scope){
+ let prefix=String(scope||'operation');
+ try{if(crypto?.randomUUID)return prefix+'_'+crypto.randomUUID()}catch(e){}
+ return prefix+'_'+Date.now()+'_'+Math.random().toString(36).slice(2)
+}
 function ensurePaymentDraftIds(c){let seen=new Set();for(const p of c.paymentDraft||[]){let id=String(p.id||'').trim();while(!id||seen.has(id))id=operationKey('payment_line');p.id=id;seen.add(id)}}
 function normalizePaymentDraft(c){let due=paymentGrandDue(c);if(c.excessToCredit===undefined)c.excessToCredit=false;if(!Array.isArray(c.paymentDraft)||!c.paymentDraft.length)c.paymentDraft=[{id:operationKey('payment_line'),methodId:'pm_pix',amount:due,accountId:paymentDefaultAccount('pm_pix',c.unitId),processorFee:0}];ensurePaymentDraftIds(c);c.paymentDraft.forEach(p=>{if(p.amount===undefined)p.amount=0;if(!p.accountId&&paymentNeedsAccount(p.methodId))p.accountId=paymentDefaultAccount(p.methodId,c.unitId);if(p.accountId&&!paymentAccountsForMethod(c.unitId,p.methodId).some(a=>a.id===p.accountId))p.accountId=paymentDefaultAccount(p.methodId,c.unitId);p.processorFee=paymentProcessorFee(p.methodId,p.accountId,p.amount)});return c.paymentDraft}
 function paymentLineHtml(c,p,i){let noAcc=!paymentNeedsAccount(p.methodId);return `<div class="payment-line" data-pay-index="${i}"><div class="field"><label>Forma de pagamento</label><select class="pay-method" onchange="paymentMethodChanged('${c.id}',${i},this.value)">${paymentMethodOptions(p.methodId)}</select></div><div class="field"><label>Conta / destino</label><select class="pay-account" ${noAcc?'disabled':''} onchange="paymentRefreshTotals('${c.id}')">${paymentAccountOptions(c.unitId,p.methodId,p.accountId,noAcc)}</select></div><div class="field"><label>Valor</label><input class="pay-amount" type="number" min="0" step="0.01" value="${Number(p.amount||0)}" oninput="paymentRefreshTotals('${c.id}')"></div><button class="btn btn-danger btn-sm" title="Remover" onclick="paymentRemoveLine('${c.id}',${i})">×</button></div>`}
