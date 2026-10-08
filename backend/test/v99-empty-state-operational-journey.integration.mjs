@@ -129,6 +129,10 @@ async function readModels(owner,client){
  for(const unit of UNITS){
   const bookings=await good(await req('/api/v1/bookings',{actor:owner,unit}),'agenda projection '+unit);
   ok(bookings.some(b=>b.clientId===client.id),'booking readback '+unit);
+  const report=await good(await req('/api/v1/reports/operational-summary',{actor:owner,unit}),'operational report '+unit);
+  ok(report.bookings>=2&&report.bookingItems>=2,'new bookings appear in unit report '+unit);
+  ok(report.commands>=1&&report.confirmedPayments>=1&&Number(report.confirmedPaymentAmount)>=50,'new command and payment appear in report '+unit);
+  ok(report.stockMovements>=2&&report.linkedClients>=1,'new stock and global client appear in report '+unit);
   const cmds=await good(await req('/api/v1/commands',{actor:owner,unit}),'finance projection '+unit);
   ok(cmds.some(c=>c.clientId===client.id),'command readback '+unit);
  }
