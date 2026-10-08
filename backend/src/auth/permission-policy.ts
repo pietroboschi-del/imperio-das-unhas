@@ -53,17 +53,17 @@ export function evaluateAccess(input:AccessDecisionInput): {allowed:boolean;reas
   if(input.networkAdmin) return {allowed:true,reason:'network_admin'};
   if(input.adminOnly) return {allowed:false,reason:'network_admin_required'};
   const required=input.requiredPermissions||[];
-  // Network agenda coordination is a domain-scoped grant, not a unit-wide grant.
+  // Global client lookup and network agenda coordination are domain-scoped grants, not unit-wide grants.
   // Unit-local agenda permissions still require a matching UnitAccess.
-  const networkAgendaGrant=input.unitScoped&&!!input.unitId&&
+  const networkDomainGrant=input.unitScoped&&!!input.unitId&&
     input.unitAccesses.length>0&&required.length>0&&
-    required.every(permission=>permission==='agenda.read'||permission==='agenda.manage')&&
+    required.every(permission=>permission==='agenda.read'||permission==='agenda.manage'||permission==='clients.read')&&
     hasPermissions(permissionSet(input.globalPermissions),required);
   let unitPermissions:unknown=[];
   if(input.unitScoped){
     if(!input.unitId) return {allowed:false,reason:'unit_required'};
     const access=input.unitAccesses.find(x=>x.unitId===input.unitId);
-    if(!access&&!networkAgendaGrant) return {allowed:false,reason:'unit_denied'};
+    if(!access&&!networkDomainGrant) return {allowed:false,reason:'unit_denied'};
     unitPermissions=access?.permissions||[];
   }
   if(required.length&&!hasPermissions(permissionSet(input.globalPermissions,unitPermissions),required))return {allowed:false,reason:'permission_denied'};
