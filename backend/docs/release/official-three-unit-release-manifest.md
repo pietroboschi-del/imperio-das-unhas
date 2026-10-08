@@ -43,7 +43,6 @@ Target count: `22`. Baseline migrations above plus:
 7. `20261006_wa4_management_tasks`
 8. `20261006_wa5_1_messaging_automation`
 9. `20261008_wa2_outbox_reconciliation_required`
-9. `20261008_wa2_outbox_reconciliation_required`
 
 ## PENDING_MIGRATIONS
 
@@ -57,6 +56,7 @@ Expected pending from backend live SHA to target: `9` migrations (subject to liv
 6. `20261006_wa2_evolution_inbound`
 7. `20261006_wa4_management_tasks`
 8. `20261006_wa5_1_messaging_automation`
+9. `20261008_wa2_outbox_reconciliation_required`
 
 ## BACKUP REQUIREMENT
 
