@@ -121,6 +121,7 @@ export class StockService {
       if(id&&!existing)throw new NotFoundException('Produto não encontrado');
       if(!id&&existing)throw new ConflictException('Produto já existe');
       const row=existing?await tx.product.update({where:{id:productId},data:{...data,version:{increment:1}}}):await tx.product.create({data:{id:productId,...data}});
+      await this.ensureLocations(tx);
       await tx.auditEvent.create({data:{id:randomUUID(),userId:p.userId,action:existing?'stock.product.updated':'stock.product.created',entityType:'Product',entityId:productId,legacyPayload:{stock:true},occurredAt:new Date()}});
       return row;
     });

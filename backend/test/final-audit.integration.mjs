@@ -74,6 +74,7 @@ async function main(){
   eq(await db.commandPayment.count({where:{commandId:cashCmd.id}}),0,'closed cash payment creates no effects');
   const invalid=await request('/api/v1/commands/'+cashCmd.id+'/snapshot',{actor:owner,method:'PUT',body:{grossAmount:10,discountAmount:0,amountDue:10,items:[{serviceId:'audit-service',professionalId:'audit-pro',unitPrice:-10,commissionFixedAmount:-5,networkAdmin:true}]}});eq(invalid.status,400,'nested invalid item denied');
   const product=await good(await request('/api/v1/stock/products',{actor:owner,method:'POST',body:{id:'audit-product',name:'Product',type:'RESALE'}}),'stock product');
+  eq(await db.stockLocation.count({where:{id:{in:['central','centro','big','shopping-contagem']}}}),4,'authorized product creation initializes empty-state stock locations');
   const purchase={destinationLocationId:'centro',purchaseDate:'2026-10-08',supplier:'Audit',freight:1,items:[{productId:product.id,qty:5,unitCost:2}]};
   const bought=await Promise.all([1,2].map(()=>request('/api/v1/stock/purchases',{actor:owner,method:'POST',key:'purchase-race',body:purchase}).then(r=>good(r,'purchase replay'))));eq(bought[0].id,bought[1].id,'concurrent purchase replay');
   r=await request('/api/v1/stock/purchases',{actor:owner,method:'POST',key:'purchase-race',body:{...purchase,destinationLocationId:'big'}});eq(r.status,409,'changed destination replay denied');
