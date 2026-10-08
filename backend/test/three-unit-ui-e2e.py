@@ -804,59 +804,52 @@ def main():
                 operator_password="Boundaries!ValidPassword_"+suffix
                 page.get_by_role("button",name="Configurações",exact=True).first.click()
                 page.wait_for_timeout(550)
-                settings_state=page.evaluate("""() => ({nav:!!document.querySelector('.v63-settings-nav'),users:document.querySelector('#adminPage')?.innerText?.includes('Usuários e Acessos'),newUser:[...document.querySelectorAll('#adminPage button')].some(x=>x.textContent.includes('Novo usuário'))})""")
+                settings_state=page.evaluate("""() => ({
+                  nav:!!document.querySelector('.v63-settings-nav'),
+                  users:document.querySelector('#adminPage')?.innerText?.includes('Usuários e Acessos'),
+                  centralCreate:typeof window.v63OpenUser==='function',
+                  centralAuth:!!JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'{}').networkAdmin
+                })""")
                 print(json.dumps({"scenario":"3F-config-settings-ui","state":settings_state},ensure_ascii=False))
+                assert settings_state["centralAuth"] and settings_state["centralCreate"],"Owner central user UI is unavailable"
                 if page.locator(".v63-settings-nav").count():
                     page.locator(".v63-settings-nav").get_by_role("button",name="Usuários e Acessos").click()
                 else:
-                    # V71 replaces the settings landing page with field configuration;
-                    # use the still-existing V63 user UI action, not an API fixture.
                     page.evaluate("() => window.v63SetSettingsTab('users')")
                 page.wait_for_timeout(300)
+                # The current V99 central editor intentionally replaces the V63
+                # local credential form. Use its visible UI and activation flow.
                 if page.get_by_role("button",name="+ Novo usuário").count():
                     page.get_by_role("button",name="+ Novo usuário").click()
                 else:
                     page.evaluate("() => window.v63OpenUser('')")
-                page.locator("#v63UserName").fill("Operadora fronteiras E2E "+suffix)
-                page.locator("#v63UserLogin").fill(operator_username)
-                page.locator("#v63UserRole").select_option(value="reception")
-                page.locator("#v63UserPassword").fill(operator_password)
-                all_box=page.locator("#v63UserAllUnits")
-                if all_box.is_checked():all_box.uncheck()
-                for unit in ("u1","u3"):
-                    checkbox=page.locator(".v63-user-unit[value='"+unit+"']")
-                    if not checkbox.is_checked():checkbox.check()
-                for unit in ("u2",):
-                    checkbox=page.locator(".v63-user-unit[value='"+unit+"']")
-                    if checkbox.is_checked():checkbox.uncheck()
-                page.locator("#modalHost").get_by_role("button",name="Salvar usuário").click()
-                page.wait_for_function("""name => (db.userAccounts||[]).some(u=>u.username===name&&u.centralSyncStatus==='synced')""",arg=operator_username,timeout=15000)
-                operator_ui=page.evaluate("""name => db.userAccounts.filter(u=>u.username===name).map(u=>({id:u.id,centralUserId:u.centralUserId,units:u.unitIds,role:u.role,centralSynced:u.centralSyncStatus}))""",operator_username)
-                print(json.dumps({"scenario":"3F-operator-created-through-real-user-ui","operator":operator_ui},ensure_ascii=False))
-                assert len(operator_ui)==1 and operator_ui[0]["centralUserId"] and not operator_ui[0]["role"]=="admin","Synthetic operator missing central user"
-
-                # Owner-only PATCH grants agenda in network domain, not other domains.
-                operator_id=operator_ui[0]["centralUserId"]
-                operator_grant=page.evaluate("""async a => {
-                  let csrf=sessionStorage.getItem('imperio-v96-shadow-csrf')||'';
-                  let response=await fetch(a.origin+'/api/v1/admin/users/'+encodeURIComponent(a.id)+'/access',{
-                    method:'PATCH',credentials:'include',
-                    headers:{'Accept':'application/json','Content-Type':'application/json','X-CSRF-Token':csrf},
-                    body:JSON.stringify({permissions:['units.read','agenda.read','agenda.manage','clients.read','catalog.read'],
-                      units:['big','centro'].map(unitId=>({unitId,role:'reception',
-                        permissions:['agenda.read','agenda.manage','clients.read','catalog.read']}))})
-                  });
-                  return {status:response.status,ok:response.ok,body:response.ok?await response.json():(await response.text()).slice(0,250)}
-                }""",{"origin":API_ORIGIN,"id":operator_id})
-                print(json.dumps({"scenario":"3F-domain-permission-grant","status":operator_grant["status"],"ok":operator_grant["ok"]},ensure_ascii=False))
-                assert operator_grant["ok"],"Owner was unable to set domain-scoped restricted operator permissions"
+                page.locator("#centralUserName").fill("Operadora fronteiras E2E "+suffix)
+                page.locator("#centralUserLogin").fill(operator_username)
+                page.locator("#centralUserRole").select_option(value="OPERATOR")
+                for unit in ("big","centro"):
+                    page.locator(".central-user-unit[value='"+unit+"']").check()
+                    for permission in ("agenda.read","agenda.manage","clients.read","catalog.read"):
+                        page.locator(".central-user-unit-permission[data-unit='"+unit+"'][value='"+permission+"']").check()
+                assert not page.locator(".central-user-unit[value='shopping-contagem']").is_checked(),"Forbidden unit unexpectedly selected"
+                for permission in ("units.read","agenda.read","agenda.manage","clients.read","catalog.read"):
+                    page.locator(".central-user-global[value='"+permission+"']").check()
+                page.locator("#modalHost").get_by_role("button",name="Salvar",exact=True).click()
+                activation=page.locator("#modalHost textarea[readonly]")
+                activation.wait_for(state="visible",timeout=20000)
+                operator_token=activation.input_value()
+                assert len(operator_token)>15,"Central UI did not issue one-time activation token"
+                operator_ui=page.evaluate("""name => (db.userAccounts||[]).filter(u=>u.username===name).map(u=>({
+                  id:u.id,central:u.central,units:u.unitIds,role:u.role,
+                  permissions:u.permissions,accesses:u.accesses
+                }))""",operator_username)
+                print(json.dumps({"scenario":"3F-operator-created-through-real-central-user-ui","operator":operator_ui},ensure_ascii=False))
+                assert len(operator_ui)==1 and operator_ui[0]["central"] and operator_ui[0]["role"]!="admin","Restricted central operator not created by UI"
+                assert set(operator_ui[0]["units"])=={"u1","u3"},"Restricted unit assignments must be Big and Centro only"
+                page.locator("#modalHost").get_by_role("button",name="Concluir",exact=True).click()
 
                 # Preserve local app user for restricted login, but DO NOT share owner
                 # cookie: each browser context authenticates separately against backend.
-                state=page.context.storage_state()
-                limited_context=browser.new_context(
-                    viewport={"width":1280,"height":800},
-                    storage_state={"cookies":[],"origins":state.get("origins",[])})
+                limited_context=browser.new_context(viewport={"width":1280,"height":800})
                 limited=limited_context.new_page()
                 limited.add_init_script(f"window.IMPERIO_API_BASE={json.dumps(API_ORIGIN)};")
                 limited.route("**/*",lambda route: route.continue_() if urlsplit(route.request.url).hostname in ("ui.imperio.localhost","api.imperio.localhost") else route.abort())
@@ -864,6 +857,13 @@ def main():
                 limited.wait_for_timeout(1050)
                 limited.get_by_role("button",name="Área da equipe").click()
                 limited.wait_for_timeout(350)
+                limited.get_by_role("button",name="Ativar meu acesso").click()
+                limited.locator("#centralActivationToken").fill(operator_token)
+                limited.locator("#centralActivationPassword").fill(operator_password)
+                limited.locator("#centralActivationConfirm").fill(operator_password)
+                limited.locator("#modalHost").get_by_role("button",name="Ativar conta").click()
+                limited.locator("#centralActivationToken").wait_for(state="detached",timeout=15000)
+                print(json.dumps({"scenario":"3F-restricted-account-activated-through-real-ui","success":True}))
                 limited.locator("#loginUser").fill(operator_username)
                 limited.locator("#loginPass").fill(operator_password)
                 limited.get_by_role("button",name="Entrar",exact=True).click()
