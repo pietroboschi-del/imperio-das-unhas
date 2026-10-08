@@ -41,7 +41,7 @@ async function main(){
   // Domain-scoped network Agenda permission: cross-unit booking, not cash/stock.
   r=await fetch(base+'/api/v1/admin/users',{method:'POST',headers:oh,body:JSON.stringify({
     username:'recepcao_agenda_rede_ci',displayName:'Recepção Agenda Rede CI',systemRole:'OPERATOR',
-    permissions:['agenda.read','agenda.manage'],
+    permissions:['agenda.read','agenda.manage','clients.read'],
     units:[{unitId:'centro',role:'reception',permissions:['clients.read']}]
   })});ok(r.ok,'owner creates network agenda receptionist');const crossUser=await r.json();
   r=await fetch(base+'/api/v1/auth/users/'+crossUser.id+'/activation-token',{method:'POST',headers:oh,body:'{}'});
@@ -51,6 +51,9 @@ async function main(){
   r=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username:'recepcao_agenda_rede_ci',password:'network-agenda-password-123'})});
   ok(r.ok,'network agenda receptionist authenticates through real API');const crossCookie=cookieOf(r),crossAuth=await r.json();
   const crossHeaders={'content-type':'application/json','x-csrf-token':crossAuth.csrfToken,'cookie':crossCookie,'x-unit-id':'big'};
+  r=await fetch(base+'/api/v1/clients?q=Cliente%20Piloto',{headers:{cookie:crossCookie,'x-unit-id':'big'}});
+  ok(r.ok,'explicit global clients.read enables cross-unit client search');
+  ok((await r.json()).some(x=>x.id===client.id),'same client found in Big context');
   r=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{...crossHeaders,'idempotency-key':'cross-agenda-big'},body:JSON.stringify({clientId:client.id,serviceId:'s1',professionalId:'p1',serviceDate:'2026-10-06',startAt:'2026-10-06T14:00:00.000Z'})});
   ok(r.ok,'globally authorized reception books Centro client in Big');const crossBooking=await r.json();
   ok(crossBooking.unitId==='big'&&crossBooking.clientId===client.id,'cross-unit booking reuses single global Client identity');
