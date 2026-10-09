@@ -58,6 +58,44 @@ function checkReport(report, after = false) {
     sameSet(report.canonicalUnits.observed?.map(x => x.id), canonical), 'Canonical units mismatch');
   assert(report.ok === after, 'Preflight overall state mismatch');
 }
+function classify(report, exitCode) {
+  const m = report?.migrations;
+  const empty = ['unexpectedDbMigrations','incompleteMigrations','rolledBackMigrations',
+    'checksumMismatches','missingDatabaseChecksum','missingLocalMigrationSql'];
+  const common = report?.opMode === 'READ_ONLY' && m?.filesystemCount === 22 &&
+    sameSet(m?.filesystemMigrations, [...appliedBaseline, ...authorizedPending]) &&
+    empty.every(key => Array.isArray(m[key]) && m[key].length === 0) &&
+    Array.isArray(m?.checksumEvidence) && m.checksumEvidence.length === m.databaseCount &&
+    m.checksumEvidence.every(x => x.checksumMatches === true && x.finishedAt && !x.rolledBackAt) &&
+    Array.isArray(report?.canonicalUnits?.missing) && report.canonicalUnits.missing.length === 0 &&
+    sameSet(report.canonicalUnits.observed?.map(x => x.id), canonical);
+  if (common && exitCode === 2 && report.ok === false && m.databaseCount === 13 &&
+    sameSet(m.databaseMigrations, appliedBaseline) && sameSet(m.pendingMigrations, authorizedPending) &&
+    sameSet(m.checksumEvidence.map(x => x.migrationName), appliedBaseline)) return 'BASELINE_13_PENDING_9';
+  if (common && exitCode === 0 && report.ok === true && m.databaseCount === 22 &&
+    sameSet(m.databaseMigrations, [...appliedBaseline, ...authorizedPending]) &&
+    sameSet(m.pendingMigrations, []) &&
+    sameSet(m.checksumEvidence.map(x => x.migrationName), [...appliedBaseline, ...authorizedPending]))
+    return 'TARGET_22_COMPLETE';
+  return 'DIVERGENT';
+}
+function readLiveState() {
+  const result = execute('npm', ['run', '--silent', 'release:preflight']);
+  let report;
+  try { report = JSON.parse(result.stdout); } catch {
+    console.log(JSON.stringify({event:'PREFLIGHT_UNPARSEABLE',exitCode:result.status}));
+    throw Error('Official preflight did not return valid JSON');
+  }
+  const state = classify(report, result.status);
+  console.log(JSON.stringify({event:'LIVE_PREFLIGHT_EVIDENCE',state,exitCode:result.status,
+    report:{...report, database:report.database,
+      migrations:{...report.migrations,checksumEvidence:report.migrations?.checksumEvidence?.map(x=>({
+        migrationName:x.migrationName,localChecksum:x.localChecksum,databaseChecksum:x.databaseChecksum,
+        checksumMatches:x.checksumMatches,finishedAt:x.finishedAt,rolledBackAt:x.rolledBackAt,
+        appliedStepsCount:x.appliedStepsCount,logPresent:x.logPresent
+      }))}}}));
+  return state;
+}
 function preflight(after = false) {
   const result = execute('npm', ['run', '--silent', 'release:preflight']);
   const expectedCode = after ? 0 : 2;
@@ -94,9 +132,16 @@ async function main() {
   assert(mode === '--check' || mode === '--apply', 'Unsupported mode');
   assert(Boolean(process.env.DATABASE_URL), 'DATABASE_URL missing');
   console.log(JSON.stringify({event:'RUNNER_START',mode}));
+  if (mode === '--check') {
+    const state = readLiveState();
+    assert(state !== 'DIVERGENT', 'Live migration ledger diverges');
+    await verifyTotalUnits();
+    if (state === 'TARGET_22_COMPLETE') diagnostic();
+    console.log(JSON.stringify({event:'CHECK_PASS',state}));
+    return;
+  }
   preflight(false);
   await verifyTotalUnits();
-  if (mode === '--check') { console.log(JSON.stringify({event:'CHECK_PASS'})); return; }
   console.log(JSON.stringify({event:'MIGRATION_BEGIN',authorizedPending}));
   const migration = execute('npm', ['run', '--silent', 'prisma:migrate']);
   // Prisma stdout is diagnostic only; the post-migration ledger and checksums are authoritative.
