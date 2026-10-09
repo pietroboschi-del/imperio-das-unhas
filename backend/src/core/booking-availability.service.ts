@@ -103,7 +103,8 @@ export class BookingAvailabilityService {
       const config=obj(p.legacyPayload);
       if(config.show===false||config.online===false)return null;
       const ownServices=Array.isArray(config.services)?config.services.map(String):[];
-      const schedule=Object.fromEntries(Object.entries(obj(config.schedule)).filter(([key])=>key.startsWith(requested+'-')));
+      const schedule=Object.fromEntries(Object.entries(obj(config.schedule)).filter(([key])=>key.startsWith(requested+'-')&&/^[0-6]$/.test(key.slice(requested.length+1))));
+      if(!workingSchedule(schedule))return null;
       const serviceRules:Record<string,{durationMin:number;price:number|null}>={};
       for(const service of serviceRows){
         if(!publicServiceIds.has(service.id))continue;
@@ -124,7 +125,8 @@ export class BookingAvailabilityService {
       };
     }).filter(Boolean).sort((a:any,b:any)=>String(a.publicName).localeCompare(String(b.publicName)));
     const bookingEnabled=operationalWriteStatus(requested).unitEnabled&&professionals.some((p:any)=>workingSchedule(p.schedule));
-    return {unit,bookingEnabled,services,professionals};
+    const eligibleServiceIds=new Set(professionals.flatMap((p:any)=>p.serviceIds));
+    return {unit,bookingEnabled,services:services.filter(s=>eligibleServiceIds.has(s.id)),professionals};
   }
 
   async activeUnits(){

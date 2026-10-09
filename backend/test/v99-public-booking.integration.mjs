@@ -34,12 +34,12 @@ async function main(){
  try{await health();
   const catalogResponse=await fetch(base+'/api/v1/public/catalog?unitId=centro');ok(catalogResponse.ok,'catálogo público central do Centro');const catalog=await catalogResponse.json(),catalogJson=JSON.stringify(catalog);
   ok(catalog.unit?.id==='centro'&&catalog.bookingEnabled===true,'catálogo público informa unidade e gate operacional');
-  ok(catalog.services?.map(x=>x.id).join(',')==='short,long,unlinked'&&!catalog.services.some(x=>x.id==='hidden'),'catálogo filtra e ordena serviços públicos');
+  ok(catalog.services?.map(x=>x.id).join(',')==='short,long'&&!catalog.services.some(x=>x.id==='hidden'),'catálogo filtra e ordena serviços públicos');
   ok(catalog.services.find(x=>x.id==='short')?.price===null&&catalog.services.find(x=>x.id==='long')?.price===120,'catálogo respeita visibilidade de preço');
   ok(catalog.professionals?.length===1&&catalog.professionals[0].serviceIds.includes('long')&&!catalog.professionals[0].serviceIds.includes('unlinked')&&catalog.professionals[0].schedule['centro-2']&&!catalog.professionals[0].schedule['big-2'],'profissional pública é filtrada por unidade, escala e regra profissional-serviço');
   ok(!catalogJson.includes('commission')&&!catalogJson.includes('DADO_PRIVADO')&&!catalogJson.includes('00000000000'),'catálogo público não vaza comissão nem dados privados');
   let bigCatalogResponse=await fetch(base+'/api/v1/public/catalog?unitId=big');ok(bigCatalogResponse.ok,'catálogo público Big disponível');let bigCatalog=await bigCatalogResponse.json();ok(bigCatalog.unit?.id==='big'&&bigCatalog.bookingEnabled===true&&bigCatalog.professionals?.length===1&&bigCatalog.professionals[0].schedule['big-2']&&!bigCatalog.professionals[0].schedule['centro-2'],'catálogo Big publica apenas vínculo e escala da unidade Big');
-  let shoppingCatalogResponse=await fetch(base+'/api/v1/public/catalog?unitId=shopping-contagem');ok(shoppingCatalogResponse.ok,'catálogo Shopping disponível para consulta');let shoppingCatalog=await shoppingCatalogResponse.json();ok(shoppingCatalog.bookingEnabled===false&&shoppingCatalog.professionals?.[0]&&Object.keys(shoppingCatalog.professionals[0].schedule||{}).length===0,'sem escala mantém operação interna separada e fecha booking público');
+  let shoppingCatalogResponse=await fetch(base+'/api/v1/public/catalog?unitId=shopping-contagem');ok(shoppingCatalogResponse.ok,'catálogo Shopping disponível para consulta');let shoppingCatalog=await shoppingCatalogResponse.json();ok(shoppingCatalog.bookingEnabled===false&&shoppingCatalog.professionals.length===0&&shoppingCatalog.services.length===0,'sem escala mantém operação interna separada e fecha booking público');
   let r=await book('shopping-contagem',date+'T12:00','31999990002','site-shopping-closed');ok(r.status===409,'profissional sem escala rejeita POST público direto');ok(await prisma.booking.count({where:{unitId:'shopping-contagem'}})===0,'sem escala não persiste booking público');
   r=await book('centro',wrongDate+'T10:00','31999990003','wrong-weekday','short');ok(r.status===409,'dia sem escala é rejeitado');
   r=await book('centro',date+'T08:30','31999990004','before-shift','short');ok(r.status===409,'início antes da jornada é rejeitado');
@@ -47,7 +47,7 @@ async function main(){
   r=await book('centro','2020-01-07T10:00','31999990000','past-denied');ok(r.status===409,'past public booking rejected');
   r=await book('centro',date+'T10:00','31999990000','site-centro');ok(r.ok,'site booking centro dentro da escala');ok(await prisma.booking.count({where:{unitId:'centro'}})===1,'central booking centro');
   r=await book('big',date+'T11:00','31999990001','site-big');ok(r.ok,'site booking big dentro da escala');ok(await prisma.booking.count({where:{unitId:'big'}})===1,'central booking big');
-  r=await book('centro',date+'T12:30','31999990006','unlinked-service','unlinked');ok(r.status===409,'POST direto respeita regra profissional-serviço');
+  r=await book('centro',date+'T12:30','31999990006','unlinked-service','unlinked');ok(r.status===404,'POST direto respeita elegibilidade profissional-serviço');
   r=await book('centro',date+'T13:00','31999990007','hidden-service','hidden');ok(r.status===404,'POST direto não contorna visibilidade pública do serviço');
   r=await book('centro',date+'T10:30','3199999010','overlap','short');ok(r.status===409,'duration overlap blocked');
   r=await book('centro',date+'T10:00','3199999011','same-slot','short');ok(r.status===409,'same slot blocked');

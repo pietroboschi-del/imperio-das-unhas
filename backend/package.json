@@ -25,7 +25,7 @@
     "test:cutover": "node test/v98a-cutover-projection.test.mjs",
     "test:cutover-normalization": "node test/v98a-cutover-normalization.contract.mjs",
     "test:money": "node test/v98a-decimal-money.test.mjs",
-    "test": "npm run test:contracts && npm run test:reconciliation && npm run test:import-contract && npm run test:cutover && npm run test:cutover-normalization && npm run test:money && npm run test:client-batches && npm run test:avec-client-export && npm run test:cross-site-cookie && npm run test:xlsx-legacy-layout && npm run test:admin-recovery && npm run test:v98b",
+    "test": "npm run test:contracts && npm run test:reconciliation && npm run test:import-contract && npm run test:cutover && npm run test:cutover-normalization && npm run test:money && npm run test:client-batches && npm run test:avec-client-export && npm run test:cross-site-cookie && npm run test:xlsx-legacy-layout && npm run test:admin-recovery && npm run test:v98b && npm run test:phase4",
     "ci": "npm run prisma:generate && npm run prisma:migrate && npm run build && npm run test:wa5.1 && npm test && npm run test:integration && npm run test:security-integration",
     "reconcile:exports": "node tools/reconcile-exports.mjs",
     "test:v98b": "node --experimental-strip-types test/v98b-security-contract.test.mjs && node --experimental-strip-types test/v98b-permission-policy.test.mjs && node --experimental-strip-types test/v98b-legacy-permissions.test.mjs && node --experimental-strip-types test/v98b-three-units.test.mjs",
@@ -89,7 +89,8 @@
     "test:booking-item-data-model": "node test/v99-booking-item-data-model.contract.mjs && node test/v99-booking-item-source-of-truth.integration.mjs",
     "booking-items:audit": "node tools/booking-item-backfill-report.mjs",
     "test:stock-foundation": "node test/v99-stock-foundation.contract.mjs && node test/v99-stock-foundation.integration.mjs",
-    "test:empty-state-journey": "node test/v99-empty-state-operational-journey.integration.mjs"
+    "test:empty-state-journey": "node test/v99-empty-state-operational-journey.integration.mjs",
+    "test:phase4": "node test/phase4-frontend.behavior.mjs && node test/phase4-public-catalog.behavior.mjs && node --experimental-strip-types test/v98b-permission-policy.test.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
