@@ -3,6 +3,11 @@ name: Production Logical Backup
 on:
   workflow_dispatch:
     inputs:
+      run_rehearsal:
+        description: Rehearse target migrations on the isolated fresh backup clone
+        required: false
+        type: boolean
+        default: false
       reason:
         description: Optional audit note for this manual backup
         required: false
@@ -29,6 +34,16 @@ jobs:
     environment: production-backup
 
     steps:
+      - name: Checkout release target for rehearsal
+        if: github.event_name == 'workflow_dispatch' && inputs.run_rehearsal == true
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22 for rehearsal
+        if: github.event_name == 'workflow_dispatch' && inputs.run_rehearsal == true
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Gate 03:00 America/Sao_Paulo
         id: schedule_gate
         shell: bash
@@ -96,8 +111,15 @@ jobs:
           HEADERS_PATH="$WORK_DIR/backup-headers.txt"
           MANIFEST_PATH="$WORK_DIR/${BACKUP_NAME}.manifest.json"
           RESTORE_CONTAINER="imperio-backup-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          REHEARSAL="${{ github.event_name == 'workflow_dispatch' && inputs.run_rehearsal == true }}"
+          BACKEND_PID=""
+          RESTORE_PORT=55439
 
           cleanup() {
+            if [[ -n "${BACKEND_PID:-}" ]]; then
+              kill "$BACKEND_PID" 2>/dev/null || true
+              wait "$BACKEND_PID" 2>/dev/null || true
+            fi
             if [[ -n "${RESTORE_CONTAINER:-}" ]]; then
               docker rm -f "$RESTORE_CONTAINER" >/dev/null 2>&1 || true
             fi
@@ -108,6 +130,8 @@ jobs:
               "$COOKIE_JAR" \
               "$HEADERS_PATH" \
               "$MANIFEST_PATH"
+              "$WORK_DIR/preflight-before.json"
+              "$WORK_DIR/preflight-after.json"
             do
               if [[ -e "$path" ]]; then
                 shred -u "$path" 2>/dev/null || rm -f "$path"
@@ -176,9 +200,13 @@ jobs:
 
           echo "Starting isolated PostgreSQL restore smoke test."
           docker rm -f "$RESTORE_CONTAINER" >/dev/null 2>&1 || true
+          RESTORE_NETWORK_ARGS=(--network none)
+          if [[ "$REHEARSAL" == "true" ]]; then
+            RESTORE_NETWORK_ARGS=(-p "127.0.0.1:${RESTORE_PORT}:5432")
+          fi
           docker run --detach \
             --name "$RESTORE_CONTAINER" \
-            --network none \
+            "${RESTORE_NETWORK_ARGS[@]}" \
             -e POSTGRES_USER=imperio_restore \
             -e POSTGRES_DB=imperio_restore \
             -e POSTGRES_HOST_AUTH_METHOD=trust \
@@ -257,6 +285,68 @@ jobs:
           [[ "$MIGRATIONS_UNRESOLVED" == "0" ]] \
             || { echo "Restore smoke found unresolved Prisma migrations: $MIGRATIONS_UNRESOLVED"; exit 1; }
           echo "Restore smoke Prisma migrations applied=$MIGRATIONS_APPLIED unresolved=0"
+
+          if [[ "$REHEARSAL" == "true" ]]; then
+            echo "Rehearsal: using only loopback-connected temporary PostgreSQL."
+            export DATABASE_URL="postgresql://imperio_restore@127.0.0.1:${RESTORE_PORT}/imperio_restore?schema=public"
+            export OPERATIONAL_WRITES_ENABLED=false
+            export WHATSAPP_AUTOMATION_ENABLED=false
+            export WHATSAPP_AGENT_API_ENABLED=false
+            export EVOLUTION_WEBHOOK_ENABLED=false
+            pushd backend >/dev/null
+            npm install --no-audit --no-fund
+            npm run prisma:generate
+
+            # Preflight exits 2 for expected pending migrations; verify the JSON,
+            # never tolerate unrelated errors or an unexpected ledger.
+            set +e
+            npm run --silent release:preflight > "$WORK_DIR/preflight-before.json"
+            preflight_exit=$?
+            set -e
+            [[ "$preflight_exit" -eq 2 ]] || { echo "Unexpected pre-upgrade preflight exit: $preflight_exit"; exit 1; }
+            node - "$WORK_DIR/preflight-before.json" before <<'NODE'
+          const fs=require('fs');
+          const r=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const m=r.migrations, names=m.pendingMigrations;
+          const fail=(reason)=>{console.error('Rehearsal preflight failed: '+reason);process.exit(1)};
+          if(m.filesystemCount!==22||m.databaseCount!==13||names.length!==9||
+            m.unexpectedDbMigrations.length||m.incompleteMigrations.length||
+            m.rolledBackMigrations.length||m.checksumMismatches.length||
+            m.missingDatabaseChecksum.length||m.missingLocalMigrationSql.length||
+            r.canonicalUnits.missing.length||
+            m.checksumEvidence.some(x=>!x.checksumMatches)) fail('unexpected pre-upgrade state');
+          console.log('Pre-upgrade validated: 13 applied, 9 pending: '+names.join(', '));
+          NODE
+
+            npm run prisma:migrate
+
+            npm run --silent release:preflight > "$WORK_DIR/preflight-after.json"
+            node - "$WORK_DIR/preflight-after.json" after <<'NODE'
+          const fs=require('fs');
+          const r=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+          const m=r.migrations;
+          const fail=(reason)=>{console.error('Rehearsal preflight failed: '+reason);process.exit(1)};
+          if(!r.ok||m.filesystemCount!==22||m.databaseCount!==22||
+            m.pendingMigrations.length||m.unexpectedDbMigrations.length||
+            m.incompleteMigrations.length||m.rolledBackMigrations.length||
+            m.checksumMismatches.length||m.missingDatabaseChecksum.length||
+            m.missingLocalMigrationSql.length||r.canonicalUnits.missing.length||
+            m.checksumEvidence.some(x=>!x.checksumMatches)) fail('unexpected post-upgrade state');
+          console.log('Post-upgrade preflight: 22 applied, zero issues.');
+          NODE
+            npx prisma validate
+            npm run build
+            npm run typecheck
+            npm run diagnostic:three-units
+            unit_count="$(docker exec "$RESTORE_CONTAINER" psql -U imperio_restore -d imperio_restore -Atqc 'SELECT COUNT(*) FROM public."Unit";')"
+            [[ "$unit_count" == "3" ]] || { echo "Unexpected Unit count: $unit_count"; exit 1; }
+            for unit in centro big shopping-contagem; do
+              found="$(docker exec "$RESTORE_CONTAINER" psql -U imperio_restore -d imperio_restore -Atqc "SELECT COUNT(*) FROM public.\"Unit\" WHERE id='$unit';")"
+              [[ "$found" == "1" ]] || { echo "Missing canonical Unit: $unit"; exit 1; }
+            done
+            popd >/dev/null
+            echo "Rehearsal PASS: clone migrated 13 to 22; Unit=3."
+          fi
 
           docker rm -f "$RESTORE_CONTAINER" >/dev/null
           RESTORE_CONTAINER=""
