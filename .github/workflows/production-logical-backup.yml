@@ -129,8 +129,8 @@ jobs:
               "$LOGIN_RESPONSE" \
               "$COOKIE_JAR" \
               "$HEADERS_PATH" \
-              "$MANIFEST_PATH"
-              "$WORK_DIR/preflight-before.json"
+              "$MANIFEST_PATH" \
+              "$WORK_DIR/preflight-before.json" \
               "$WORK_DIR/preflight-after.json"
             do
               if [[ -e "$path" ]]; then
