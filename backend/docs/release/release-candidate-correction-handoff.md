@@ -435,3 +435,10 @@ Only current release-closure blocker: final aggregate backend/browser terminal e
 NEXT: fetch/confirm remote HEAD and read this final section; inspect status/results of #614/37862936261, #60/37862936257, and the checkpoint's latest ordinary backend CI. If all required applicable runs succeed, record final code/test parity and close release candidate WITHOUT repeating green tests absent code change/contradiction. If failure, diagnose first cause only. Do not replay superseded local branches. No new audit expansion. Production remains stopped until explicit owner authorization and fresh backup/restore/live ledger/flag prerequisites. Existing cutover-runbook.md / rollback-matrix.md and final-audit-correction-report.md contain freeze, exact migrations, deploy/smoke/monitor/abort and forward-only DB contingency. Code rollback requires previous SHA/schema compatibility; no migrate-down.
 
 PRODUCTION MUTATIONS: NONE.
+
+
+## VERIFIED FINAL AUDIT CLOSURE — 2026-10-09 UTC
+
+Backend #613 / 37862802791 SUCCESS on c286db5e29c2a94adfbe9176171bc8ddee626686, including final aggregate Chromium. Isolated Chromium #59 / 37862176632 SUCCESS on code ae2f478b6925ff4b4251aea72b7ff6daae4cafd0. Later pre-consolidation changes are tests/documentation only; remote documentary consolidation and owner checkpoint were preserved. Full final findings, evidence classifications, backup and cutover/abort/rollback plan are in final-audit-correction-report.md.
+
+Known remaining P0=0, P1=0, P2=0; one cosmetic P3 NON-BLOCKING. No schema/historical migration change: 13 baseline, 22 target, nine expected pending. The public health response confirms current operationalWritesEnabled=true with centro,big,shopping-contagem; live SQL ledger and effective WhatsApp flags remain NOT VERIFIED. Fresh backup/isolated restore/live-data rehearsal and exact live ledger/flags validation remain prerequisites to a future owner-authorized cutover. Final containing-document HEAD and terminal CI/browser are in the executor delivery. PRODUCTION MUTATIONS: NONE.
