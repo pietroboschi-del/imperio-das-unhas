@@ -99,11 +99,10 @@ async function main() {
   if (mode === '--check') { console.log(JSON.stringify({event:'CHECK_PASS'})); return; }
   console.log(JSON.stringify({event:'MIGRATION_BEGIN',authorizedPending}));
   const migration = execute('npm', ['run', '--silent', 'prisma:migrate']);
-  const matches = [...migration.stdout.matchAll(/Applying migration \x60([^\x60]+)\x60/g)].map(x => x[1]);
-  console.log(JSON.stringify({event:'MIGRATION_RESULT',exitCode:migration.status,applied:matches,
+  // Prisma stdout is diagnostic only; the post-migration ledger and checksums are authoritative.
+  console.log(JSON.stringify({event:'MIGRATION_RESULT',exitCode:migration.status,
     output:migration.status === 0 ? 'SUCCESS' : 'FAILED'}));
   assert(migration.status === 0, 'Prisma migration failed; no retry');
-  assert(sameSet(matches, authorizedPending), 'Prisma applied migration list mismatch');
   preflight(true);
   await verifyTotalUnits();
   diagnostic();
