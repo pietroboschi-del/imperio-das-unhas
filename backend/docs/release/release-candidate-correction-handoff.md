@@ -323,3 +323,115 @@ No migration added; baseline 13 / target 22 / expected nine pending unchanged. N
 ### Final reconciliation
 
 Preserved supplemental commits 6e89abb, 9ceb529 and e24a87f. Stock GET stays read-only; authorized product creation initializes locations. Stock regression now asserts both behaviors and retains canonical locations checks. See final-audit-correction-report.md for measured evidence and exact final delivery for terminal aggregate CI/browser and TARGET HEAD. Ledger/effective flags NOT VERIFIED; fresh backup/restore/live-data rehearsal required at authorized cutover. PRODUCTION MUTATIONS: NONE.
+
+
+## AUDIT + CORRECTION — RECOVERABLE CHECKPOINT
+
+Owner explicitly stopped new investigation/correction on 2026-10-08 21:06 America/Sao_Paulo (2026-10-09 UTC). This checkpoint supersedes provisional completion language. NOT RELEASE APPROVED: final aggregate validation is pending. No further audit block, fix, deployment or production action was started after that instruction.
+
+START HEAD: 4cc95ce5d4e0e1a87559d44ec151241bc8c04db7.
+Verified remote/code-document HEAD before checkpoint publication: 4f7b4a32b4983026f0004b12d870cacfbf63ea6c.
+CURRENT/FINAL checkpoint HEAD: the commit containing this section, whose exact SHA is supplied in the final delivery (self-referential hash intentionally not fabricated). Checkpoint changes ONLY this handoff. Working tree was clean and HEAD matched remote before this append.
+Repository pietroboschi-del/imperio-das-unhas; branch official-three-units-integration.
+
+### Published commits during execution, including preserved concurrent branch advances
+
+4f7b4a32b4983026f0004b12d870cacfbf63ea6c docs(release): close stock and public fixture regression trail
+c286db5e29c2a94adfbe9176171bc8ddee626686 test(public): use future schedules and assert canonical-grid denials
+ae2f478b6925ff4b4251aea72b7ff6daae4cafd0 fix(stock): resolve and authorize locations before evaluating unit gates
+78a7e4758710bb855e4fdcf5324f34621612cc73 docs(release): consolidate audit corrections and measured cutover prerequisites
+d4c42cd7ebf27aa1a33fec44fd4cdae9c183a84b test(stock): assert read-only locations before authorized initialization
+e24a87fa0783c09fc465309675f25077c72c8111 fix(release): preserve valid recipients and realistic resource substitution
+9ceb5294e90aba1586c51d66f48d767a6b91ce90 fix(stock): initialize empty-state locations on authorized product writes
+6e89abb057a564f0cb5bf6879a0ac4efc655cca0 fix(release): reconcile final audit integrity and concurrency regressions
+2e4c85bfb4058cade41e64fd74c5b831ec747043 fix(release): close security and operational integrity audit findings
+
+The executor published 2e4c85b, 78a7e47 and 4f7b4a3 through GitHub OAuth with exact tested tree parity and expected-head fast-forward leases. Other commits above arrived concurrently and were independently reviewed/preserved, never overwritten. No reset/rebase/force push. All relevant selected code/test/documentation changes are published. Final checkpoint publication adds one documentation commit.
+
+### Local recovery objects — not active unpublished work
+
+f8f42216d48dd9ed74c6d375d30b97593ace6fd2 docs(release): close stock and public fixture regression trail
+41230242b7314c1831c38cd92177865f83d12b42 test(public-booking): use future schedules and assert canonical grid safety
+4c6703a16b2effd30c9480d2705cf2fc329e6ec6 test(release): reconcile read-only stock regression and final audit evidence
+87d9a9551c329eb2f179c115385619a242c27904 fix(release): reconcile concurrent audit pack and empty-state bootstrap
+b51a247466b214e659038d90eef7ac992fc68ce8 fix(release): preserve empty stock bootstrap and shared resource slot parity
+465681b209ddadb8f1791f756a13af071c35a931 fix(release): close security and operational integrity audit findings
+
+These are temporary local authoring/reconciliation commits, not the selected candidate. 465681b has the same tree as published 2e4c85b; f8f4221 has the same tree as published 4f7b4a3. 4c6703a and 4123024 contain equivalent stock/public test corrections superseded by published d4c42cd/c286db5. b51a247/87d9a95 were superseded reconciliation variants: startup StockLocation initialization and helper/test unification were not selected; published 9ceb529 initializes on authorized gated product writes and retains valid capacity matching. Do NOT replay these variants or overwrite the remote candidate. They remain local history only, with no active working-tree diff. No required correction is stranded solely in these objects.
+
+### Files changed from START through candidate
+
+.github/workflows/backend-ci.yml
+.github/workflows/three-unit-browser-e2e.yml
+backend/docs/release/final-audit-correction-report.md
+backend/docs/release/release-candidate-correction-handoff.md
+backend/src/auth/auth.service.ts
+backend/src/core/booking-availability.service.ts
+backend/src/core/booking-capacity.ts
+backend/src/core/booking-creation.service.ts
+backend/src/core/booking-resource-capacity.ts
+backend/src/core/business-day-range.ts
+backend/src/core/core-read.controller.ts
+backend/src/core/core-write.controller.ts
+backend/src/core/finance-write.controller.ts
+backend/src/core/finance-write.dto.ts
+backend/src/core/stock.service.ts
+backend/test/final-audit-boundaries.test.mjs
+backend/test/final-audit-security.behavior.mjs
+backend/test/final-audit.integration.mjs
+backend/test/v98b-security.integration.mjs
+backend/test/v99-central-payment-retry.behavior.mjs
+backend/test/v99-finance-flow.integration.mjs
+backend/test/v99-operational-writes.integration.mjs
+backend/test/v99-public-booking.integration.mjs
+backend/test/v99-stock-foundation.integration.mjs
+backend/test/wa3c4-parity.contract.mjs
+backend/test/wa4.4-opportunity-match.integration.mjs
+index.html
+
+Plus this handoff checkpoint append. Historical migrations/schema SQL unchanged; no new migration.
+
+### Frozen findings and correction state
+
+Detailed evidence/component/reproduction/tests/migration/owner fields are in final-audit-correction-report.md; S findings overlap FA findings and must not be double-counted.
+- FA-01 P1 credential activation/reset concurrency: atomic token claim implemented; local RED reproduced two winners, corrected compiled and PostgreSQL tests passed.
+- FA-02 / S-02 P1 DIRECT_PROFESSIONAL recipient/service line and reload: active unit professional, persisted audit snapshot, flags false, request hash, frontend recipient and persisted payment projection implemented.
+- FA-03 / S-03 P1 finance concurrency: common command/cash locks and client-credit row locks implemented; nested payload protection additionally S-08 P1.
+- FA-04 / S-06 P1 global client identity race and client/day booking coordination: global identity lock and in-transaction recheck implemented.
+- FA-05 / S-05 P1 stock operational-gate bypass, replay authorization/fingerprint and concurrency: implemented; gate ordering follow-up ae2f478 resolves/authorizes unknown location before unit flag, 404/no write proved locally.
+- FA-06 / S-07 P1 booking configured resource capacity, public past/grid/replay/race: implemented; no-station professional-only convention retained. Internal force-fit bypasses professional occupancy, not configured resource capacity.
+- S-04 P1 financial leakage through global dossier: financial commands scoped to authorized finance.read units; treatment history remains global.
+- FA-07 P2 side-effecting stock GET: removed read upserts; gated authorized product mutation initializes locations. Integration now proves both GET no writes and four canonical technical/unit locations.
+- S-09 P2 reports UTC/day mismatch: unit-timezone timestamp boundaries implemented.
+- FA-08 P3 message mojibake: deferred NON-BLOCKING cosmetic correction.
+
+P0 known remaining: 0 identified. P1 known unimplemented corrections: 0, BUT closure NOT VERIFIED until final CI succeeds. P2 known unimplemented corrections: 0, same validation condition. P3 remaining: FA-08. Do not report release ready while CI is pending. No new commercial/architecture/destructive-migration decision required.
+
+### Executed tests and measured CI/browser evidence
+
+Local PASS: backend build/typecheck; npm test; frontend bridge/retry/user/history contracts; stock contract; WA3C.4 parity; migration manifest; compiled security behavior and boundary regressions (latest five assertions/tests include unknown stock location no write); syntax/diff checks for future public fixture. Local PostgreSQL integration unavailable (no DATABASE_URL/server); isolated GitHub CI is the integration authority. One attempted stock invocation failed before DB connection, not a product defect.
+
+Initial #605 / 37852314527 backend SUCCESS; code #603 / 37850290620 and browser #53 / 37850290632 SUCCESS on b6f452c. Do not reuse these to close changed-code findings.
+Corrective failures already understood: #606 WA3C.4 source contract / browser #54 empty locations; #607/#608 recipient/resource fixture fixes preserved; #609 old GET initializes locations assertion; #611 arbitrary-location gate status ordering; #612 past-date public fixture. Existing denials were not relaxed. Public fixture c286db5 now future Tuesday, explicit past/off-grid denial, canonical accepted timestamp, retained concurrency/audit/global-history assertions.
+
+Latest snapshot (do not wait in this checkpoint):
+- Backend #614 run 37862936261, HEAD 4f7b4a32b4983026f0004b12d870cacfbf63ea6c, IN_PROGRESS, job 113602755568. Build/typecheck, new boundary/PostgreSQL regressions, WA1–WA5, compiled behavior, static/frontend contracts PASS; production container build in progress. Later aggregate gates still pending.
+- Browser #60 run 37862936257, same HEAD, IN_PROGRESS in inventory snapshot.
+- Backend #613 run 37862802791, c286db5, IN_PROGRESS.
+- Last terminal browser #59 run 37862176632 SUCCESS on ae2f478; #58 and #57 also SUCCESS on preceding candidates. No final browser result fabricated.
+- Backend #612 run 37862176735 FAILED at public fixture after auth/config/readiness/checksum/parity/rehearsal/stock/finance PASS; fix c286db5 published.
+- Publishing this handoff may trigger a new ordinary backend workflow; exact Run ID/status is supplied in final delivery if available. Browser paths do not include handoff, so unchanged full-browser code proof is #60 on the parent candidate; no new test dispatch or broad rerun requested here.
+
+### Live READ-ONLY and remaining unverified items
+
+Last confirmed Railway: backend 920d74cbb5856ab3bdb1c63c1c0c762c82346cba, frontend a5e43d114dd34cac2231a96cbc3d5d46f0d44f59; Postgres/backend/frontend online 1/1, zero issues/recent failures. Dedicated staged diff empty; health old empty patch 1ea95b42-13df-4157-9bef-f32aa8da695b is INFERRED stale, recheck at cutover. No authenticated production GET/SQL because session GET can update lastSeenAt. Live ledger/checksums/canonical counts and effective operational/WhatsApp flags NOT VERIFIED; no secrets requested.
+
+Repository baseline13/target22/delta9 unchanged. Historical backup #7 run37736120838 SUCCESS; artifact imperio-logical-backup-2026-10-08T03-10-10 nonexpired, 2,653,961 bytes; PGDMP/hash/list/age and isolated restore34 tables/three units/13 resolved migrations confirmed. Archive digest sha256:9044c0a77c40e595614aa94b1b9759cf1edcfda5d679a7b108b4af87dadc6170 is NOT plaintext dump hash. FRESH CUTOVER BACKUP REQUIRED, with restore and restored-live-data clone migration rehearsal. WhatsApp WA1–WA5 code tests passed; provider/live webhook/messages excluded; live effective OFF not asserted.
+
+### Blockers and exact next action
+
+Only current release-closure blocker: final aggregate backend/browser terminal evidence pending. If a pipeline fails, inspect ONLY first real failing step, against latest remote; do not reopen proven unaffected gates. No known unimplemented P0/P1 fix remains. Pending tests may reveal another direct regression, so do not assert P1 closure prematurely.
+
+NEXT: fetch/confirm remote HEAD and read this final section; inspect status/results of #614/37862936261, #60/37862936257, and the checkpoint's latest ordinary backend CI. If all required applicable runs succeed, record final code/test parity and close release candidate WITHOUT repeating green tests absent code change/contradiction. If failure, diagnose first cause only. Do not replay superseded local branches. No new audit expansion. Production remains stopped until explicit owner authorization and fresh backup/restore/live ledger/flag prerequisites. Existing cutover-runbook.md / rollback-matrix.md and final-audit-correction-report.md contain freeze, exact migrations, deploy/smoke/monitor/abort and forward-only DB contingency. Code rollback requires previous SHA/schema compatibility; no migrate-down.
+
+PRODUCTION MUTATIONS: NONE.
