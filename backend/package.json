@@ -90,7 +90,7 @@
     "booking-items:audit": "node tools/booking-item-backfill-report.mjs",
     "test:stock-foundation": "node test/v99-stock-foundation.contract.mjs && node test/v99-stock-foundation.integration.mjs",
     "test:empty-state-journey": "node test/v99-empty-state-operational-journey.integration.mjs",
-    "test:phase4": "node test/phase4-frontend.behavior.mjs && node test/phase4-public-catalog.behavior.mjs && node --experimental-strip-types test/v98b-permission-policy.test.mjs"
+    "test:phase4": "node test/phase4-frontend.behavior.mjs && node test/phase4-public-catalog.behavior.mjs && node --experimental-strip-types test/v98b-permission-policy.test.mjs && node test/phase5-central-users-security.contract.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
