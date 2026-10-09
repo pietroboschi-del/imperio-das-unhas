@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -60,6 +60,7 @@ export class WaitlistOpportunityService {
    if(specs.some(x=>!x.serviceId))continue;
    const from=legacy.timeFrom||legacy.availabilityStartTime||null,to=legacy.timeTo||legacy.availabilityEndTime||null;
    let option:any=null;
+   try{
    if(specs.length===1){
     const spec=specs[0];
     const result=await this.availability.availability({unitId:event.unitId,date:event.date,serviceId:spec.serviceId,professionalId:spec.preferenceMode==='required'?spec.professionalId:undefined});
@@ -74,6 +75,12 @@ export class WaitlistOpportunityService {
     const result=await this.availability.multiAvailability({unitId:event.unitId,date:event.date,services:specs});
     const visits=result.visits.filter((v:any)=>withinWindow(v.localStart,v.localEnd,from,to));
     option=visits[0]||null;
+   }
+   }catch(e){
+    // A previously requested service may no longer be public-eligible. Skip only
+    // that unavailable candidate; infrastructure and other failures must surface.
+    if(e instanceof NotFoundException&&e.message.startsWith('Serviço indisponível para agendamento online'))continue;
+    throw e;
    }
    if(!option)continue;
    const primaryPenalty=sameUnit?0:1;

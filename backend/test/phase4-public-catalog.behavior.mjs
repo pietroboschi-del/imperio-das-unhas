@@ -34,4 +34,13 @@ for(const unitId of ['centro','big','shopping-contagem']){
  assert.equal(evaluateAccess({networkAdmin:true,globalPermissions:[],unitAccesses:[],unitScoped:true,unitId,requiredPermissions:['catalog.manage']}).allowed,true,'Master global autorizado em '+unitId);
  assert.equal(evaluateAccess({networkAdmin:false,globalPermissions:['catalog.manage'],unitAccesses:[{unitId:'centro',permissions:[]}],unitScoped:true,unitId,requiredPermissions:['catalog.manage']}).allowed,unitId==='centro','funcionário permanece restrito em '+unitId);
 }
-console.log(JSON.stringify({ok:true,feature:'phase4_public_catalog_eligibility_and_rbac',checks:15}));
+const {WaitlistOpportunityService}=require('../dist/src/core/waitlist-opportunity.service.js');
+const {NotFoundException}=require('@nestjs/common');
+let evaluated=[];
+const matcherPrisma={waitlistRequest:{findMany:async()=>[{id:'old',unitId:'centro',legacyPayload:{services:[{serviceId:'retired'}]}},{id:'next',unitId:'centro',legacyPayload:{services:[{serviceId:'eligible'}]}}]}};
+const matcher=new WaitlistOpportunityService(matcherPrisma,{availability:async({serviceId})=>{evaluated.push(serviceId);if(serviceId==='retired')throw new NotFoundException('Serviço indisponível para agendamento online');return {slots:[]}}});
+assert.deepEqual(await matcher.reevaluateForAvailabilityEvent({unitId:'centro',date:'2030-10-08',sourceType:'CANCELLATION'}),[]);
+assert.deepEqual(evaluated,['retired','eligible'],'pedido inelegível não impede os demais candidatos');
+const broken=new WaitlistOpportunityService(matcherPrisma,{availability:async()=>{throw Error('database offline')}});
+await assert.rejects(()=>broken.reevaluateForAvailabilityEvent({unitId:'centro',date:'2030-10-08',sourceType:'CANCELLATION'}),/database offline/,'erros de infraestrutura não são ocultados');
+console.log(JSON.stringify({ok:true,feature:'phase4_public_catalog_eligibility_and_rbac',checks:18}));
