@@ -47,7 +47,7 @@ async function main(){
   r=await book('centro','2020-01-07T10:00','31999990000','past-denied');ok(r.status===409,'past public booking rejected');
   r=await book('centro',date+'T10:00','31999990000','site-centro');ok(r.ok,'site booking centro dentro da escala');ok(await prisma.booking.count({where:{unitId:'centro'}})===1,'central booking centro');
   r=await book('big',date+'T11:00','31999990001','site-big');ok(r.ok,'site booking big dentro da escala');ok(await prisma.booking.count({where:{unitId:'big'}})===1,'central booking big');
-  r=await book('centro',date+'T12:30','31999990006','unlinked-service','unlinked');ok(r.status===404,'POST direto respeita elegibilidade profissional-serviço');
+  r=await book('centro',date+'T12:30','31999990006','unlinked-service','unlinked');ok(r.status===409,'POST direto respeita regra profissional-serviço');
   r=await book('centro',date+'T13:00','31999990007','hidden-service','hidden');ok(r.status===404,'POST direto não contorna visibilidade pública do serviço');
   r=await book('centro',date+'T10:30','3199999010','overlap','short');ok(r.status===409,'duration overlap blocked');
   r=await book('centro',date+'T10:00','3199999011','same-slot','short');ok(r.status===409,'same slot blocked');
