@@ -49,6 +49,7 @@
    '<div class="field"><label>Perfil<select name="systemRole"><option value="OPERATOR">Operação</option><option value="ADMINISTRATIVE">Administração</option></select></label></div>'+
    '<div class="field"><label><input type="checkbox" name="active" '+(u?.active!==false?'checked':'')+'> Ativo</label></div>'+
    '<fieldset><legend>Unidades</legend>'+units.map(x=>'<label class="check"><input type="checkbox" data-unit="'+esc(x.id)+'" '+(selected.has(x.id)?'checked':'')+'> '+esc(x.name||x.id)+'</label>').join('')+'</fieldset>'+
+   '<fieldset><legend>Permissões por unidade</legend>'+units.filter(x=>selected.has(x.id)).map(x=>'<div><b>'+esc(x.name||x.id)+'</b>'+permissions.map(p=>'<label class="check"><input type="checkbox" data-unit-permission="'+esc(x.id)+'" value="'+p+'" '+(new Set((u?.unitAccesses||[]).find(a=>a.unitId===x.id)?.permissions||[]).has(p)?'checked':'')+'> '+p+'</label>').join('')+'</div>').join('')+'</fieldset>'+ 
    '<fieldset><legend>Permissões globais</legend>'+permissions.map(p=>'<label class="check"><input type="checkbox" data-global="'+p+'" '+(globals.has(p)?'checked':'')+'> '+p+'</label>').join('')+'</fieldset>'+
    '<div class="field full"><button class="btn btn-primary" type="submit">Salvar no backend</button> <button class="btn btn-soft" type="button" id="centralUsersBack">Voltar</button></div></form><p id="centralUsersMessage" role="status"></p>';
   h.querySelector('[name="systemRole"]').value=u?.systemRole||'OPERATOR';
@@ -61,7 +62,7 @@
     if(u?.networkAdmin)throw new Error('Conta Master protegida');
     const ids=[...form.querySelectorAll('[data-unit]:checked')].map(x=>x.dataset.unit);
     if(!ids.length)throw new Error('Selecione pelo menos uma unidade');
-    const payload={displayName:form.elements.displayName.value.trim(),username:form.elements.username.value.trim(),systemRole:form.elements.systemRole.value,active:form.elements.active.checked,permissions:[...form.querySelectorAll('[data-global]:checked')].map(x=>x.dataset.global),units:ids.map(unitId=>({unitId,role:'reception',permissions:(u?.unitAccesses||[]).find(x=>x.unitId===unitId)?.permissions||[]}))};
+    const payload={displayName:form.elements.displayName.value.trim(),username:form.elements.username.value.trim(),systemRole:form.elements.systemRole.value,active:form.elements.active.checked,permissions:[...form.querySelectorAll('[data-global]:checked')].map(x=>x.dataset.global),units:ids.map(unitId=>({unitId,role:'reception',permissions:[...form.querySelectorAll('[data-unit-permission]:checked')].filter(x=>x.dataset.unitPermission===unitId).map(x=>x.value)}))};
     if(!payload.displayName||!payload.username)throw new Error('Nome e login obrigatórios');
     await request(u?'/api/v1/admin/users/'+encodeURIComponent(u.id)+'/access':'/api/v1/admin/users',u?'PATCH':'POST',payload);
     await load();
