@@ -8582,6 +8582,16 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  window.__imperioProfessionalUnitHydration={canManageProfessionals,hydrateUnits,order:[...ORDER],source:'/api/v1/units'};
 })();
 
+(function () {
+  if (typeof document === 'undefined' || !document.body || !document.createElement) return;
+  const id = 'imperio-central-users-admin-script';
+  if (document.getElementById(id)) return;
+  const script = document.createElement('script');
+  script.id = id;
+  script.src = 'assets/js/central-users-admin.js';
+  script.async = false;
+  document.body.appendChild(script);
+})();
 </script>
 
 
@@ -8590,5 +8600,5 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
 
 
 
-<script src="assets/js/central-users-admin.js"></script>
+
 </body></html>
