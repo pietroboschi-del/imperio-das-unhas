@@ -64,8 +64,15 @@
     if(!ids.length)throw new Error('Selecione pelo menos uma unidade');
     const payload={displayName:form.elements.displayName.value.trim(),username:form.elements.username.value.trim(),systemRole:form.elements.systemRole.value,active:form.elements.active.checked,permissions:[...form.querySelectorAll('[data-global]:checked')].map(x=>x.dataset.global),units:ids.map(unitId=>({unitId,role:'reception',permissions:[...form.querySelectorAll('[data-unit-permission]:checked')].filter(x=>x.dataset.unitPermission===unitId).map(x=>x.value)}))};
     if(!payload.displayName||!payload.username)throw new Error('Nome e login obrigatórios');
-    await request(u?'/api/v1/admin/users/'+encodeURIComponent(u.id)+'/access':'/api/v1/admin/users',u?'PATCH':'POST',payload);
-    await load();
+    const saved=await request(u?'/api/v1/admin/users/'+encodeURIComponent(u.id)+'/access':'/api/v1/admin/users',u?'PATCH':'POST',payload);
+    if(!u){
+     // Activation is intentionally a separate, explicit owner action; no token is stored.
+     await load();
+     const note=document.createElement('p');note.textContent='Usuário criado. Para ativá-lo, gere o token temporário abaixo e compartilhe-o de forma segura.';
+     const activate=document.createElement('button');activate.className='btn btn-soft';activate.textContent='Gerar token de ativação';
+     activate.addEventListener('click',async()=>{activate.disabled=true;try{await verify();const result=await request('/api/v1/auth/users/'+encodeURIComponent(saved.id)+'/activation-token','POST',{});const output=document.createElement('textarea');output.readOnly=true;output.rows=3;output.value=result.token||'';output.setAttribute('aria-label','Token temporário de ativação');note.appendChild(output);activate.remove();}catch(e){note.textContent='Ativação indisponível: '+e.message;}});
+     note.appendChild(activate);host()?.appendChild(note);
+    }else await load();
    }catch(e){const msg=document.getElementById('centralUsersMessage');if(msg)msg.textContent=e.message;submit.disabled=false;if(/Sessão inválida|sem autorização|restrito/.test(e.message))deny(e.message);}
   });
  }
@@ -88,7 +95,7 @@
   const button=document.createElement('button');button.id='centralUsersNav';button.textContent='Usuários e Acessos';button.type='button';button.addEventListener('click',open);tabs.appendChild(button);
  }
  const baseNav=window.buildAdminNav;
- if(typeof baseNav==='function')window.buildAdminNav=function(){const r=baseNav.apply(this,arguments);install();return r;};
+ if(typeof baseNav==='function')window.buildAdminNav=function(){const r=baseNav.apply(this,arguments);install();verify().catch(()=>{});return r;};
  const baseSetPage=window.setPage;
  if(typeof baseSetPage==='function')window.setPage=function(target){
   if(target==='central-users'){if(typeof page!=='undefined')page=target;install();const h=host();if(h)h.innerHTML='<p>Verificando identidade no backend...</p>';load();return;}
