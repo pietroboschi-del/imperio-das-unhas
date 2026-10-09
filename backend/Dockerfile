@@ -38,10 +38,10 @@ COPY --from=build /app/package.json /app/package-lock.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+COPY tools/release-preflight.mjs tools/three-unit-readiness.mjs tools/phase3-runner.mjs ./tools/
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
- CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+HEALTHCHECK NONE
 
-CMD ["sh","-c","if [ \"${SCHEMA_MIGRATION_ENABLED:-false}\" = \"true\" ]; then npm run prisma:migrate; else echo \"schema migration skipped: SCHEMA_MIGRATION_ENABLED!=true\"; fi && npm start"]
+CMD ["node","tools/phase3-runner.mjs","--check"]
