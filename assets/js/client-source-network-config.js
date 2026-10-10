@@ -40,7 +40,7 @@
      legacy:false,
    }));
    if(!opts.some(o=>o.active))throw new Error('Nenhuma opção de origem ativa no servidor');
-   if(!window.db||!db.systemSettings||!db.systemSettings.optionSets)
+   if(!window.__imperioDatabase||!db.systemSettings||!db.systemSettings.optionSets)
      throw new Error('Configuração de formulário indisponível');
    const current=db.systemSettings.optionSets[KEY]||{};
    db.systemSettings.optionSets[KEY]={...current,key:KEY,label:'Como conheceu',
