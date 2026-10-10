@@ -23,7 +23,7 @@ function validate(body:any):ClientSourceOption[]{
   if(!body||!Array.isArray(body.options)||body.options.length<1||body.options.length>80)
     throw new BadRequestException('Informe de 1 a 80 opções de origem');
   const ids=new Set<string>(),labels=new Set<string>();let defaults=0;
-  const list=body.options.map((raw:any,i:number)=>{
+  const list:ClientSourceOption[]=body.options.map((raw:any,i:number)=>{
     if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new BadRequestException('Opção inválida');
     const id=String(raw.id||'').trim(),label=String(raw.label||'').trim();
     if(!/^[a-zA-Z0-9_-]{1,90}$/.test(id)||label.length<1||label.length>100)
