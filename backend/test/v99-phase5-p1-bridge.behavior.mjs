@@ -50,10 +50,10 @@ loginValid=false;eq(await ctx(),false,'absent session never falls back to legacy
 ok(fetchCount>=2,'backend ID reverified before booking');
 
 let cleared=0,shown='',status=401;
-const requester=new Function('ensureCentralUnitId','centralCsrf','endpoint','fetch','officialProductionMode','setCentralSession','applyCentralUnitGate','showOnly','toast','centralError',
+const requester=new Function('ensureCentralUnitId','centralCsrf','endpoint','fetch','officialProductionMode','setCentralSession','applyCentralUnitGate','showOnly','toast','centralError','phase5Context',
  source('async function centralRequest(path,opt={})','function localStatus(s)')+';return centralRequest;')(
  async()=> 'big',()=> 'csrf',()=> 'https://isolated.invalid',async(url,options)=>({ok:status===200,status,text:async()=>JSON.stringify(status===200?{id:'x'}:{message:'Sessão ausente'}),options}),
- ()=>true,()=>cleared++,()=>{},p=>shown=p,()=>{},(d,s)=>Object.assign(new Error(d.message),{status:s})
+ ()=>true,()=>cleared++,()=>{},p=>shown=p,()=>{},(d,s)=>Object.assign(new Error(d.message),{status:s}),{session:()=>1}
 );
 await assert.rejects(()=>requester('/api/v1/clients'),e=>e.status===401);
 eq(cleared,1,'401 invalidates stale session state');eq(shown,'loginApp','401 routes back to authentication');
