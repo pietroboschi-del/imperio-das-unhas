@@ -94,6 +94,25 @@ def main():
                        "body":page.locator("body").inner_text()[:1500]}
                 print(json.dumps(after,ensure_ascii=False))
                 assert not after["loginVisible"], "CI admin login did not leave authentication screen; potential central/legacy bridge failure"
+                # Simulate a reopened tab with a valid backend cookie but no frontend storage.
+                page.evaluate("""() => {
+                  for(const key of ['imperio-v99-central-authenticated','imperio-v99-central-principal',
+                                    'imperio-v99-central-write-units','imperio-v96-shadow-csrf']){
+                    sessionStorage.removeItem(key);
+                  }
+                }""")
+                page.reload(wait_until="domcontentloaded",timeout=30000)
+                page.wait_for_function("typeof window.__imperioCentralUsersSecure?.verify === 'function'",timeout=15000)
+                page.get_by_role("button",name="Área da equipe").click()
+                page.wait_for_function("!document.getElementById('adminApp').classList.contains('hidden')",timeout=15000)
+                assert not page.locator("#loginPass").is_visible(), "Cookie-authenticated Master must resume without a second password"
+                resume=page.evaluate("""() => ({
+                  authenticated:sessionStorage.getItem('imperio-v99-central-authenticated'),
+                  networkAdmin:JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'{}').networkAdmin,
+                  csrfPresent:!!sessionStorage.getItem('imperio-v96-shadow-csrf')
+                })""")
+                print(json.dumps({"scenario":"3B-verified-owner-cookie-session-resume","result":resume},ensure_ascii=False))
+                assert resume["authenticated"]=="1" and resume["networkAdmin"] is True and resume["csrfPresent"],"Cookie resume must be based on backend principal and refreshed CSRF"
                 picker=page.locator("#unitPicker")
                 labels=picker.locator("option").all_text_contents()
                 print(json.dumps({"scenario":"3B-unit-picker","options":labels,"selected":picker.input_value()},ensure_ascii=False))
