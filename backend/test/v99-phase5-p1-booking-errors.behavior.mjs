@@ -36,4 +36,13 @@ async function scenario(kind){
  return calls;
 }
 for(const kind of ['service','professional','not-found','inactive','network','expired','success'])await scenario(kind);
+// The production opener must never carry an idempotency key into a different draft.
+const opener=new Function('window','unitPicker','agendaDate','defaultReservationItem','renderReservationModal',
+ part("function openReservation(proId='',time='',clientId='',date=agendaDate)","function syncResDraftFromDom(){")+
+ ';return openReservation;');
+const selection={resDraft:null};const open=opener(selection,{value:'u1'},'2026-10-15',()=>({serviceId:'S',pro:'P'}),()=>{});
+open();const draftA=selection.resDraft;draftA.centralOperationKey='booking-key-A';
+open();const draftB=selection.resDraft;
+eq(draftA===draftB,false,'T17 distinct reservations have distinct draft identities');
+eq(draftB.centralOperationKey,undefined,'T17 new draft cannot inherit the previous idempotency key');
 console.log(JSON.stringify({result:'P1 BOOKING 404 CLASSIFICATION: PASS',checks}));
