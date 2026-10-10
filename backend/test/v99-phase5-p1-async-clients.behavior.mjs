@@ -78,4 +78,20 @@ async function quick(){
  const E={clientId:''};w.resDraft=E;w.openQuickClientFromReservation();const pE=w.saveQuickClientFromReservation();const F={clientId:''};w.resDraft=F;w.openQuickClientFromReservation();resolvers[4].resolve({id:'draft-E',active:true});await pE;eq(F.clientId,'','new reservation is not overwritten by previous create');
  ok(selections.includes('centro-client'),'valid selection committed for the original draft');
 }
-await edits();await quick();console.log(JSON.stringify({result:'P1 POST AUDIT ASYNC CLIENTS: PASS',checks}));
+
+async function searchOrder(){
+ const applied=[],a=defer(),b=defer();let generation=0,unit='u1',query={A:a.promise,B:b.promise};
+ const remote={clients:q=>query[q]};
+ const fn=new Function('centralEnabled','centralLocalUnitId','centralClientGeneration','centralApi','mergeCentralClients',
+  slice("async function refreshCentralClients(q='')","window.__imperioCentralClientIdentity=")+";return refreshCentralClients")(
+  ()=>true,()=>unit,generation,remote,rows=>applied.push(rows[0]?.id)
+ );
+ const old=fn('A'),latest=fn('B');b.resolve([{id:'B'}]);eq(await latest,true,'fresh search succeeds');
+ a.resolve([{id:'A'}]);eq(await old,false,'stale search discarded');
+ eq(applied,['B'],'T06 out-of-order search does not overwrite newer results');
+ const c=defer();query.C=c.promise;const changed=fn('C');unit='u3';c.resolve([{id:'C'}]);
+ eq(await changed,false,'unit switch invalidates pending client search');
+ eq(applied,['B'],'unit change never applies old-unit search');
+}
+
+await edits();await quick();await searchOrder();console.log(JSON.stringify({result:'P1 POST AUDIT ASYNC CLIENTS: PASS',checks}));
