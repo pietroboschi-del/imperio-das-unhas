@@ -1,6 +1,11 @@
 name: Production Logical Backup
 
 on:
+  push:
+    branches:
+      - ops/phase5-client-source-rehearsal
+    paths:
+      - .github/workflows/production-logical-backup.yml
   workflow_dispatch:
     inputs:
       run_rehearsal:
@@ -35,11 +40,11 @@ jobs:
 
     steps:
       - name: Checkout release target for rehearsal
-        if: github.event_name == 'workflow_dispatch' && inputs.run_rehearsal == true
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.run_rehearsal == true)
         uses: actions/checkout@v4
 
       - name: Set up Node 22 for rehearsal
-        if: github.event_name == 'workflow_dispatch' && inputs.run_rehearsal == true
+        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.run_rehearsal == true)
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -49,7 +54,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" || "${GITHUB_EVENT_NAME}" == "push" ]]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -111,7 +116,7 @@ jobs:
           HEADERS_PATH="$WORK_DIR/backup-headers.txt"
           MANIFEST_PATH="$WORK_DIR/${BACKUP_NAME}.manifest.json"
           RESTORE_CONTAINER="imperio-backup-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          REHEARSAL="${{ github.event_name == 'workflow_dispatch' && inputs.run_rehearsal == true }}"
+          REHEARSAL="${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.run_rehearsal == true) }}"
           BACKEND_PID=""
           RESTORE_PORT=55439
 
@@ -309,13 +314,13 @@ jobs:
           const r=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
           const m=r.migrations, names=m.pendingMigrations;
           const fail=(reason)=>{console.error('Rehearsal preflight failed: '+reason);process.exit(1)};
-          if(m.filesystemCount!==22||m.databaseCount!==13||names.length!==9||
+          if(m.filesystemCount!==23||m.databaseCount!==22||names.length!==1||names[0]!=='20261010_phase5_client_source_network_config'||
             m.unexpectedDbMigrations.length||m.incompleteMigrations.length||
             m.rolledBackMigrations.length||m.checksumMismatches.length||
             m.missingDatabaseChecksum.length||m.missingLocalMigrationSql.length||
             r.canonicalUnits.missing.length||
             m.checksumEvidence.some(x=>!x.checksumMatches)) fail('unexpected pre-upgrade state');
-          console.log('Pre-upgrade validated: 13 applied, 9 pending: '+names.join(', '));
+          console.log('Pre-upgrade validated: 22 applied, 1 pending: '+names.join(', '));
           NODE
 
             npm run prisma:migrate
@@ -326,13 +331,13 @@ jobs:
           const r=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
           const m=r.migrations;
           const fail=(reason)=>{console.error('Rehearsal preflight failed: '+reason);process.exit(1)};
-          if(!r.ok||m.filesystemCount!==22||m.databaseCount!==22||
+          if(!r.ok||m.filesystemCount!==23||m.databaseCount!==23||
             m.pendingMigrations.length||m.unexpectedDbMigrations.length||
             m.incompleteMigrations.length||m.rolledBackMigrations.length||
             m.checksumMismatches.length||m.missingDatabaseChecksum.length||
             m.missingLocalMigrationSql.length||r.canonicalUnits.missing.length||
             m.checksumEvidence.some(x=>!x.checksumMatches)) fail('unexpected post-upgrade state');
-          console.log('Post-upgrade preflight: 22 applied, zero issues.');
+          console.log('Post-upgrade preflight: 23 applied, zero issues.');
           NODE
             npx prisma validate
             npm run build
@@ -345,7 +350,7 @@ jobs:
               [[ "$found" == "1" ]] || { echo "Missing canonical Unit: $unit"; exit 1; }
             done
             popd >/dev/null
-            echo "Rehearsal PASS: clone migrated 13 to 22; Unit=3."
+            echo "Rehearsal PASS: restored live clone migrated 22 to 23; Unit=3; production DB unchanged."
           fi
 
           docker rm -f "$RESTORE_CONTAINER" >/dev/null
