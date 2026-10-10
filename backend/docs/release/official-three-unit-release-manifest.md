@@ -32,7 +32,7 @@ Baseline count: `13`.
 
 ## TARGET_MIGRATIONS
 
-Target count: `23`. Baseline migrations above plus:
+Target count: `24`. Baseline migrations above plus:
 
 1. `20261004_v99_client_duplicate_review_target_client`
 2. `20261004_v99_command_service_quantity`
@@ -44,10 +44,11 @@ Target count: `23`. Baseline migrations above plus:
 8. `20261006_wa5_1_messaging_automation`
 9. `20261008_wa2_outbox_reconciliation_required`
 10. `20261010_phase5_client_source_network_config`
+11. `20261010_a3_fin_rep_authoritative_ledger`
 
 ## PENDING_MIGRATIONS
 
-Expected pending from historical 13-migration baseline to target: `10` migrations (subject to **current** live ledger verification; never assume production still has 13).
+Expected pending from historical 13-migration baseline to target: `11` migrations (subject to **current** live ledger verification; never assume production still has 13).
 
 1. `20261004_v99_client_duplicate_review_target_client`
 2. `20261004_v99_command_service_quantity`
@@ -93,7 +94,7 @@ DATABASE_URL='<authorized-readonly-url>' npm run release:preflight
 npm run diagnostic:three-units
 ```
 
-Required result: target migration count `23`, no pending migrations, no incomplete migrations, no rolled back migrations, and no missing canonical units.
+Required result: target migration count `24`, no pending migrations, no incomplete migrations, no rolled back migrations, and no missing canonical units.
 
 ## BACKEND DEPLOY CHECKS
 
@@ -119,4 +120,4 @@ Use code rollback only for code-only failures after database integrity is verifi
 
 ## PHASE_5_CLIENT_SOURCE_CONFIG_DELTA
 
-The additive migration `20261010_phase5_client_source_network_config` creates only the network-wide acquisition-source configuration table. The historical 13→22 rehearsal is not evidence of this new migration. Before any production apply, reconcile the *current* production Prisma ledger and hashes against this 23-migration target, restore a fresh verified backup in isolation, and obtain separate explicit production migration authorization. Never replay already-applied migrations.
+The additional isolated A3 migration `20261010_a3_fin_rep_authoritative_ledger` adds financial ledger/account tables and stock purchase finance ownership; NO historical UPDATE. Both require separate production authorization. The additive migration `20261010_phase5_client_source_network_config` creates only the network-wide acquisition-source configuration table. The historical 13→22 rehearsal is not evidence of this new migration. Before any production apply, reconcile the *current* production Prisma ledger and hashes against this 23-migration target, restore a fresh verified backup in isolation, and obtain separate explicit production migration authorization. Never replay already-applied migrations.

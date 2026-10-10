@@ -168,7 +168,7 @@ jobs:
         run: npm run test:release-checksum-preflight
       - name: Release migration manifest parity
         run: npm run test:release-migration-manifest
-      - name: Synthetic 13-to-23 migration rehearsal
+      - name: Synthetic 13-to-24 migration rehearsal
         env:
           DATABASE_URL: postgresql://imperio:imperio_ci@localhost:5432/imperio_ci?schema=public
           SYNTHETIC_REHEARSAL: "1"

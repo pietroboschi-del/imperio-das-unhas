@@ -10,7 +10,7 @@ Commands run from `backend/` unless a repository path is stated. This runbook pr
 | Confirm final CI run for target SHA | CI is completed and successful | CI missing, failing, or stale | Stop; fix code or rerun CI |
 | Confirm Railway services read-only | Backend, frontend, and database are online; no material staged changes | Failed service or unexpected staged work | Stop; investigate owner-side state |
 | `npm run release:delta` | Backend live SHA, frontend live SHA, commit delta, and migration delta match manifest | Delta mismatch | Stop; regenerate manifest or investigate |
-| `DATABASE_URL='<authorized-readonly-url>' npm run release:preflight` | Target-artifact report has exactly 13 applied / 23 local / the named 10 pending (historical baseline only; reconcile current live ledger first); all baseline hashes match; no unknown/incomplete/rolled-back/missing checksum/SQL/unit. Expected exit 2 only for this exact pending delta (see manifest) | Credential unavailable, ledger mismatch, incomplete migration, or unexpected migration | Stop; classify as live read-only blocker |
+| `DATABASE_URL='<authorized-readonly-url>' npm run release:preflight` | Target-artifact report has exactly 13 applied / 24 local / the named 11 pending (historical baseline only; reconcile current live ledger first); all baseline hashes match; no unknown/incomplete/rolled-back/missing checksum/SQL/unit. Expected exit 2 only for this exact pending delta (see manifest) | Credential unavailable, ledger mismatch, incomplete migration, or unexpected migration | Stop; classify as live read-only blocker |
 | Verify flags | Operational write and WhatsApp flags are known and recorded | Redacted or unsafe values | Stop for owner decision if risk is unacceptable |
 
 ## FASE B - BACKUP
@@ -22,17 +22,17 @@ Commands run from `backend/` unless a repository path is stated. This runbook pr
 | `pg_restore --list <backup>` | Object listing succeeds | Listing fails | Stop; create new backup |
 | `sha256sum <backup>` | Hash recorded in release record | Hash command fails | Stop; fix backup evidence |
 | Restore backup into isolated database | Restore completes cleanly | Restore error | Stop; create new backup |
-| Run preflight against restore | Restored ledger matches the exact 13 baseline and hashes; target report exit 2 only for the exact 10 pending when starting from the historical 13 baseline | Restore ledger differs from live or manifest | Stop; investigate |
+| Run preflight against restore | Restored ledger matches the exact 13 baseline and hashes; target report exit 2 only for the exact 11 pending when starting from the historical 13 baseline | Restore ledger differs from live or manifest | Stop; investigate |
 
 ## FASE B2 - UPGRADE THE RESTORED CLONE
 
 | COMMAND / ACTION | SUCCESS CRITERIA | STOP CONDITION | ROLLBACK ACTION |
 |---|---|---|---|
 | Identify isolated restored clone and record target SHA | Clone is separate from live; validated fresh backup is its source; no provider/messages enabled | Identity uncertain or URL points to live | Stop; do not run migration |
-| Against that clone only, `DATABASE_URL='<isolated-clone-url>' npm run prisma:migrate` | Applies exactly 10 expected migrations from a historical 13-migration baseline to 23 | Migration failure or unexpected delta | Stop; preserve clone evidence, no live migration |
-| Against clone, `DATABASE_URL='<isolated-clone-readonly-url>' npm run release:preflight` and `npm run diagnostic:three-units` with same clone URL | Exit 0; 23 hashes match; units, BookingItem backfill, client links, finance and stock integrity checked against restored baseline | Incomplete ledger or unexplained data/count changes | Stop; resolve before live authorization |
+| Against that clone only, `DATABASE_URL='<isolated-clone-url>' npm run prisma:migrate` | Applies exactly 11 expected migrations from a historical 13-migration baseline to 24 | Migration failure or unexpected delta | Stop; preserve clone evidence, no live migration |
+| Against clone, `DATABASE_URL='<isolated-clone-readonly-url>' npm run release:preflight` and `npm run diagnostic:three-units` with same clone URL | Exit 0; 24 hashes match; units, BookingItem backfill, client links, finance and stock integrity checked against restored baseline | Incomplete ledger or unexplained data/count changes | Stop; resolve before live authorization |
 
-CI #603's historical synthetic 13→22 rehearsal is preserved as background evidence only. The current target adds an isolated 23rd migration and needs its own 13→23 rehearsal. Neither synthetic rehearsal replaces a fresh restored live dataset. Never point the synthetic rehearsal reset script at the restored live-data clone or live database.
+CI #603's historical synthetic 13→22 rehearsal is preserved as background evidence only. The current target adds an isolated 23rd migration and A3 introduces a 24th ledger migration and needs its own 13→24 rehearsal. Neither synthetic rehearsal replaces a fresh restored live dataset. Never point the synthetic rehearsal reset script at the restored live-data clone or live database.
 
 ## FASE C - MIGRATIONS
 
@@ -41,8 +41,8 @@ CI #603's historical synthetic 13→22 rehearsal is preserved as background evid
 | Re-run live ledger read-only | Baseline still exactly 13 migrations, with SHA-256 checksums verified | Any mismatch, checksum mismatch, incomplete or rolled-back row | Stop; no migration |
 | Compare live ledger with manifest (target read-only release:preflight; exit 2 only for the exact pending delta derived from the actual live ledger); abort on any unknown, missing, reverted or hash-mismatched migration | Names and computed SHA-256 checksums of each migration.sql agree with the stored Prisma ledger; no unknown, incomplete or rolled-back migration | Unknown migration or checksum mismatch | Stop; owner/auditor review |
 | Owner authorizes migration | Written approval captured | Approval missing | Stop |
-| `npm run prisma:migrate` | Applies the exact pending delta toward 23, including 20261010_phase5_client_source_network_config if not already applied | Command fails | Stop; inspect ledger, prepare restore decision |
-| `DATABASE_URL='<authorized-readonly-url>' npm run release:preflight` | 23 migrations, no pending, no incomplete, no rolled back | Any failed or partial state | Stop; database restore may be required |
+| `npm run prisma:migrate` | Applies the exact pending delta toward 24, including 20261010_phase5_client_source_network_config if not already applied | Command fails | Stop; inspect ledger, prepare restore decision |
+| `DATABASE_URL='<authorized-readonly-url>' npm run release:preflight` | 24 migrations, no pending, no incomplete, no rolled back | Any failed or partial state | Stop; database restore may be required |
 
 ## FASE D - BACKEND
 
@@ -95,3 +95,8 @@ Monitor backend/frontend health, sanitized errors, agenda/client consistency, un
 
 
 **Phase 5 delta:** this runbook's 13-migration baseline is historical. The live backend/PostgreSQL may already have advanced; never assume 10 pending in production. Determine the pending list by live read-only ledger, compare hashes with the 23-migration manifest, restore an encrypted fresh backup in isolation, and obtain separate approval before any database migration.
+
+
+## A3-FIN-REP financial migration release restriction
+
+The 24th migration `20261010_a3_fin_rep_authoritative_ledger` is prepared for isolated CI only. No live migration is authorized by this runbook. Existing purchases are not modified or inferred from technical central stock location; their financial ownership requires audited reconciliation and explicit authorization before go-live.
