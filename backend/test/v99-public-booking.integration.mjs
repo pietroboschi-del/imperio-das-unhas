@@ -68,7 +68,7 @@ async function main(){
   ok(historyResponse.ok,'owner reads global client history from Centro');
   const globalHistory=await historyResponse.json();
   ok(['centro','big','shopping-contagem'].every(unitId=>globalHistory.bookings.some(x=>x.unitId===unitId)),'global history includes visits from all three units');
-    await prisma.professional.create({data:{id:'p-history-second',name:'Segunda Profissional Histórico',active:true,units:{create:[{unitId:'centro',active:true}]},legacyPayload:{show:true,online:true,services:['short']}}});
+    await prisma.professional.create({data:{id:'p-history-second',name:'Segunda Profissional Histórico',active:true,units:{create:[{unitId:'centro',active:true}]},legacyPayload:{show:true,online:true,services:['short'],schedule:{'centro-2':{work:true,start:'09:00',end:'19:00'}}}}});
   const multiResponse=await fetch(base+'/api/v1/bookings',{method:'POST',headers:{'content-type':'application/json',cookie:ownerCookie,'x-unit-id':'centro','x-csrf-token':(await ownerLogin.clone().json()).csrfToken,'idempotency-key':'history-multi-pro'},body:JSON.stringify({
     clientId:globalClient.id,serviceDate:date,
     items:[

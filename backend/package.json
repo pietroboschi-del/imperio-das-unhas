@@ -86,7 +86,7 @@
     "test:wa5.7": "node test/wa5.7-automation-outbox.contract.mjs && node test/wa5.7-automation-outbox.integration.mjs",
     "test:wa5.8": "node test/wa5.8-e2e-security.contract.mjs && node test/wa5.8-e2e.integration.mjs",
     "test:employee-config-readiness": "node test/v99-employee-config-readiness.contract.mjs && node test/v99-professional-units-schedule-ui.contract.mjs && node test/v99-employee-config-permissions.integration.mjs",
-    "test:booking-item-data-model": "node test/v99-booking-item-data-model.contract.mjs && node test/v99-booking-item-source-of-truth.integration.mjs",
+    "test:booking-item-data-model": "node test/v99-booking-item-data-model.contract.mjs && node test/v99-booking-item-source-of-truth.integration.mjs && node test/a1-ag01-public-hours.contract.mjs",
     "booking-items:audit": "node tools/booking-item-backfill-report.mjs",
     "test:stock-foundation": "node test/v99-stock-foundation.contract.mjs && node test/v99-stock-foundation.integration.mjs",
     "test:empty-state-journey": "node test/v99-empty-state-operational-journey.integration.mjs",
