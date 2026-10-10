@@ -14,7 +14,7 @@ ok(html.includes('assets/js/client-source-network-config.js'),'network source sc
 ok(js.includes("credentials:'include'"),'central options are read only with authenticated cookie');
 ok(js.includes("X-CSRF-Token"),'network writes require CSRF');
 ok(js.includes("expectedVersion:serverVersion"),'writes protect against concurrent overwrite');
-ok(js.includes("window.openClientForm=fn"),'client form waits for central source hydration');
+ok(js.includes("['openClientForm',async function(base,args)")&&js.includes("await refresh();return base.apply(this,args)"),'client form waits for central source hydration');
 ok(js.includes("window.__imperioNetworkClientSources"),'central bridge exposes read-only diagnostics');
 ok(!js.includes('localStorage.setItem'),'no local-only authoritative source');
 ok(controller.includes("@Controller('api/v1/config/client-sources')"),'central endpoint installed');
