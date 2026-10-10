@@ -81,7 +81,7 @@ export class CoreWriteController {
     if(checkSchedule&&!unit)throw new NotFoundException('Unidade não encontrada');
     for(let i=0;i<items.length;i++){
       const it=items[i],startAt=new Date(it.startAt);if(Number.isNaN(startAt.getTime()))throw new ConflictException('Horário inválido');
-      if(String(it.startAt).slice(0,10)!==serviceDate)throw new ConflictException('Horário do serviço deve pertencer à data da visita');
+      if(!checkSchedule&&String(it.startAt).slice(0,10)!==serviceDate)throw new ConflictException('Horário do serviço deve pertencer à data da visita');
       const isBlock=status==='Bloqueado';if(!isBlock&&!it.serviceId)throw new ConflictException('Serviço é obrigatório para atendimentos');
       const [service,pro]=await Promise.all([
         it.serviceId?tx.service.findFirst({where:{id:it.serviceId,active:true},select:{id:true,price:true,durationMin:true,legacyPayload:true}}):Promise.resolve(null),
@@ -92,7 +92,9 @@ export class CoreWriteController {
       if(service&&it.serviceId&&!this.professionalCanDo(pro.professional.legacyPayload,service.legacyPayload,it.professionalId,it.serviceId))throw new ConflictException('Profissional não executa este serviço');
       const rule=service&&it.serviceId?(service.legacyPayload as any)?.proRules?.[it.professionalId]:null;
       const duration=Math.max(1,Number(it.durationMin??rule?.duration??service?.durationMin??30));
-      if(checkSchedule&&!insideProfessionalSchedule(pro.professional.legacyPayload,unitId,professionalLocalStart(startAt,unit!.timezone),duration))throw new ConflictException('Horário fora da escala da profissional');
+      const localStart=checkSchedule?professionalLocalStart(startAt,unit!.timezone):'';
+      if(checkSchedule&&localStart.slice(0,10)!==serviceDate)throw new ConflictException('Horário do serviço deve pertencer à data local da visita');
+      if(checkSchedule&&!insideProfessionalSchedule(pro.professional.legacyPayload,unitId,localStart,duration))throw new ConflictException('Horário fora da escala da profissional');
       const unitPrice=new Prisma.Decimal(Number(isBlock?0:(it.unitPrice??rule?.price??service?.price??0)).toFixed(2));
       const serviceConfig=service?.legacyPayload&&typeof service.legacyPayload==='object'&&!Array.isArray(service.legacyPayload)?service.legacyPayload as any:{};
       out.push({id:'bi_'+createHash('sha256').update(unitId+'|'+i+'|'+(it.serviceId||'block')+'|'+it.professionalId+'|'+it.startAt+'|'+randomUUID()).digest('hex').slice(0,40),unitId,serviceId:it.serviceId||null,professionalId:it.professionalId,startAt,durationMin:duration,unitPrice,preference:!!it.preference,forceFit:!!it.forceFit,sortOrder:i,clientAreaSnapshot:isBlock?null:String(serviceConfig.clientArea||'none'),mustFinishBeforeSameAreaSnapshot:isBlock?null:serviceConfig.mustFinishBeforeSameArea===true,legacyPayload:{source:'central_api',areaSnapshotSource:isBlock?'not_applicable':'service_at_write'}});
