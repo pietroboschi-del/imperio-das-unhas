@@ -7147,6 +7147,42 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  // V99: cutover operacional central controlado · Centro primeiro.
  const CENTRAL_SESSION='imperio-v99-central-authenticated',CENTRAL_PRINCIPAL='imperio-v99-central-principal',CENTRAL_CSRF_KEY='imperio-v96-shadow-csrf',CENTRAL_WRITE_UNITS='imperio-v99-central-write-units';
  let centralClientGeneration=0,centralClientIds=new Set(),centralReservationBusy=false,centralQuickBusy=false,clientSearchTimer=null;
+
+ // Single intent shared by V99 bridges and the late-loaded network-source adapter.
+ // A modal replacement is an explicit invalidation, not merely a DOM cosmetic change.
+ const phase5Context=(()=>{
+  let generation=0,session=0,current=null,opening=null;
+  const unit=()=>centralLocalUnitId();
+  const begin=(kind,extra={})=>{
+   const token={generation:++generation,session,unit:unit(),kind,id:extra.id||'',draft:kind==='quick'?window.resDraft:null,root:null,form:null};
+   current=token;return token;
+  };
+  const invalidate=()=>{generation++;current=null;opening=null};
+  const invalidateSession=()=>{session++;invalidate()};
+  const valid=token=>!!token&&current===token&&generation===token.generation&&session===token.session&&unit()===token.unit&&(token.kind!=='quick'||window.resDraft===token.draft);
+  const modalPresent=token=>valid(token)&&!!token.root&&document.getElementById('modalHost')?.querySelector('.overlay')===token.root;
+  const run=(token,fn)=>{if(!valid(token))return false;const previous=opening;opening=token;try{return fn()}finally{opening=previous}};
+  const adopt=kind=>(opening&&opening.kind===kind&&valid(opening)?opening:null);
+  const existingModal=window.modal;
+  if(typeof existingModal==='function'){
+   const guarded=function(...args){
+    const token=opening&&valid(opening)?opening:null;
+    if(!token)invalidate();
+    const value=existingModal.apply(this,args);
+    if(token)token.root=document.getElementById('modalHost')?.querySelector('.overlay')||null;
+    return value;
+   };
+   window.modal=guarded;try{modal=guarded}catch(e){}
+  }
+  const existingClose=window.closeModal;
+  if(typeof existingClose==='function'){
+   const guarded=function(...args){invalidate();return existingClose.apply(this,args)};
+   window.closeModal=guarded;try{closeModal=guarded}catch(e){}
+  }
+  return {begin,invalidate,invalidateSession,valid,modalPresent,run,adopt,current:()=>current,session:()=>session};
+ })();
+ window.__imperioPhase5Context=phase5Context;
+
  const UNIT_TO_CENTRAL=Object.freeze({u1:'big',u2:'shopping-contagem',u3:'centro',big:'big','shopping-contagem':'shopping-contagem',centro:'centro'});
  const UNIT_TO_LOCAL=Object.freeze({big:'u1','shopping-contagem':'u2',centro:'u3',u1:'u1',u2:'u2',u3:'u3'});
  const CENTRAL_UNIT_OPTIONS=Object.freeze([{localId:'u3',centralId:'centro',name:'Centro de Contagem'},{localId:'u1',centralId:'big',name:'Big Shopping'},{localId:'u2',centralId:'shopping-contagem',name:'Shopping Contagem'}]);
@@ -7160,7 +7196,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function setCentralWriteUnits(units){try{sessionStorage.setItem(CENTRAL_WRITE_UNITS,JSON.stringify(Array.isArray(units)?units.map(String):[]))}catch(e){}return centralWriteUnits()}
  function centralUnitAllowed(unitId){let id=UNIT_TO_CENTRAL[unitId]||unitId;return centralWriteUnits().includes(id)}
  function centralEnabled(){let id=centralUnitId();return centralAuthenticated()&&!!id&&centralCanUse(id)&&centralUnitAllowed(id)}
- function setCentralSession(principal,csrfToken=''){centralClientGeneration++;centralClientIds.clear();try{if(principal){sessionStorage.setItem(CENTRAL_SESSION,'1');sessionStorage.setItem(CENTRAL_PRINCIPAL,JSON.stringify(principal));if(csrfToken)sessionStorage.setItem(CENTRAL_CSRF_KEY,csrfToken)}else{sessionStorage.removeItem(CENTRAL_SESSION);sessionStorage.removeItem(CENTRAL_PRINCIPAL);sessionStorage.removeItem(CENTRAL_CSRF_KEY);sessionStorage.removeItem(CENTRAL_WRITE_UNITS)}}catch(e){}return centralAuthenticated()}
+ function setCentralSession(principal,csrfToken=''){phase5Context.invalidateSession();centralClientGeneration++;centralClientIds.clear();try{if(principal){sessionStorage.setItem(CENTRAL_SESSION,'1');sessionStorage.setItem(CENTRAL_PRINCIPAL,JSON.stringify(principal));if(csrfToken)sessionStorage.setItem(CENTRAL_CSRF_KEY,csrfToken)}else{sessionStorage.removeItem(CENTRAL_SESSION);sessionStorage.removeItem(CENTRAL_PRINCIPAL);sessionStorage.removeItem(CENTRAL_CSRF_KEY);sessionStorage.removeItem(CENTRAL_WRITE_UNITS)}}catch(e){}return centralAuthenticated()}
  function setCentralEnabled(v){if(!v)return setCentralSession(null);if(!centralAuthenticated())throw new Error('Faça login no backend central primeiro');return centralEnabled()}
  function centralCsrf(){try{return sessionStorage.getItem(CENTRAL_CSRF_KEY)||''}catch(e){return ''}}
  function operationKey(scope){try{return scope+'_'+crypto.randomUUID()}catch(e){return scope+'_'+Date.now()+'_'+Math.random().toString(36).slice(2)}}
@@ -7540,14 +7576,60 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  const legacyRenderAgenda=window.renderAgenda||((typeof renderAgenda==='function')?renderAgenda:null);
  if(legacyRenderAgenda){let wrapped=function(){let out=legacyRenderAgenda.apply(this,arguments);if(centralEnabled()){let date=agendaDate;refreshCentralAgenda(date).then(ok=>{if(ok&&agendaDate===date)legacyRenderAgenda.apply(this,arguments)}).catch(e=>toast('Agenda central indisponível: '+e.message))}return out};window.renderAgenda=wrapped;try{renderAgenda=wrapped}catch(e){}}
  const legacySaveClient=window.saveClient||((typeof saveClient==='function')?saveClient:null);
- if(legacySaveClient){let wrapped=function auditClientCentralBridge(id=''){if(!centralEnabled()){if(officialProductionMode()){toast('Sessão central necessária para salvar cliente');return false}return legacySaveClient.apply(this,arguments)}let args=arguments,self=this;return (async()=>{if(!cfName.value.trim()||!cfPhone.value.trim()||!cfSource.value){toast('Preencha nome, celular e como conheceu o Império');return false}try{if(id){let x=await centralApi.client(id);if(!x||x.id!==id||x.active!==true)throw new Error('Cliente indisponível no banco central');mergeCentralClients([x])}let row=id?await centralApi.updateClient(id,centralClientPayload()):await centralApi.createClient(centralClientPayload());mergeCentralClients([row]);closeModal();renderClients();toast(id?'Cliente atualizada no banco central ✓':'Cliente cadastrada no banco central ✓');return row}catch(e){toast('Cliente não salva: '+e.message);return false}})()};window.saveClient=wrapped;try{saveClient=wrapped}catch(e){}}
- 
+ if(legacySaveClient){let saving=new Set(),wrapped=function auditClientCentralBridge(id=''){
+  if(!centralEnabled()){if(officialProductionMode()){toast('Sessão central necessária para salvar cliente');return false}return legacySaveClient.apply(this,arguments)}
+  const intent=phase5Context.current();
+  if(!phase5Context.modalPresent(intent)||intent.kind!=='client'||String(intent.form?.id||'')!==String(id||'')){
+   toast('Ficha alterada. Reabra a cliente antes de salvar');return false
+  }
+  if(saving.has(intent))return false;
+  // Capture everything before the first await: never read a different modal during this operation.
+  if(!cfName.value.trim()||!cfPhone.value.trim()||!cfSource.value){toast('Preencha nome, celular e como conheceu o Império');return false}
+  const payload=centralClientPayload();
+  const initial=intent.form||{origin:'',source:''};
+  if(id){
+   if(cfOrigin.value===initial.origin||(!initial.origin&&!cfOrigin.value))delete payload.origin;
+   if(cfSource.value===initial.source)delete payload.source;
+  }
+  const clientId=String(id||''),unit=intent.unit,operation={intent,id:clientId,payload:Object.freeze({...payload}),session:intent.session};
+  saving.add(intent);
+  return (async()=>{try{
+   if(clientId){
+    const current=await centralApi.client(clientId);
+    if(!phase5Context.modalPresent(intent)||!centralEnabled()||centralLocalUnitId()!==unit)return false;
+    if(current?.id!==clientId||current.active!==true)throw Error('Cliente indisponível no banco central');
+   }
+   if(!phase5Context.modalPresent(intent)||!centralEnabled())return false;
+   const row=clientId?await centralApi.updateClient(operation.id,operation.payload):await centralApi.createClient(operation.payload);
+   if(!row?.id||(clientId&&row.id!==clientId)||row.active!==true)throw Error('Resposta central incompatível com a operação');
+   // The server may already have committed; only visual effects are conditional.
+   if(!phase5Context.modalPresent(intent))return row;
+   mergeCentralClients([row]);closeModal();renderClients();
+   toast(clientId?'Cliente atualizada no banco central ✓':'Cliente cadastrada no banco central ✓');
+   return row;
+  }catch(e){if(phase5Context.modalPresent(intent))toast('Cliente não salva: '+e.message);return false}
+   finally{saving.delete(intent)}})()
+ };window.saveClient=wrapped;try{saveClient=wrapped}catch(e){}}
  const oldOpenClientFormV99=window.openClientForm;
  if(typeof oldOpenClientFormV99==='function'){let wrapped=function(id){
-  if(!officialProductionMode()||!id)return oldOpenClientFormV99.apply(this,arguments);
+  if(!officialProductionMode())return oldOpenClientFormV99.apply(this,arguments);
   if(!centralEnabled()){toast('Faça login novamente para editar cliente');return false}
+  const intent=phase5Context.adopt('client')||phase5Context.begin('client',{id});
+  if(String(intent.id||'')!==String(id||''))return false;
   const context=this,args=arguments;
-  return centralApi.client(id).then(row=>{if(!row||row.id!==id||row.active!==true)throw Error('Cliente não está no banco central');mergeCentralClients([row]);return oldOpenClientFormV99.apply(context,args)}).catch(e=>{toast('Edição indisponível: '+e.message);return false});
+  const show=row=>{
+   if(!phase5Context.valid(intent))return false;
+   if(id&&(!row||row.id!==id||row.active!==true))throw Error('Cliente não está no banco central');
+   if(row)mergeCentralClients([row]);
+   const result=phase5Context.run(intent,()=>oldOpenClientFormV99.apply(context,args));
+   if(phase5Context.modalPresent(intent)){
+    const c=row||(id?db.clients.find(x=>x.id===id):null);
+    intent.form={id:id||'',origin:c?.origin??'',source:c?.source??''};
+   }
+   return result;
+  };
+  if(!id)return show(null);
+  return centralApi.client(id).then(show).catch(e=>{if(phase5Context.valid(intent))toast('Edição indisponível: '+e.message);return false});
  };window.openClientForm=wrapped;try{openClientForm=wrapped}catch(e){}}
  const oldQuickSaveV99=window.saveQuickClientFromReservation;
  if(typeof oldQuickSaveV99==='function'){let wrapped=function(){
@@ -7625,7 +7707,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function applyCentralUnitGate(){if(!officialProductionMode())return;let picker=document.getElementById('unitPicker');if(!picker)return;let current=String(picker.value||''),rows=CENTRAL_UNIT_OPTIONS.filter(x=>centralAuthenticated()&&centralCanUse(x.centralId)&&centralUnitAllowed(x.centralId));picker.innerHTML=rows.map(x=>`<option value="${x.localId}">${x.name}</option>`).join('');let chosen=rows.some(x=>x.localId===current)?current:(rows.find(x=>x.centralId==='centro')||rows[0])?.localId||'';picker.value=chosen;picker.disabled=rows.length<=1}
  if(legacyBuildAdminNavV99){let wrapped=function(){let out=legacyBuildAdminNavV99.apply(this,arguments);applyCentralUnitGate();return out};window.buildAdminNav=wrapped;try{buildAdminNav=wrapped}catch(e){}}
  const legacyUnitChangeV99=window.handleUnitChange||((typeof handleUnitChange==='function')?handleUnitChange:null);
- if(legacyUnitChangeV99){let wrapped=function(){let requested=document.getElementById('unitPicker')?.value||'';let out=legacyUnitChangeV99.apply(this,arguments);if(officialProductionMode()&&centralAuthenticated()){applyCentralUnitGate();let picker=document.getElementById('unitPicker');if(picker&&[...picker.options].some(x=>x.value===requested))picker.value=requested}return out};window.handleUnitChange=wrapped;try{handleUnitChange=wrapped}catch(e){}}
+ if(legacyUnitChangeV99){let wrapped=function(){let requested=document.getElementById('unitPicker')?.value||'';phase5Context.invalidate();let out=legacyUnitChangeV99.apply(this,arguments);if(officialProductionMode()&&centralAuthenticated()){applyCentralUnitGate();let picker=document.getElementById('unitPicker');if(picker&&[...picker.options].some(x=>x.value===requested))picker.value=requested}return out};window.handleUnitChange=wrapped;try{handleUnitChange=wrapped}catch(e){}}
 
  const legacyStaffLoginV99=window.doLogin||((typeof doLogin==='function')?doLogin:null);
  if(legacyStaffLoginV99){let wrapped=function(){if(!officialProductionMode())return legacyStaffLoginV99.apply(this,arguments);let ue=document.getElementById('loginUser'),pe=document.getElementById('loginPass'),username=ue?.value.trim()||'',password=pe?.value||'';if(!username||!password){toast('Informe usuário e senha');return false}return (async()=>{try{let res=await fetch(endpoint()+'/api/v1/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({username,password})}),txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}if(!res.ok||!data.user)throw centralError(data,res.status);let local=(db.userAccounts||[]).find(x=>String(x.username||'').trim().toLowerCase()===username.toLowerCase()&&x.active!==false);/* In central mode the verified backend principal can log in without a migrated local identity. */let healthRes=await fetch(endpoint()+'/api/v1/health',{credentials:'include',headers:{'Accept':'application/json'}}),health=healthRes.ok?await healthRes.json():{};setCentralWriteUnits(health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)?health.operationalWriteUnits:[]);setCentralSession(data.user,data.csrfToken||'');window.__imperioProfessionalUnitHydration?.hydrateUnits(await centralApi.units());if(local)window.__imperioV63?.sessionSet?.(local.id);if(pe)pe.value='';showOnly('adminApp');buildAdminNav();applyCentralUnitGate();renderAdmin();toast('Sessão central autenticada ✓');return true}catch(e){setCentralSession(null);toast('Login não realizado: '+(e?.message||e));return false}})()};window.doLogin=wrapped;try{doLogin=wrapped}catch(e){}}
