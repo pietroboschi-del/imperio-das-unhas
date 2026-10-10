@@ -45,7 +45,7 @@ export class FinanceWriteController {
  private async authoritativeCashBalance(tx:Prisma.TransactionClient,row:{id:string;unitId:string;openingAmount:Prisma.Decimal;legacyPayload:unknown}){
   const zero=new Prisma.Decimal(0),legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload as any:{};
   const adjustments=Array.isArray(legacy.adjustments)?legacy.adjustments:[];
-  const payments=await tx.commandPayment.findMany({where:{cashSessionId:row.id,unitId:row.unitId,status:'CONFIRMED'},select:{method:true,amount:true,legacyPayload:true}});
+  const payments=await tx.commandPayment.findMany({where:{cashSessionId:row.id,unitId:row.unitId,status:'CONFIRMED'},select:{commandId:true,method:true,amount:true,legacyPayload:true}});
   let received=zero,cash=zero,pix=zero,cards=zero,fees=zero,sangrias=zero,expenses=zero,advances=zero,transfers=zero,adjustmentTotal=zero;
   for(const p of payments){
    if(['DIRECT_PROFESSIONAL','BARTER'].includes(p.method))continue;
@@ -69,8 +69,33 @@ export class FinanceWriteController {
     if(nature==='transfer')transfers=transfers.plus(outgoing);
    }
   }
+  // A tip is materialized as a TIP obligation when a command is fully paid.
+  // Attribute it once to the cash session of the final confirmed payment,
+  // not to every session that received a partial payment.
+  let tips=zero;
+  const commandIds=[...new Set(payments.map(p=>p.commandId))];
+  if(commandIds.length){
+   const allPayments=await tx.commandPayment.findMany({where:{unitId:row.unitId,status:'CONFIRMED',commandId:{in:commandIds}},select:{id:true,commandId:true,cashSessionId:true},orderBy:[{receivedAt:'desc'},{id:'desc'}]});
+   const seen=new Set<string>(),settledHere:string[]=[];
+   for(const payment of allPayments){
+    if(seen.has(payment.commandId))continue;
+    seen.add(payment.commandId);
+    if(payment.cashSessionId===row.id)settledHere.push(payment.commandId);
+   }
+   if(settledHere.length){
+    const obligations=await tx.professionalObligation.findMany({where:{unitId:row.unitId,kind:'TIP',commandId:{in:settledHere}},select:{amount:true,legacyPayload:true}});
+    for(const obligation of obligations){
+     const legacyTip=obligation.legacyPayload&&typeof obligation.legacyPayload==='object'&&!Array.isArray(obligation.legacyPayload)?obligation.legacyPayload as any:{};
+     // The persisted TIP obligation holds net (Decimal) and the historical gross.
+     const value=legacyTip.gross??new Prisma.Decimal(obligation.amount).plus(legacyTip.deduction||0);
+     const gross=new Prisma.Decimal(String(value));
+     if(!gross.isFinite()||gross.lt(0)||!gross.eq(gross.toDecimalPlaces(2)))throw new ConflictException('Gorjeta persistida com valor bruto inválido');
+     tips=tips.plus(gross);
+    }
+   }
+  }
   const expected=new Prisma.Decimal(row.openingAmount).plus(cash).plus(adjustmentTotal);
-  const snapshot={received:Number(received),cash:Number(cash),pix:Number(pix),cards:Number(cards),fees:Number(fees),sangrias:Number(sangrias),expenses:Number(expenses),advances:Number(advances),transfers:Number(transfers),physicalExpected:Number(expected)};
+  const snapshot={received:Number(received),cash:Number(cash),pix:Number(pix),cards:Number(cards),fees:Number(fees),sangrias:Number(sangrias),expenses:Number(expenses),advances:Number(advances),transfers:Number(transfers),tips:Number(tips),physicalExpected:Number(expected)};
   return {expected,snapshot};
  }
  private stockSaleOperationKey(commandId:string,line:any,index:number){
