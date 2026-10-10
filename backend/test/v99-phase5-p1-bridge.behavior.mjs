@@ -26,8 +26,9 @@ eq(db.clients.find(c=>c.id==='cl_canonical').technicalProvenance,'central_api','
 
 let loginValid=true,localWrites=0,requests=[],errors=[],fetchCount=0;
 const selected=db.clients.find(c=>c.id==='op_central');
-const window={resDraft:draft,commandReturnId:null,__imperioCentralClientIdentity:{valid:c=>!!c&&ids.has(c.id)&&c.central===true&&c.active===true},saveReservation:()=>{localWrites++;return false}};
+const window={resDraft:null,commandReturnId:null,__imperioCentralClientIdentity:{valid:c=>!!c&&ids.has(c.id)&&c.central===true&&c.active===true},saveReservation:()=>{localWrites++;return false}};
 const draft={clientId:'cl_legacy_only',date:'2026-10-12',status:'Agendado',items:[{serviceId:'s1',pro:'p1',time:'10:00',duration:30,price:50},{serviceId:'s2',pro:'p2',time:'10:30',duration:40,price:70}]};
+window.resDraft=draft;
 const booking={
  client:async id=>{fetchCount++;return db.clients.find(c=>c.id===id&&ids.has(id))||null},
  createBooking:async(body,key)=>{requests.push({body,key});return{id:'booking_ci',clientId:body.clientId,status:'Agendado'}}
