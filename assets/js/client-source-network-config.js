@@ -4,7 +4,7 @@
  'use strict';
  const KEY='clients.source';
  const ROUTE='/api/v1/config/client-sources';
- let serverVersion=null, busy=false, loaded=false;
+ let serverVersion=null, busy=false, loaded=false, refreshGeneration=0;
  const original={};
  const production=()=>location.protocol!=='file:'&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1';
  const endpoint=()=>String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'');
@@ -13,8 +13,10 @@
    return JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'null');
  }catch(e){return null}};
  const owner=()=>{const p=principal();return !!p&&p.networkAdmin===true&&p.systemRole==='OWNER'&&!!(p.userId||p.id)};
+ const context=()=>window.__imperioPhase5Context;
  const notify=s=>{if(typeof window.toast==='function')window.toast(s);else console.warn(s)};
  async function request(method,body){
+   const session=context()?.session?.();
    const headers={Accept:'application/json'};
    if(body!==undefined)headers['Content-Type']='application/json';
    if(method!=='GET'){
@@ -22,15 +24,16 @@
      if(!csrf)throw new Error('Token de sessão ausente. Reabra a Área da equipe.');
      headers['X-CSRF-Token']=csrf;
    }
-   const res=await fetch(endpoint()+ROUTE,{method,credentials:'include',headers,
+   const res=await fetch(endpoint()+ROUTE,{method,credentials:'include',cache:'no-store',headers,
      ...(body!==undefined?{body:JSON.stringify(body)}:{})});
    const data=await res.json().catch(()=>null);
-   if(res.status===401){window.__imperioCentralApi?.disable?.();if(typeof showOnly==='function')showOnly('loginApp')}if(!res.ok)throw new Error((Array.isArray(data?.message)?data.message.join(' · '):data?.message)||('HTTP '+res.status));
+   if(res.status===401&&session===context()?.session?.()){window.__imperioCentralApi?.disable?.();if(typeof showOnly==='function')showOnly('loginApp')}if(!res.ok)throw new Error((Array.isArray(data?.message)?data.message.join(' · '):data?.message)||('HTTP '+res.status));
    if(!data||!Array.isArray(data.options)||!Number.isSafeInteger(data.version))
      throw new Error('Configuração central de origem inválida');
    return data;
  }
  function apply(data){
+   if(serverVersion!==null&&data?.version<serverVersion)return false;
    if(!data||!Array.isArray(data.options)||!Number.isSafeInteger(data.version))
      throw new Error('Resposta central inválida');
    const opts=data.options.map((o,i)=>({
@@ -50,8 +53,10 @@
  }
  async function refresh(){
    if(!production())return false;
+   const revision=++refreshGeneration,session=context()?.session?.();
    const data=await request('GET');
-   apply(data);return true;
+   if(revision!==refreshGeneration||session!==context()?.session?.())return false;
+   return apply(data)!==false;
  }
  function mutate(kind,args){
    const existing=db.systemSettings?.optionSets?.[KEY]?.options||[];
@@ -92,17 +97,21 @@
  async function change(kind,args){
    if(busy)return false;
    busy=true;
+   const intent=context()?.current?.(),session=context()?.session?.();
    try{
      if(!owner())throw new Error('Apenas a Administração da rede pode alterar estas opções');
      // Always fetch latest network revision to prevent silent overwrites.
-     await refresh();
+     if(!(await refresh())||session!==context()?.session?.()||(intent&&!context()?.valid(intent)))return false;
      const next=mutate(kind,args);
      if(next===null)return false;
      const saved=await request('PUT',{expectedVersion:serverVersion,options:next});
+     if(session!==context()?.session?.())return false;
      apply(saved);
-     const list=document.getElementById('v71OptionList');
-     if(list&&original.openOptionSet)original.openOptionSet(KEY);
-     notify('Opções salvas para as três unidades ✓');
+     if(!intent||context()?.valid(intent)){
+       const list=document.getElementById('v71OptionList');
+       if(list&&original.openOptionSet)original.openOptionSet(KEY);
+       notify('Opções salvas para as três unidades ✓');
+     }
      return true;
    }catch(e){
      // No local mutation before server acknowledged the change.
@@ -112,15 +121,27 @@
  }
  function install(){
    const wrappers=[
-     ['openClientForm',async function(base,args){try{await refresh();return base.apply(this,args)}catch(e){notify('Não foi possível carregar “Como conheceu”: '+e.message);return false}}],
-     ['openQuickClientFromReservation',async function(base,args){try{await refresh();return base.apply(this,args)}catch(e){notify('Não foi possível carregar “Como conheceu”: '+e.message);return false}}],
-     ['v71OpenFieldsSettings',async function(base,args){try{await refresh();return base.apply(this,args)}catch(e){notify('Configurações centrais indisponíveis: '+e.message);return false}}],
-     ['v71OpenOptionSet',async function(base,args){try{await refresh();return base.apply(this,args)}catch(e){notify('Opções centrais indisponíveis: '+e.message);return false}}],
+     ['openClientForm','client','Não foi possível carregar “Como conheceu”'],
+     ['openQuickClientFromReservation','quick','Não foi possível carregar “Como conheceu”'],
+     ['v71OpenFieldsSettings','settings','Configurações centrais indisponíveis'],
+     ['v71OpenOptionSet','options','Opções centrais indisponíveis'],
    ];
-   for(const [name,wrap] of wrappers){
+   for(const [name,kind,errorText] of wrappers){
      const base=window[name];if(typeof base!=='function')continue;
      original[name==='v71OpenOptionSet'?'openOptionSet':name]=base;
-     const fn=function(...args){if(!production())return base.apply(this,args);return wrap.call(this,base,args)};
+     const fn=function(...args){
+       if(!production())return base.apply(this,args);
+       const manager=context(),intent=manager?.begin(kind,{id:kind==='client'?String(args[0]||''):''}),self=this;
+       return (async()=>{
+         try{
+           if(!(await refresh())||!manager?.valid(intent))return false;
+           return manager.run(intent,()=>base.apply(self,args));
+         }catch(e){
+           if(manager?.valid(intent))notify(errorText+': '+e.message);
+           return false;
+         }
+       })();
+     };
      window[name]=fn;try{if(name==='openClientForm')openClientForm=fn;else if(name==='openQuickClientFromReservation')openQuickClientFromReservation=fn}catch(e){}
    }
    for(const [name,kind] of [['v71AddOption','add'],['v71RenameOption','rename'],['v71ToggleOption','toggle'],['v71MoveOption','move'],['v71SetDefaultOption','default']]){
