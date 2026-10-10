@@ -55,7 +55,9 @@ async function main(){
   const race=await Promise.all(['A','B'].map(v=>call(owner,'centro','/finance/receivables/settle','POST',{...monthly,amount:80},'a3-monthly-race-'+v)));
   ok(race.map(v=>v.status).sort().join(',')==='201,409','concorrência bloqueia recebimento duplicado');
   ok(Number((await prisma.receivableOpening.findUniqueOrThrow({where:{id:rv.id}})).balance)===20,'apenas um recebimento concorrente aplicado');
-  r=await call(owner,'centro','/stock/purchases','POST',{purchaseDate:day,supplier:'Fornecedor sintético A3',destinationLocationId:'centro',financeUnitId:'centro',freight:0,items:[{productId:'finance-prod-sale',qty:1,unitCost:9}]},'a3-stock-purchase');ok(r.ok,'compra gera obrigação persistida');const purchase=await r.json();
+  await prisma.stockLocation.upsert({where:{id:'centro'},create:{id:'centro',unitId:'centro',name:'Estoque Centro',kind:'UNIT'},update:{active:true}});
+  await prisma.product.upsert({where:{id:'a3-prod'},create:{id:'a3-prod',name:'Produto A3',type:'RESALE',active:true,defaultCost:9,salePrice:20},update:{active:true}});
+  r=await call(owner,'centro','/stock/purchases','POST',{purchaseDate:day,supplier:'Fornecedor sintético A3',destinationLocationId:'centro',financeUnitId:'centro',freight:0,items:[{productId:'a3-prod',qty:1,unitCost:9}]},'a3-stock-purchase');ok(r.ok,'compra gera obrigação persistida');const purchase=await r.json();
   r=await call(owner,'centro','/finance/purchase-payables');ok((await r.json()).some(p=>p.id===purchase.id&&p.financeStatus==='A pagar'),'obrigação visível em segunda sessão');
   const payBody={accountId:'a3_centro_bank',date:another};
   r=await call(owner,'centro','/finance/purchase-payables/'+purchase.id+'/settle','POST',payBody,'a3-purchase-paid');ok(r.ok,'baixa obrigação da compra');const paid=await r.json();
