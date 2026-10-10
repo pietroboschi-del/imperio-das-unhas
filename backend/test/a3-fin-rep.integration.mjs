@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
+import {spawn, execFileSync} from 'node:child_process';
 import {once} from 'node:events';
 import {PrismaClient} from '@prisma/client';
 import {readFileSync} from 'node:fs';
@@ -8,7 +8,9 @@ const cookie=r=>(r.headers.get('set-cookie')||'').split(';')[0];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 async function wait(){for(let i=0;i<80;i++){try{if((await fetch(root+'/api/v1/health')).ok)return}catch{}await pause(250)}throw Error('Nest não iniciou para A3')}
 async function main(){
- const src=readFileSync(new URL('../../assets/js/a3-finance-central.js',import.meta.url),'utf8');
+ const frontendFile=new URL('../../assets/js/a3-finance-central.js',import.meta.url);
+ execFileSync(process.execPath,['--check',frontendFile.pathname]);
+ const src=readFileSync(frontendFile,'utf8');
  assert.match(src,/function centralClosedRows\(/);assert.match(src,/central finance|central-only financial/i);
  const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:''},stdio:['ignore','pipe','pipe']});
  try{

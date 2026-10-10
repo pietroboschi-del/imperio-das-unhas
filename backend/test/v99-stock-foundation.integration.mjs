@@ -24,7 +24,7 @@ const idem=(x)=>({'idempotency-key':'stock-ci-'+x});
 async function main(){
  await clean();
  for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']])await prisma.unit.upsert({where:{id},create:{id,name,active:true},update:{name,active:true}});
- const mh=await makeUser('stock-multi','stock_multi_ci',['centro','big','shopping-contagem']);
+ const mh=await makeUser('stock-multi','stock_multi_ci',['centro','big','shopping-contagem'],['stock.read','stock.manage','finance.manage']);
  const ch=await makeUser('stock-centro','stock_centro_ci',['centro']);
  const rh=await makeUser('stock-read','stock_read_ci',['centro'],['stock.read']);
  const oh=await makeUser('stock-owner','stock_owner_ci',['centro','big','shopping-contagem'],['*'],true);
@@ -52,7 +52,7 @@ async function main(){
     {id:'stock-ci-freight-b',sku:'FREIGHT-B-CI',name:'Frete B',type:'INPUT',unit:'un',defaultCost:1,allocations:{cat:100},active:true},
     {id:'stock-ci-freight-c',sku:'FREIGHT-C-CI',name:'Frete C',type:'INPUT',unit:'un',defaultCost:1,allocations:{cat:100},active:true},
   ]){r=await req('/api/v1/stock/products',{method:'POST',headers:mh,body});ok(r.ok,'freight regression product '+body.id)}
-  r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-freight-residual')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor Frete',destinationLocationId:'central',freight:1,items:[
+  r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-freight-residual')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor Frete',destinationLocationId:'central',financeUnitId:'centro',freight:1,items:[
     {productId:'stock-ci-freight-a',qty:1,unitCost:1},
     {productId:'stock-ci-freight-b',qty:1,unitCost:1},
     {productId:'stock-ci-freight-c',qty:1,unitCost:1},
@@ -70,14 +70,14 @@ async function main(){
   }
 
   // Purchase with proportional freight: goods 200; each line receives 10 freight.
-  r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-central-1')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor CI',destinationLocationId:'central',freight:20,items:[{productId:'stock-ci-a',qty:10,unitCost:10},{productId:'stock-ci-b',qty:5,unitCost:20}]}});ok(r.ok,'central purchase');let purchase=await r.json();
+  r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-central-1')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor CI',destinationLocationId:'central',financeUnitId:'centro',freight:20,items:[{productId:'stock-ci-a',qty:10,unitCost:10},{productId:'stock-ci-b',qty:5,unitCost:20}]}});ok(r.ok,'central purchase');let purchase=await r.json();
   eq(Number(purchase.items[0].freightShare),10,'freight proportional item A');eq(Number(purchase.items[0].landedUnitCost),11,'landed cost A');
   eq(Number(purchase.items[1].freightShare),10,'freight proportional item B');eq(Number(purchase.items[1].landedUnitCost),22,'landed cost B');
   // Replay same idempotency key cannot double stock.
-  r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-central-1')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor CI',destinationLocationId:'central',freight:20,items:[{productId:'stock-ci-a',qty:10,unitCost:10},{productId:'stock-ci-b',qty:5,unitCost:20}]}});ok(r.ok,'purchase replay accepted idempotently');
+  r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-central-1')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor CI',destinationLocationId:'central',financeUnitId:'centro',freight:20,items:[{productId:'stock-ci-a',qty:10,unitCost:10},{productId:'stock-ci-b',qty:5,unitCost:20}]}});ok(r.ok,'purchase replay accepted idempotently');
   let bal=await prisma.stockBalance.findUniqueOrThrow({where:{productId_locationId:{productId:'stock-ci-a',locationId:'central'}}});eq(Number(bal.qty),10,'purchase replay did not duplicate qty');eq(Number(bal.avgCost),11,'purchase sets avg cost');
 
-  r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-central-2')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor CI 2',destinationLocationId:'central',freight:0,items:[{productId:'stock-ci-a',qty:10,unitCost:13}]}});ok(r.ok,'second purchase');
+  r=await req('/api/v1/stock/purchases',{method:'POST',headers:{...mh,...idem('purchase-central-2')},body:{purchaseDate:'2026-10-06',supplier:'Fornecedor CI 2',destinationLocationId:'central',financeUnitId:'centro',freight:0,items:[{productId:'stock-ci-a',qty:10,unitCost:13}]}});ok(r.ok,'second purchase');
   bal=await prisma.stockBalance.findUniqueOrThrow({where:{productId_locationId:{productId:'stock-ci-a',locationId:'central'}}});eq(Number(bal.qty),20,'second purchase qty');eq(Number(bal.avgCost),12,'weighted average cost');
 
   // Independent balances at each store.
