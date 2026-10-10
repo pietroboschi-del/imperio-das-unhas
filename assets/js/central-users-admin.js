@@ -103,6 +103,45 @@
  };
  const baseRender=window.renderAdmin;
  if(typeof baseRender==='function')window.renderAdmin=function(){if(typeof page!=='undefined'&&page==='central-users')return load();return baseRender.apply(this,arguments);};
+ // Restore an existing owner cookie session when entering the staff area.
+ // The backend /auth/me is the sole authority; browser storage only mirrors its validated response.
+ const legacyStaffOpen=window.openLogin;
+ if(typeof legacyStaffOpen==='function'){
+  let restoring=false;
+  const resumeStaff=async function(){
+   if(restoring)return false;
+   restoring=true;
+   try{
+    const identity=await request('/api/v1/auth/me');
+    if(!identity?.user?.userId||identity.user.networkAdmin!==true)
+     throw new Error('Reautenticação necessária');
+    const token=await request('/api/v1/auth/csrf');
+    if(!token?.csrfToken)throw new Error('Token CSRF indisponível');
+    const [health,unitRows]=await Promise.all([request('/api/v1/health'),request('/api/v1/units')]);
+    if(!health?.ok||!Array.isArray(unitRows))throw new Error('Estado central indisponível');
+    const writeUnits=health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)?health.operationalWriteUnits:[];
+    window.__imperioProfessionalUnitHydration?.hydrateUnits(unitRows);
+    sessionStorage.setItem('imperio-v99-central-principal',JSON.stringify(identity.user));
+    sessionStorage.setItem('imperio-v96-shadow-csrf',token.csrfToken);
+    sessionStorage.setItem('imperio-v99-central-write-units',JSON.stringify(writeUnits));
+    sessionStorage.setItem('imperio-v99-central-authenticated','1');
+    showOnly('adminApp');
+    buildAdminNav();
+    renderAdmin();
+    return true;
+   }catch(e){
+    // Never treat a prior sessionStorage value as proof of authorization.
+    window.__imperioCentralApi?.disable?.();
+    legacyStaffOpen();
+    return false;
+   }finally{restoring=false;}
+  };
+  window.openLogin=function(){
+   if(!window.__imperioCentralApi?.status?.().endpoint)return legacyStaffOpen.apply(this,arguments);
+   if(!/^https?:$/.test(location.protocol))return legacyStaffOpen.apply(this,arguments);
+   return resumeStaff();
+  };
+ }
  install();
  window.__imperioCentralUsersSecure={open,verify,load};
 })();
