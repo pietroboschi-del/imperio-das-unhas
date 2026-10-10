@@ -25,7 +25,7 @@
    const res=await fetch(endpoint()+ROUTE,{method,credentials:'include',headers,
      ...(body!==undefined?{body:JSON.stringify(body)}:{})});
    const data=await res.json().catch(()=>null);
-   if(!res.ok)throw new Error((Array.isArray(data?.message)?data.message.join(' · '):data?.message)||('HTTP '+res.status));
+   if(res.status===401){window.__imperioCentralApi?.disable?.();if(typeof showOnly==='function')showOnly('loginApp')}if(!res.ok)throw new Error((Array.isArray(data?.message)?data.message.join(' · '):data?.message)||('HTTP '+res.status));
    if(!data||!Array.isArray(data.options)||!Number.isSafeInteger(data.version))
      throw new Error('Configuração central de origem inválida');
    return data;
