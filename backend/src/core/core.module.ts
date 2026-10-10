@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MessagingModule } from '../messaging/messaging.module';
 import { CoreReadController } from './core-read.controller';
+import { ClientSourceConfigController } from './client-source-config.controller';
 import { CoreWriteController } from './core-write.controller';
 import { FinanceWriteController } from './finance-write.controller';
 import { PublicBookingController } from './public-booking.controller';
@@ -19,7 +20,7 @@ import { StockController } from './stock.controller';
 import { StockService } from './stock.service';
 @Module({
  imports:[MessagingModule],
- controllers:[CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController,StructuralConfigController,UnitPublicProfileController,WhatsappAgentController,WaitlistController,StockController],
+ controllers:[ClientSourceConfigController,CoreReadController,CoreWriteController,FinanceWriteController,PublicBookingController,CatalogConfigController,StructuralConfigController,UnitPublicProfileController,WhatsappAgentController,WaitlistController,StockController],
  providers:[BookingAvailabilityService,BookingCreationService,WhatsappAgentGuard,WaitlistService,WaitlistOpportunityService,WaitlistTraceService,StockService],
 })
 export class CoreModule {}
