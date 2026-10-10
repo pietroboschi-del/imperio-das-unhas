@@ -121,7 +121,7 @@ export class FinanceCentralController {
    const account=await this.account(tx,req.unitId!,accountId);
    const session=await this.session(tx,req.unitId!,account.type,b.cashSessionId);
    const rows=await tx.receivableOpening.findMany({where:{clientId,balance:{gt:0}},orderBy:[{sourceDate:'asc'},{createdAt:'asc'},{id:'asc'}]});
-   for(const rv of rows)if(rv.unitId)this.permission(req.principal!,rv.unitId,'finance.read');
+   for(const rv of rows)if(rv.unitId)this.permission(req.principal!,rv.unitId,'finance.receivables.settle');
    const due=rows.reduce((s,x)=>s.plus(x.balance),new Prisma.Decimal(0));
    if(amount.gt(due))throw new ConflictException('Valor excede os recebíveis persistidos');
    let left=amount;const allocations:any[]=[];
@@ -168,6 +168,8 @@ export class FinanceCentralController {
   }
   const extra=await this.prisma.centralFinanceEntry.findMany({where:{unitId:req.unitId!,kind:'MONTHLY_RECEIPT',status:'Efetivado',date:{gte:start,lte:end}}});
   for(const x of extra)if(!seen.has(x.id)){seen.add(x.id);receipts.push({id:x.id,source:'monthly',unitId:x.unitId,cashSessionId:x.cashSessionId,date:x.date.toISOString().slice(0,10),method:(x.metadata as any)?.method||'OTHER',accountId:x.accountId,amount:x.amount});}
+  const manualIncome=await this.prisma.centralFinanceEntry.findMany({where:{unitId:req.unitId!,kind:'MANUAL',status:'Efetivado',amount:{gt:0},date:{gte:start,lte:end}}});
+  for(const x of manualIncome)if(!seen.has(x.id)){seen.add(x.id);receipts.push({id:x.id,source:'manual',unitId:x.unitId,cashSessionId:x.cashSessionId,date:x.date.toISOString().slice(0,10),method:(x.metadata as any)?.accountType==='CASH'?'CASH':'OTHER',accountId:x.accountId,amount:x.amount});}
   const cash=receipts.reduce((sum,x)=>sum.plus(x.amount),new Prisma.Decimal(0));
   const commands=await this.prisma.openCommand.findMany({where:{unitId:req.unitId!,status:'CLOSED',serviceDate:{gte:start,lte:end}},select:{grossAmount:true,discountAmount:true}});
   const competence=commands.reduce((sum,x)=>sum.plus(new Prisma.Decimal(x.grossAmount).minus(x.discountAmount)),new Prisma.Decimal(0));

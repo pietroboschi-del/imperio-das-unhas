@@ -69,6 +69,8 @@ async function main(){
   ok(Number(closed.legacyPayload.systemExpected)===20,'dinheiro físico apurado sem PIX de Conta Mensal');
   r=await call(owner,'centro','/finance/reports/receipt-summary?from=2026-10-07&to=2026-10-07');ok(r.ok,'relatório central disponível');const report=await r.json();
   ok(report.receipts.filter(p=>p.id===settlement.id).length===1,'recebimento mensal não duplicado no caixa');
+  ok(report.receipts.filter(p=>p.id===created.id&&p.source==='manual').length===1,'receita manual persistida aparece uma vez no resumo financeiro');
+  ok(Number(report.cashReceipts)>=150,'caixa consolidado soma mensal confirmado e receita manual sem competência duplicada');
   ok(Number(report.competenceRevenue)>=150&&Number(report.cashReceipts)>=130,'competência separada do caixa');
   r=await call(owner,'big','/finance/reports/receipt-summary?from=2026-10-07&to=2026-10-08');ok(r.ok&&(await r.json()).receipts.every(p=>p.unitId==='big'),'relatório Big não inclui Centro');
   r=await call(owner,'shopping-contagem','/finance/reports/receipt-summary?from=2026-10-07&to=2026-10-08');ok(r.ok&&(await r.json()).receipts.every(p=>p.unitId==='shopping-contagem'),'relatório Shopping segregado');
