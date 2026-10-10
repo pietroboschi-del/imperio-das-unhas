@@ -12,7 +12,7 @@
   if(body!==undefined)headers['Content-Type']='application/json';
   if(method!=='GET'){const token=csrf();if(!token)throw new Error('CSRF indisponível');headers['X-CSRF-Token']=token;}
   const response=await fetch(API()+path,{method,credentials:'include',headers,body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});
-  if(response.status===401||response.status===403)throw new Error('Sessão inválida ou sem autorização');
+  if(response.status===401){window.__imperioCentralApi?.disable?.();if(typeof showOnly==='function')showOnly('loginApp');throw new Error('Sessão inválida ou expirada')}if(response.status===403)throw new Error('Sem autorização');
   if(!response.ok)throw new Error('Falha HTTP '+response.status);
   return response.json();
  }

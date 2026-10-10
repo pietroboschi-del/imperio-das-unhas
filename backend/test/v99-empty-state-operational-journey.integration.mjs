@@ -70,8 +70,13 @@ async function identityAndCatalog(owner){
  return {date,service,pros};
 }
 async function clientAgenda(owner,cfg){
- const client=await good(await req('/api/v1/clients',{actor:owner,unit:'big',method:'POST',key:'journey-global',body:{name:'Cliente Global Jornada',phone:'31999991837',email:'journey@example.invalid',source:'Presencial'}}),'manual client Big');
- await good(await req('/api/v1/clients/'+client.id,{actor:owner,unit:'big',method:'PATCH',body:{notes:'Nota teste rede'}}),'client profile edit');
+ const client=await good(await req('/api/v1/clients',{actor:owner,unit:'big',method:'POST',key:'journey-global',body:{name:'Cliente Global Jornada',phone:'31999991837',email:'journey@example.invalid',source:'Instagram',origin:'Presencial'}}),'manual client Big');
+  eq(client.origin,'Presencial','registration origin preserved separate from source');eq(client.source,'Instagram','acquisition source persisted');
+ const patched=await good(await req('/api/v1/clients/'+client.id,{actor:owner,unit:'big',method:'PATCH',body:{notes:'Nota teste rede'}}),'client profile edit');
+  eq(patched.origin,'Presencial','PATCH preserves origin');eq(patched.source,'Instagram','PATCH preserves source');
+  const exact=await good(await req('/api/v1/clients/'+client.id,{actor:owner,unit:'centro'}),'canonical client by ID');eq(exact.id,client.id,'canonical ID remains stable');
+  eq((await req('/api/v1/clients/cl-legacy-unreconciled',{actor:owner,unit:'centro'})).status,404,'unknown legacy identity safely rejected');
+  eq((await req('/api/v1/clients/'+client.id,{unit:'centro'})).status,401,'client read requires session');
  const user=await good(await req('/api/v1/admin/users',{actor:owner,method:'POST',body:{username:'journey_agenda_ci',displayName:'Agenda Rede',systemRole:'OPERATOR',permissions:['agenda.read','agenda.manage','clients.read'],units:[{unitId:'big',role:'reception',permissions:['clients.read']}]}}),'create cross-unit reception');
  const token=await good(await req('/api/v1/auth/users/'+user.id+'/activation-token',{actor:owner,method:'POST',body:{}}),'issue activation');
  await good(await req('/api/v1/auth/activate',{method:'POST',body:{token:token.token,newPassword:'journey-agenda-password-123'}}),'activate user');
@@ -81,6 +86,7 @@ async function clientAgenda(owner,cfg){
  for(const [unit,time] of [['big','10:00'],['centro','11:00'],['shopping-contagem','12:00']]){
   const search=await good(await req('/api/v1/clients?q=Cliente%20Global',{actor:desk,unit}),'global client search '+unit);
   ok(search.some(c=>c.id===client.id),'client reused in '+unit);
+   const byId=await good(await req('/api/v1/clients/'+client.id,{actor:desk,unit}),'exact client from '+unit);eq(byId.id,client.id,'same identity '+unit);
   const availability=await good(await req('/api/v1/public/availability?unitId='+unit+'&serviceId='+cfg.service+'&professionalId='+cfg.pros[unit]+'&date='+cfg.date),'availability for reception '+unit);
   ok(Array.isArray(availability.slots)&&availability.slots.length>0,'available time in '+unit);
   const b=await good(await req('/api/v1/bookings',{actor:desk,unit,method:'POST',key:'journey-booking-'+unit,body:{clientId:client.id,serviceId:cfg.service,professionalId:cfg.pros[unit],serviceDate:cfg.date,startAt:cfg.date+'T'+time+':00-03:00'}}),'reception appointment '+unit);
@@ -88,7 +94,15 @@ async function clientAgenda(owner,cfg){
   const visible=await good(await req('/api/v1/bookings',{actor:desk,unit}),'reception booking readback '+unit);
   ok(visible.some(x=>x.id===b.id),'cross-unit agenda read permission '+unit);
  }
- eq(await prisma.client.count({where:{id:client.id}}),1,'no duplicate Client');
+ const items=[{serviceId:cfg.service,professionalId:cfg.pros.big,startAt:cfg.date+'T13:00:00-03:00',durationMin:30,unitPrice:50},{serviceId:cfg.service,professionalId:cfg.pros.big,startAt:cfg.date+'T13:30:00-03:00',durationMin:30,unitPrice:60}];
+  const multi=await good(await req('/api/v1/bookings',{actor:desk,unit:'big',method:'POST',key:'journey-multi',body:{clientId:client.id,serviceDate:cfg.date,items}}),'multi-item booking');
+  eq(multi.items.length,2,'two item response');eq(await prisma.bookingItem.count({where:{bookingId:multi.id}}),2,'two persisted items');
+  const replay=await good(await req('/api/v1/bookings',{actor:desk,unit:'big',method:'POST',key:'journey-multi',body:{clientId:client.id,serviceDate:cfg.date,items}}),'idempotent booking retry');eq(replay.id,multi.id,'stable booking id');
+  const later=items.map((x,i)=>({...x,startAt:cfg.date+'T'+(i?'14:30':'14:00')+':00-03:00'}));
+  const moved=await good(await req('/api/v1/bookings/'+multi.id,{actor:desk,unit:'big',method:'PATCH',body:{serviceDate:cfg.date,items:later}}),'reschedule multi-item booking');eq(moved.items.length,2,'reschedule keeps items');
+  const conflict=await req('/api/v1/bookings',{actor:desk,unit:'big',method:'POST',key:'journey-conflict',body:{clientId:client.id,serviceDate:cfg.date,items:[later[0]]}});eq(conflict.status,409,'slot conflict prevented');
+  const cancelled=await good(await req('/api/v1/bookings/'+multi.id,{actor:desk,unit:'big',method:'PATCH',body:{status:'Cancelado'}}),'cancel multi-item booking');eq(cancelled.status,'Cancelado','cancellation persisted');eq(await prisma.bookingItem.count({where:{bookingId:multi.id}}),2,'cancel keeps history');
+  eq(await prisma.client.count({where:{id:client.id}}),1,'no duplicate Client');
  eq(await prisma.clientUnitLink.count({where:{clientId:client.id,active:true}}),3,'three unit history links');
  for(const unit of UNITS){
   const before={cash:await prisma.cashSession.count(),finance:await prisma.openCommand.count(),stock:await prisma.stockLocation.count(),movements:await prisma.stockMovement.count(),workstations:await prisma.workstation.count()};

@@ -13,7 +13,7 @@ export class CoreReadController {
     const legacy=row?.legacyPayload&&typeof row.legacyPayload==='object'?row.legacyPayload:{};
     const p=legacy?.operationalProfile&&typeof legacy.operationalProfile==='object'?legacy.operationalProfile:legacy;
     const {legacyPayload,...base}=row;
-    return {...base,cpf:p?.cpf||'',birthDate:p?.birthDate||'',cep:p?.cep||'',neighborhood:p?.neighborhood||'',city:p?.city||'',profession:p?.profession||'',source:p?.source||'',notes:p?.notes||''};
+    return {...base,cpf:p?.cpf||'',birthDate:p?.birthDate||'',cep:p?.cep||'',neighborhood:p?.neighborhood||'',city:p?.city||'',profession:p?.profession||'',source:p?.source||'',origin:p?.origin||'',notes:p?.notes||''};
   }
   private bookingSelect(){
     return {id:true,unitId:true,clientId:true,serviceDate:true,startAt:true,serviceId:true,professionalId:true,notes:true,status:true,blockAllDay:true,blockSeriesId:true,blockRecurrence:true,blockException:true,version:true,client:{select:{id:true,name:true,phone:true,email:true}},service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}},items:{orderBy:{sortOrder:'asc' as const},select:{id:true,serviceId:true,professionalId:true,startAt:true,durationMin:true,unitPrice:true,preference:true,forceFit:true,sortOrder:true,clientAreaSnapshot:true,mustFinishBeforeSameAreaSnapshot:true,service:{select:{id:true,name:true,price:true,durationMin:true}},professional:{select:{id:true,name:true,publicName:true}}}}};
@@ -47,6 +47,16 @@ export class CoreReadController {
     const term=String(q||'').trim();
     const rows=await this.prisma.client.findMany({where:{active:true,...(term?{AND:[{OR:[{name:{contains:term,mode:'insensitive'}},{phone:{contains:term}},{email:{contains:term,mode:'insensitive'}}]}]}:{})},select:{id:true,name:true,active:true,phone:true,email:true,registrationUnitId:true,version:true,legacyPayload:true,unitLinks:{where:{active:true},select:{unitId:true,source:true}}},orderBy:{name:'asc'},take:100});
     return rows.map(x=>this.clientView(x));
+  }
+
+  // Exact network identity lookup: never interpret a paginated search as proof of absence.
+  @Get('clients/:id')
+  @UnitScoped()
+  @RequirePermissions('clients.read')
+  async client(@Param('id') id:string){
+    const row=await this.prisma.client.findFirst({where:{id,active:true},select:{id:true,name:true,active:true,phone:true,email:true,registrationUnitId:true,version:true,legacyPayload:true}});
+    if(!row)throw new NotFoundException('Cliente não encontrada ou inativa');
+    return this.clientView(row);
   }
 
   // Client identity and treatment history are global; the scoped clients.read permission

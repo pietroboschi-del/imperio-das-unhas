@@ -416,8 +416,16 @@ Deseja mover o bloqueio mesmo assim?`))return}if(b.blockSeriesId&&!confirm('Este
 function digits(v=''){return String(v).replace(/\D/g,'')}
 function normName(v=''){return String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()}
 function cepLookup(cep){const d=digits(cep);const demo={'32340000':{neighborhood:'Eldorado',city:'Contagem'},'32040000':{neighborhood:'Centro',city:'Contagem'},'32110000':{neighborhood:'Cabral',city:'Contagem'},'32280000':{neighborhood:'Riacho das Pedras',city:'Contagem'},'32041000':{neighborhood:'Inconfidentes',city:'Contagem'},'30130010':{neighborhood:'Funcionários',city:'Belo Horizonte'}};return demo[d]||null}
-function sourceOptions(selected=''){return db.acquisitionSources.filter(x=>x.active||x.name===selected).map(x=>`<option value="${escapeAttr(x.name)}" ${x.name===selected?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}
-function originOptions(selected='Presencial'){return ['Presencial','WhatsApp','Telefone','Site / Agendamento online','Outro'].map(x=>`<option ${x===selected?'selected':''}>${x}</option>`).join('')}
+function sourceOptions(selected=''){
+ const value=String(selected??''),options=db.acquisitionSources.filter(x=>x.active||x.name===value);
+ const historical=value&&!options.some(x=>x.name===value)?'<option value="'+escapeAttr(value)+'" selected>'+escapeHtml(value)+' (valor histórico)</option>':'';
+ return historical+options.map(x=>'<option value="'+escapeAttr(x.name)+'" '+(x.name===value?'selected':'')+'>'+escapeHtml(x.name)+'</option>').join('')
+}
+function originOptions(selected=''){
+ const allowed=['Presencial','WhatsApp','Telefone','Site / Agendamento online','Outro'],old=String(selected??'');
+ const historical=old&&!allowed.includes(old)?'<option value="'+escapeAttr(old)+'" selected>'+escapeHtml(old)+' (valor histórico)</option>':'';
+ return '<option value="" '+(!old?'selected':'')+'>Não informada</option>'+historical+allowed.map(x=>'<option value="'+escapeAttr(x)+'" '+(x===old?'selected':'')+'>'+escapeHtml(x)+'</option>').join('')
+}
 function currentUserName(){return 'Master'}
 
 function storageNotify(message,kind='error'){
@@ -680,8 +688,8 @@ function renderAgenda(){
  const openCount=(db.clientCommands||[]).filter(c=>c.unitId===uid&&c.date===agendaDate&&c.status==='Aberta').length;
  adminPage.innerHTML=`<div class="page-head"><div><h1>Agenda</h1><div class="agenda-date-title">${escapeHtml(agendaDateText(agendaDate))}</div></div><div class="agenda-date-controls"><button class="btn btn-ghost btn-sm" onclick="agendaGo(-1)">‹</button><input type="date" value="${agendaDate}" onchange="agendaPickDate(this.value)"><button class="btn btn-ghost btn-sm" onclick="agendaGo(1)">›</button></div><div class="spacer"></div><div class="client-picker"><input id="agendaClientSearch" class="search" placeholder="Buscar cliente..." oninput="agendaClientSearchResults()"><div id="agendaClientResults"></div></div><button class="btn btn-primary" onclick="openReservation('','','',agendaDate)">+ Novo</button></div>${addMode}<div class="agenda-toolbar"><button class="btn btn-soft btn-sm" onclick="agendaToday()">Hoje</button><button class="btn btn-primary btn-sm" onclick="openAvailabilityFinder()">Encontrar horário</button><button class="btn btn-ghost btn-sm" onclick="openBlockTime()">Bloquear horário</button><button class="btn btn-ghost btn-sm" onclick="openOpenCommands()">Comandas abertas <span class="cmd-badge">${openCount}</span></button><div class="toolbar-spacer"></div>${legend}</div><div class="agenda-wrap"><div class="agenda" style="grid-template-columns:68px repeat(${Math.max(ps.length,1)},minmax(150px,1fr))">${cells}</div></div>`
 }
-function renderClients(){subbar.textContent='Clientes · Retornos · Créditos · Pacotes · WhatsApp';adminPage.innerHTML=`<div class="page-head"><div><h1>Clientes</h1><div class="muted">Cadastro único para todas as unidades e para o agendamento online</div></div><div class="spacer"></div><input id="clientSearch" class="search" placeholder="Nome, celular, CPF, bairro ou cidade" oninput="renderClientRows()"><button class="btn btn-ghost" onclick="openSourceManager()">Como conheceu?</button><button class="btn btn-primary" onclick="openClientForm()">+ Nova cliente</button></div><div class="table-card"><table class="table"><thead><tr><th>Cliente</th><th>Celular</th><th>Bairro / Cidade</th><th>Última visita</th><th>Próximo</th><th>Origem</th><th></th></tr></thead><tbody id="clientRows"></tbody></table></div>`;renderClientRows()}
-function renderClientRows(){let q=(document.getElementById('clientSearch')?.value||'').toLowerCase();let rows=db.clients.filter(c=>(c.name+' '+c.phone+' '+c.cpf+' '+c.neighborhood+' '+(c.city||'')).toLowerCase().includes(q)).map(c=>`<tr><td><b>${escapeHtml(c.name)}</b><div class="muted" style="font-size:12px">${c.birthDate?new Date(c.birthDate+'T12:00:00').toLocaleDateString('pt-BR'):''}</div></td><td>${escapeHtml(c.phone)}</td><td>${escapeHtml(c.neighborhood||'—')}<div class="muted" style="font-size:12px">${escapeHtml(c.city||'—')}</div></td><td>${c.last||'—'}</td><td>${c.next||'—'}</td><td>${escapeHtml(c.source||'—')}</td><td><button class="btn btn-ghost btn-sm" onclick="openClient('${c.id}')">Abrir</button></td></tr>`).join('');if(document.getElementById('clientRows'))clientRows.innerHTML=rows}
+function renderClients(){subbar.textContent='Clientes · Retornos · Créditos · Pacotes · WhatsApp';adminPage.innerHTML=`<div class="page-head"><div><h1>Clientes</h1><div class="muted">Cadastro único para todas as unidades e para o agendamento online</div></div><div class="spacer"></div><input id="clientSearch" class="search" placeholder="Nome, celular, CPF, bairro ou cidade" oninput="v99ClientSearchChanged(this.value)"><button class="btn btn-ghost" onclick="openSourceManager()">Como conheceu?</button><button class="btn btn-primary" onclick="openClientForm()">+ Nova cliente</button></div><div class="table-card"><table class="table"><thead><tr><th>Cliente</th><th>Celular</th><th>Bairro / Cidade</th><th>Última visita</th><th>Próximo</th><th>Origem</th><th></th></tr></thead><tbody id="clientRows"></tbody></table></div>`;renderClientRows()}
+function renderClientRows(){let q=(document.getElementById('clientSearch')?.value||'').toLowerCase();let rows=db.clients.filter(c=>(!window.__imperioCentralClientIdentity?.enforced?.()||window.__imperioCentralClientIdentity?.valid(c))&&(c.name+' '+c.phone+' '+c.cpf+' '+c.neighborhood+' '+(c.city||'')).toLowerCase().includes(q)).map(c=>`<tr><td><b>${escapeHtml(c.name)}</b><div class="muted" style="font-size:12px">${c.birthDate?new Date(c.birthDate+'T12:00:00').toLocaleDateString('pt-BR'):''}</div></td><td>${escapeHtml(c.phone)}</td><td>${escapeHtml(c.neighborhood||'—')}<div class="muted" style="font-size:12px">${escapeHtml(c.city||'—')}</div></td><td>${c.last||'—'}</td><td>${c.next||'—'}</td><td>${escapeHtml(c.source||'—')}</td><td><button class="btn btn-ghost btn-sm" onclick="openClient('${c.id}')">Abrir</button></td></tr>`).join('');if(document.getElementById('clientRows'))clientRows.innerHTML=rows}
 function contractInfo(p){
  let d=p.contractEndDate;if(!d)return {html:'<span class="contract-empty">Não informado</span>',expired:false,soon:false,days:null};
  let today=new Date();today.setHours(0,0,0,0);let end=new Date(d+'T00:00:00');let days=Math.ceil((end-today)/86400000);let br=end.toLocaleDateString('pt-BR');
@@ -840,7 +848,7 @@ function openClientForm(id=null){
  </div><div class="help">O sistema usa CEP, bairro e cidade. Rua, número e complemento não são necessários.</div></div>
  <div class="client-section"><h3>Relacionamento</h3><div class="form-grid">
   <div class="field"><label class="required">Como conheceu o Império?</label><select id="cfSource"><option value="">Selecione</option>${sourceOptions(c?.source||'')}</select></div>
-  <div class="field"><label>Origem do cadastro</label><select id="cfOrigin" ${id?'disabled':''}>${originOptions(c?.origin||'Presencial')}</select><div class="help">Canal em que o cadastro chegou: presencial, WhatsApp, telefone etc.</div></div>
+  <div class="field"><label>Origem do cadastro</label><select id="cfOrigin" ${id?'disabled':''}>${originOptions(c?.origin??(id?'':'Presencial'))}</select><div class="help">Canal em que o cadastro chegou: presencial, WhatsApp, telefone etc.</div></div>
   <div class="field"><label>Cadastrado por</label><input value="${escapeAttr(c?.createdBy||currentUserName())}" readonly></div>
   <div class="field"><label>Unidade do cadastro</label><input value="${escapeAttr(db.units.find(u=>u.id===(c?.registrationUnit||(unitPicker?.value||'')))?.name||'—')}" readonly></div>
   <div class="field full"><label>Observações</label><textarea id="cfNotes" rows="3">${escapeHtml(c?.notes||'')}</textarea></div>
@@ -902,7 +910,7 @@ function buildClientTimeline(id){let c=db.clients.find(x=>x.id===id),events=[];i
 function agendaClientSearchResults(){
  let box=document.getElementById('agendaClientResults'),inp=document.getElementById('agendaClientSearch');if(!box||!inp)return;let q=normName(inp.value);
  if(q.length<2){box.innerHTML='';return}
- let matches=db.clients.filter(c=>normName(c.name).includes(q)||digits(c.phone).includes(digits(inp.value))||digits(c.cpf).includes(digits(inp.value))).slice(0,6);
+ let matches=db.clients.filter(c=>(!window.__imperioCentralClientIdentity?.enforced?.()||window.__imperioCentralClientIdentity?.valid(c))&&(normName(c.name).includes(q)||digits(c.phone).includes(digits(inp.value))||digits(c.cpf).includes(digits(inp.value)))).slice(0,6);
  box.innerHTML=`<div class="client-results">${matches.length?matches.map(c=>`<div class="client-result"><div><b>${escapeHtml(c.name)}</b><div class="muted">${escapeHtml(c.phone||'')} ${c.next&&c.next!=='—'?'· Próximo: '+escapeHtml(c.next):''}</div></div><button class="btn btn-soft btn-sm" onclick="openClient('${c.id}')">Abrir</button></div>`).join(''):'<div class="client-result"><div class="muted">Nenhuma cliente encontrada.</div><button class="btn btn-primary btn-sm" onclick="openClientForm()">+ Cadastrar</button></div>'}</div>`
 }
 function defaultReservationItem(proId='',time='11:00',unitId=unitPicker.value||''){
@@ -922,8 +930,8 @@ function updateReservationEndFromRow(el,timeSelector,durationSelector){let row=e
 function resLineTimeInput(i,el){if(el.value&&resDraft?.items?.[i])resDraft.items[i].time=el.value;updateReservationEndFromRow(el,'.res-time','.res-duration')}
 function addReservationLine(){syncResDraftFromDom();let prev=resDraft.items[resDraft.items.length-1],start=prev?addMinutesTime(prev.time,prev.duration):'11:00';resDraft.items.push(defaultReservationItem('',start,unitPicker.value||''));renderReservationModal()}
 function removeReservationLine(i){syncResDraftFromDom();resDraft.items.splice(i,1);renderReservationModal()}
-function reservationClientSearch(){let out=document.getElementById('rClientResults'),inp=document.getElementById('rClientSearch');if(!out||!inp)return;resDraft.clientSearch=inp.value;let q=normName(inp.value);if(q.length<2&&digits(inp.value).length<4){out.innerHTML='';return}let matches=db.clients.filter(c=>normName(c.name).includes(q)||digits(c.phone).includes(digits(inp.value))||digits(c.cpf).includes(digits(inp.value))).slice(0,6);out.innerHTML=`<div class="client-results">${matches.length?matches.map(c=>`<div class="client-result"><div><b>${escapeHtml(c.name)}</b><div class="muted">${escapeHtml(c.phone||'')} ${c.birthDate?'· '+new Date(c.birthDate+'T12:00:00').toLocaleDateString('pt-BR'):''}</div></div><button class="btn btn-soft btn-sm" onclick="selectReservationClient('${c.id}')">Selecionar</button></div>`).join(''):'<div class="client-result"><div><b>Nenhum cadastro encontrado</b><div class="muted">Você pode cadastrar a cliente sem sair da Agenda.</div></div><button class="btn btn-primary btn-sm" onclick="openQuickClientFromReservation()">+ Nova cliente</button></div>'}</div>`}
-function selectReservationClient(id){resDraft.clientId=id;renderReservationModal()}
+function reservationClientSearch(){let out=document.getElementById('rClientResults'),inp=document.getElementById('rClientSearch');if(!out||!inp)return;resDraft.clientSearch=inp.value;let q=normName(inp.value);if(q.length<2&&digits(inp.value).length<4){out.innerHTML='';return}let matches=db.clients.filter(c=>(!window.__imperioCentralClientIdentity?.enforced?.()||window.__imperioCentralClientIdentity?.valid(c))&&(normName(c.name).includes(q)||digits(c.phone).includes(digits(inp.value))||digits(c.cpf).includes(digits(inp.value)))).slice(0,6);out.innerHTML=`<div class="client-results">${matches.length?matches.map(c=>`<div class="client-result"><div><b>${escapeHtml(c.name)}</b><div class="muted">${escapeHtml(c.phone||'')} ${c.birthDate?'· '+new Date(c.birthDate+'T12:00:00').toLocaleDateString('pt-BR'):''}</div></div><button class="btn btn-soft btn-sm" onclick="selectReservationClient('${c.id}')">Selecionar</button></div>`).join(''):'<div class="client-result"><div><b>Nenhum cadastro encontrado</b><div class="muted">Você pode cadastrar a cliente sem sair da Agenda.</div></div><button class="btn btn-primary btn-sm" onclick="openQuickClientFromReservation()">+ Nova cliente</button></div>'}</div>`}
+function selectReservationClient(id){let c=db.clients.find(x=>x.id===id);if(window.__imperioCentralClientIdentity?.enforced?.()&&!window.__imperioCentralClientIdentity?.valid(c)){toast('Cliente não disponível no cadastro central');return false}resDraft.clientId=id;renderReservationModal()}
 function openQuickClientFromReservation(){syncResDraftFromDom();let typed=document.getElementById('rClientSearch')?.value||resDraft?.clientSearch||'';modal('Nova cliente — cadastro rápido',`<div class="inline-note">Cadastro rápido da Agenda. A ficha completa pode ser complementada depois em Clientes.</div><div class="form-grid" style="margin-top:14px"><div class="field full"><label class="required">Nome completo</label><input id="qcfName" value="${escapeAttr(typed)}"></div><div class="field"><label class="required">Celular / telefone</label><input id="qcfPhone"></div><div class="field"><label>Data de nascimento</label><input id="qcfBirth" type="date"></div><div class="field"><label class="required">Como conheceu o Império?</label><select id="qcfSource"><option value="">Selecione</option>${sourceOptions()}</select></div><div class="field"><label>Origem do cadastro</label><select id="qcfOrigin">${originOptions('Presencial')}</select></div></div>`,`<button class="btn btn-ghost" onclick="renderReservationModal()">Voltar</button><button class="btn btn-primary" onclick="saveQuickClientFromReservation()">Salvar e usar</button>`)}
 function saveQuickClientFromReservation(){if(!qcfName.value.trim()||!qcfPhone.value.trim()||!qcfSource.value){toast('Preencha nome, celular e como conheceu o Império');return}let c={id:'cl'+Date.now(),name:qcfName.value.trim(),phone:qcfPhone.value.trim(),birthDate:qcfBirth.value,cpf:'',email:'',cep:'',neighborhood:'',city:'',profession:'',source:qcfSource.value,notes:'',origin:qcfOrigin.value,createdBy:currentUserName(),registrationUnit:unitPicker.value||'',createdAt:localDateISO(),last:'—',next:'—',visits:0};db.clients.push(c);save();resDraft.clientId=c.id;renderReservationModal();toast('Cliente cadastrada e selecionada')}
 function itemAsClientPlacement(it){let a=timeToMin(it.time);return {serviceId:it.serviceId,startMin:a,endMin:a+itemDuration(it)}}
@@ -5654,7 +5662,7 @@ window.__imperioV76={schema:V76_SCHEMA,migrationId:V76_MIGRATION_ID,migrate,fisc
  function unitOptions(selected=''){return allowedUnits().map(u=>`<option value="${esc(u.id)}" ${u.id===selected?'selected':''}>${esc(u.name)}</option>`).join('')}
  function proOptions(serviceId,unitId,selected=''){let rows=eligiblePros(serviceId,unitId);let current=(db.pros||[]).find(p=>p.id===selected);if(current&&!rows.some(p=>p.id===current.id))rows.push(current);return rows.map(p=>`<option value="${esc(p.id)}" ${p.id===selected?'selected':''}>${esc(p.name)}${p.active===false?' · inativa':''}</option>`).join('')}
  function requestForm(idReq=''){if(!canEdit()){toast('Sem permissão para alterar a Agenda');return false}let req=idReq?(db.waitlistRequests||[]).find(x=>x.id===idReq):null;if(req&&!visible(req)){toast('Solicitação fora do seu escopo de unidade');return false}let curUnit=document.getElementById('unitPicker')?.value||allowedUnits()[0]?.id||'',draft=req?clone(normalize(req)):{id:'',clientId:'',unitId:curUnit,unitPreferenceMode:'required',acceptedUnitIds:[curUnit],serviceId:(db.services||[]).find(s=>s.active!==false)?.id||'',availabilityDate:typeof agendaDate!=='undefined'?agendaDate:today(),availabilityStartTime:'09:00',availabilityEndTime:'18:00',professionalPreferenceMode:'any',preferredProfessionalId:'',notes:''};window.__v79QueueDraft=draft;let c=draft.clientId?(db.clients||[]).find(x=>x.id===draft.clientId):null;let body=`<div class="v79-note"><b>Intenção, não reserva.</b> Salvar aqui não ocupa horário, profissional ou estação e não gera nenhum fato financeiro.</div><div id="v79QueueClientBox">${selectedClientHtml(c)}</div><div class="form-grid" style="margin-top:12px"><div class="field"><label class="required">Serviço</label><select id="v79Service" onchange="v79QueueFormChanged()">${serviceOptions(draft.serviceId)}</select></div><div class="field"><label class="required">Unidade desejada</label><select id="v79Unit" onchange="v79QueueFormChanged()">${unitOptions(draft.unitId)}</select><div class="v79-pref-help">Nesta versão, a unidade é obrigatória. O modelo já possui estrutura extensível para flexibilidade futura.</div></div><div class="field"><label class="required">Data</label><input id="v79Date" type="date" value="${esc(draft.availabilityDate)}"></div><div class="field"><label class="required">Disponível a partir de</label><input id="v79Start" type="time" value="${esc(draft.availabilityStartTime)}"></div><div class="field"><label class="required">Disponível até</label><input id="v79End" type="time" value="${esc(draft.availabilityEndTime)}"></div><div class="field"><label>Preferência de profissional</label><select id="v79ProMode" onchange="v79QueueFormChanged()"><option value="any" ${draft.professionalPreferenceMode==='any'?'selected':''}>Qualquer profissional</option><option value="preferred" ${draft.professionalPreferenceMode==='preferred'?'selected':''}>Prefere uma profissional, aceita outras</option><option value="required" ${draft.professionalPreferenceMode==='required'?'selected':''}>Somente esta profissional</option></select></div><div class="field full" id="v79ProField" style="display:${draft.professionalPreferenceMode==='any'?'none':'block'}"><label>Profissional</label><select id="v79PreferredPro">${proOptions(draft.serviceId,draft.unitId,draft.preferredProfessionalId)}</select><div class="v79-pref-help">A lista reutiliza a habilitação real do serviço e a unidade da profissional.</div></div><div class="field full"><label>Observações</label><textarea id="v79Notes" rows="3" placeholder="Preferências ou contexto operacional">${esc(draft.notes||'')}</textarea></div></div><div id="v79DupHint"></div>`;modal(req?'Editar solicitação de encaixe':'Adicionar à fila de encaixe',body,`<button class="btn btn-ghost" onclick="v79OpenQueue('${queueView}')">Cancelar</button><button class="btn btn-primary" onclick="v79SaveQueueRequest('${esc(idReq)}')">Salvar</button>`);setTimeout(()=>document.querySelector('#modalHost .modal')?.classList.add('modal-wide'),0);return true}
- function clientSearch(){let box=document.getElementById('v79ClientResults'),inp=document.getElementById('v79ClientSearch');if(!box||!inp)return;let q=String(inp.value||''),n=typeof normName==='function'?normName(q):q.toLowerCase(),dg=phoneDigits(q);if(n.length<2&&dg.length<4){box.innerHTML='';return}let hits=(db.clients||[]).filter(c=>(typeof normName==='function'?normName(c.name):String(c.name||'').toLowerCase()).includes(n)||(dg&&phoneDigits(c.phone).includes(dg))||(dg&&phoneDigits(c.cpf).includes(dg))).slice(0,7);box.innerHTML=hits.length?hits.map(c=>`<div class="v79-client-result"><div><b>${esc(c.name)}</b><div class="muted">${esc(c.phone||'')}</div></div><div class="spacer"></div><button class="btn btn-soft btn-sm" onclick="v79SelectQueueClient('${c.id}')">Selecionar</button></div>`).join(''):`<div class="v79-empty">Nenhuma cliente encontrada. Cadastre em Clientes ou use o cadastro rápido da Agenda antes de adicionar à fila.</div>`}
+ function clientSearch(){let box=document.getElementById('v79ClientResults'),inp=document.getElementById('v79ClientSearch');if(!box||!inp)return;let q=String(inp.value||''),n=typeof normName==='function'?normName(q):q.toLowerCase(),dg=phoneDigits(q);if(n.length<2&&dg.length<4){box.innerHTML='';return}let hits=(db.clients||[]).filter(c=>(!window.__imperioCentralClientIdentity?.enforced?.()||window.__imperioCentralClientIdentity?.valid(c))&&((typeof normName==='function'?normName(c.name):String(c.name||'').toLowerCase()).includes(n)||(dg&&phoneDigits(c.phone).includes(dg))||(dg&&phoneDigits(c.cpf).includes(dg)))).slice(0,7);box.innerHTML=hits.length?hits.map(c=>`<div class="v79-client-result"><div><b>${esc(c.name)}</b><div class="muted">${esc(c.phone||'')}</div></div><div class="spacer"></div><button class="btn btn-soft btn-sm" onclick="v79SelectQueueClient('${c.id}')">Selecionar</button></div>`).join(''):`<div class="v79-empty">Nenhuma cliente encontrada. Cadastre em Clientes ou use o cadastro rápido da Agenda antes de adicionar à fila.</div>`}
  function selectClient(clientId){let c=(db.clients||[]).find(x=>x.id===clientId);if(!c)return false;window.__v79QueueDraft=window.__v79QueueDraft||{};window.__v79QueueDraft.clientId=c.id;let box=document.getElementById('v79QueueClientBox');if(box)box.innerHTML=selectedClientHtml(c);return true}
  function clearClient(){window.__v79QueueDraft=window.__v79QueueDraft||{};window.__v79QueueDraft.clientId='';let box=document.getElementById('v79QueueClientBox');if(box)box.innerHTML=selectedClientHtml(null);return true}
  function formChanged(){let serviceId=document.getElementById('v79Service')?.value||'',unitId=document.getElementById('v79Unit')?.value||'',mode=document.getElementById('v79ProMode')?.value||'any',field=document.getElementById('v79ProField');if(field)field.style.display=mode==='any'?'none':'block';let sel=document.getElementById('v79PreferredPro');if(sel){let old=sel.value;sel.innerHTML=proOptions(serviceId,unitId,old)}return true}
@@ -7146,6 +7154,43 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  try{patchVersion()}catch(e){}
  // V99: cutover operacional central controlado · Centro primeiro.
  const CENTRAL_SESSION='imperio-v99-central-authenticated',CENTRAL_PRINCIPAL='imperio-v99-central-principal',CENTRAL_CSRF_KEY='imperio-v96-shadow-csrf',CENTRAL_WRITE_UNITS='imperio-v99-central-write-units';
+ let centralClientGeneration=0,centralClientIds=new Set(),centralReservationBusy=false,centralQuickBusy=false,clientSearchTimer=null;
+
+ // Single intent shared by V99 bridges and the late-loaded network-source adapter.
+ // A modal replacement is an explicit invalidation, not merely a DOM cosmetic change.
+ const phase5Context=(()=>{
+  let generation=0,session=0,current=null,opening=null;
+  const unit=()=>centralLocalUnitId();
+  const begin=(kind,extra={})=>{
+   const token={generation:++generation,session,unit:unit(),kind,id:extra.id||'',draft:kind==='quick'?window.resDraft:null,root:null,form:null};
+   current=token;return token;
+  };
+  const invalidate=()=>{generation++;current=null;opening=null};
+  const invalidateSession=()=>{session++;invalidate()};
+  const valid=token=>!!token&&current===token&&generation===token.generation&&session===token.session&&unit()===token.unit&&(token.kind!=='quick'||window.resDraft===token.draft);
+  const modalPresent=token=>valid(token)&&!!token.root&&document.getElementById('modalHost')?.querySelector('.overlay')===token.root;
+  const run=(token,fn)=>{if(!valid(token))return false;const previous=opening;opening=token;try{return fn()}finally{opening=previous}};
+  const adopt=kind=>(opening&&opening.kind===kind&&valid(opening)?opening:null);
+  const existingModal=window.modal;
+  if(typeof existingModal==='function'){
+   const guarded=function(...args){
+    const token=opening&&valid(opening)?opening:null;
+    if(!token)invalidate();
+    const value=existingModal.apply(this,args);
+    if(token)token.root=document.getElementById('modalHost')?.querySelector('.overlay')||null;
+    return value;
+   };
+   window.modal=guarded;try{modal=guarded}catch(e){}
+  }
+  const existingClose=window.closeModal;
+  if(typeof existingClose==='function'){
+   const guarded=function(...args){invalidate();return existingClose.apply(this,args)};
+   window.closeModal=guarded;try{closeModal=guarded}catch(e){}
+  }
+  return {begin,invalidate,invalidateSession,valid,modalPresent,run,adopt,current:()=>current,session:()=>session};
+ })();
+ window.__imperioPhase5Context=phase5Context;
+
  const UNIT_TO_CENTRAL=Object.freeze({u1:'big',u2:'shopping-contagem',u3:'centro',big:'big','shopping-contagem':'shopping-contagem',centro:'centro'});
  const UNIT_TO_LOCAL=Object.freeze({big:'u1','shopping-contagem':'u2',centro:'u3',u1:'u1',u2:'u2',u3:'u3'});
  const CENTRAL_UNIT_OPTIONS=Object.freeze([{localId:'u3',centralId:'centro',name:'Centro de Contagem'},{localId:'u1',centralId:'big',name:'Big Shopping'},{localId:'u2',centralId:'shopping-contagem',name:'Shopping Contagem'}]);
@@ -7159,7 +7204,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function setCentralWriteUnits(units){try{sessionStorage.setItem(CENTRAL_WRITE_UNITS,JSON.stringify(Array.isArray(units)?units.map(String):[]))}catch(e){}return centralWriteUnits()}
  function centralUnitAllowed(unitId){let id=UNIT_TO_CENTRAL[unitId]||unitId;return centralWriteUnits().includes(id)}
  function centralEnabled(){let id=centralUnitId();return centralAuthenticated()&&!!id&&centralCanUse(id)&&centralUnitAllowed(id)}
- function setCentralSession(principal,csrfToken=''){try{if(principal){sessionStorage.setItem(CENTRAL_SESSION,'1');sessionStorage.setItem(CENTRAL_PRINCIPAL,JSON.stringify(principal));if(csrfToken)sessionStorage.setItem(CENTRAL_CSRF_KEY,csrfToken)}else{sessionStorage.removeItem(CENTRAL_SESSION);sessionStorage.removeItem(CENTRAL_PRINCIPAL);sessionStorage.removeItem(CENTRAL_CSRF_KEY);sessionStorage.removeItem(CENTRAL_WRITE_UNITS)}}catch(e){}return centralAuthenticated()}
+ function setCentralSession(principal,csrfToken=''){phase5Context.invalidateSession();centralClientGeneration++;centralClientIds.clear();try{if(principal){sessionStorage.setItem(CENTRAL_SESSION,'1');sessionStorage.setItem(CENTRAL_PRINCIPAL,JSON.stringify(principal));if(csrfToken)sessionStorage.setItem(CENTRAL_CSRF_KEY,csrfToken)}else{sessionStorage.removeItem(CENTRAL_SESSION);sessionStorage.removeItem(CENTRAL_PRINCIPAL);sessionStorage.removeItem(CENTRAL_CSRF_KEY);sessionStorage.removeItem(CENTRAL_WRITE_UNITS)}}catch(e){}return centralAuthenticated()}
  function setCentralEnabled(v){if(!v)return setCentralSession(null);if(!centralAuthenticated())throw new Error('Faça login no backend central primeiro');return centralEnabled()}
  function centralCsrf(){try{return sessionStorage.getItem(CENTRAL_CSRF_KEY)||''}catch(e){return ''}}
  function operationKey(scope){try{return scope+'_'+crypto.randomUUID()}catch(e){return scope+'_'+Date.now()+'_'+Math.random().toString(36).slice(2)}}
@@ -7177,12 +7222,12 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(!uid)throw new Error('Selecione uma unidade');return uid
  }
  async function centralRequest(path,opt={}){
-  let uid=opt.unitRequired===false?'':await ensureCentralUnitId();
+  const requestSession=phase5Context.session();let uid=opt.unitRequired===false?'':await ensureCentralUnitId();
   let hasBody=opt.body!==undefined,headers={Accept:'application/json',...(uid?{'X-Unit-Id':uid}:{}),...(hasBody?{'Content-Type':'application/json'}:{}),...(opt.key?{'Idempotency-Key':opt.key}:{}),...(opt.headers||{})},token=centralCsrf();
   if(token)headers['X-CSRF-Token']=token;
-  let res=await fetch(endpoint()+path,{credentials:'include',method:opt.method||'GET',headers,body:hasBody?JSON.stringify(opt.body):undefined}),txt=await res.text(),data=null;
+  let res=await fetch(endpoint()+path,{credentials:'include',cache:'no-store',method:opt.method||'GET',headers,body:hasBody?JSON.stringify(opt.body):undefined}),txt=await res.text(),data=null;
   try{data=txt?JSON.parse(txt):null}catch(e){data={message:txt}}
-  if(!res.ok)throw centralError(data,res.status);return data
+  if(!res.ok){if(res.status===401&&officialProductionMode()&&requestSession===phase5Context.session()){setCentralSession(null);applyCentralUnitGate();showOnly('loginApp');toast('Sessão expirada. Entre novamente para continuar.')}throw centralError(data,res.status)}return data
  }
  function localStatus(s){return ({SCHEDULED:'Agendado',CANCELLED:'Cancelado',CANCELED:'Cancelado',CANCELADO:'Cancelado'})[String(s||'')]||String(s||'Agendado')}
  function centralItemPayload(it,date){
@@ -7190,7 +7235,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   let sid=it.serviceId||it.service?.id||'';if(sid)body.serviceId=sid;return body
  }
  function centralClientPayload(){
-  return {name:cfName.value.trim(),phone:cfPhone.value.trim(),email:cfEmail.value.trim()||undefined,cpf:digits(cfCpf.value)||undefined,birthDate:cfBirth.value||undefined,cep:cfCep.value.trim()||undefined,neighborhood:cfNeighborhood.value.trim()||undefined,city:cfCity.value.trim()||undefined,profession:cfProfession.value.trim()||undefined,source:cfSource.value||undefined,notes:cfNotes.value.trim()||undefined}
+  return {name:cfName.value.trim(),phone:cfPhone.value.trim(),email:cfEmail.value.trim()||undefined,cpf:digits(cfCpf.value)||undefined,birthDate:cfBirth.value||undefined,cep:cfCep.value.trim()||undefined,neighborhood:cfNeighborhood.value.trim()||undefined,city:cfCity.value.trim()||undefined,profession:cfProfession.value.trim()||undefined,source:cfSource.value||undefined,origin:cfOrigin.value==='Não informado'?undefined:(cfOrigin.value||undefined),notes:cfNotes.value.trim()||undefined}
  }
  function centralGlobalPermission(permission){
   let p=centralPrincipal();if(!p)return false;if(p.networkAdmin===true)return true;
@@ -7244,6 +7289,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   updateConfigProfessional(id,body){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id),{method:'PATCH',body,unitRequired:false})},
   setConfigProfessionalActive(id,active){return centralRequest('/api/v1/config/professionals/'+encodeURIComponent(id)+'/active',{method:'PATCH',body:{active},unitRequired:false})},
   clients(q=''){return centralRequest('/api/v1/clients'+(q?'?q='+encodeURIComponent(q):''))},
+   client(id){return centralRequest('/api/v1/clients/'+encodeURIComponent(id))},
   clientHistory(id){return centralRequest('/api/v1/clients/'+encodeURIComponent(id)+'/history')},
   operationalSummary(date=''){return centralRequest('/api/v1/reports/operational-summary'+(date?'?date='+encodeURIComponent(date):''))},
   bookings(date=''){return centralRequest('/api/v1/bookings'+(date?'?date='+encodeURIComponent(date):''))},
@@ -7281,7 +7327,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   receiveStockTransfer(id){return centralRequest('/api/v1/stock/transfers/'+encodeURIComponent(id)+'/receive',{method:'POST',body:{},unitRequired:false})}
  });
  function mergeCentralClients(rows){
-  for(const x of rows||[]){let c=db.clients.find(v=>v.id===x.id);if(!c){c={id:x.id,last:'—',next:'—',visits:0,origin:'Central',createdAt:localDateISO()};db.clients.push(c)}normalizeClient(c);Object.assign(c,{name:x.name||c.name||'',phone:x.phone||'',email:x.email||'',cpf:x.cpf||'',birthDate:x.birthDate||'',cep:x.cep||'',neighborhood:x.neighborhood||'',city:x.city||'',profession:x.profession||'',source:x.source||c.source||'',notes:x.notes||'',registrationUnit:UNIT_TO_LOCAL[x.registrationUnitId]||x.registrationUnitId||c.registrationUnit||'',central:true})}
+  for(const x of rows||[]){if(!x?.id||x.active!==true)continue;centralClientIds.add(String(x.id));let c=db.clients.find(v=>v.id===x.id);if(!c){c={id:x.id,last:'—',next:'—',visits:0,createdAt:localDateISO()};db.clients.push(c)}normalizeClient(c);Object.assign(c,{name:x.name||c.name||'',phone:x.phone||'',email:x.email||'',cpf:x.cpf||'',birthDate:x.birthDate||'',cep:x.cep||'',neighborhood:x.neighborhood||'',city:x.city||'',profession:x.profession||'',source:x.source||'',origin:x.origin??'',notes:x.notes||'',registrationUnit:UNIT_TO_LOCAL[x.registrationUnitId]||x.registrationUnitId||c.registrationUnit||'',technicalProvenance:'central_api',central:true,active:true})}
  }
  function mergeCentralBookings(rows,uid=centralLocalUnitId()){
   for(const x of rows||[]){let date=String(x.serviceDate||'').slice(0,10),remoteItems=Array.isArray(x.items)?x.items:[],items=remoteItems.map((ri,i)=>{let start=ri.startAt?new Date(ri.startAt):null,time=start&&!Number.isNaN(start.getTime())?start.toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hour12:false}):'',srv=ri.service||{},pro=ri.professional||{};return {serviceId:ri.serviceId||srv.id||'',service:ri.serviceId?(srv.name||db.services.find(s=>s.id===ri.serviceId)?.name||''):(x.notes||'Horário bloqueado'),pro:ri.professionalId||pro.id||'',time,duration:Number(ri.durationMin||srv.durationMin||30),price:Number(ri.unitPrice??srv.price??0),preference:!!ri.preference,forceFit:!!ri.forceFit}}),b=db.bookings.find(v=>v.id===x.id);
@@ -7298,8 +7344,10 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   for(const x of rows||[])db.managementTasks.push({...x,unitId:uid,dueDate:String(x.dueDate||'').slice(0,10),legacyPayload:x.legacyPayload||{},sourceType:x.sourceType||x.legacyPayload?.sourceType||'',sourceId:x.sourceId||x.legacyPayload?.requestId||'',central:true});
  }
  async function refreshCentralClients(q=''){
-  if(!centralEnabled())return false;let uid=centralLocalUnitId(),rows=await centralApi.clients(q);if(!centralEnabled()||centralLocalUnitId()!==uid)return false;mergeCentralClients(rows);return true
+  if(!centralEnabled())return false;let generation=++centralClientGeneration,uid=centralLocalUnitId(),rows=await centralApi.clients(q);if(!centralEnabled()||generation!==centralClientGeneration||centralLocalUnitId()!==uid)return false;mergeCentralClients(rows);return true
  }
+ window.__imperioCentralClientIdentity={enforced:()=>officialProductionMode(),valid:c=>!!c&&c.central===true&&c.active===true&&centralClientIds.has(String(c.id))};
+ window.v99ClientSearchChanged=function(q){renderClientRows();if(!centralEnabled())return false;clearTimeout(clientSearchTimer);let query=String(q||'');clientSearchTimer=setTimeout(()=>refreshCentralClients(query).then(ok=>{if(ok&&page==='clients'&&String(document.getElementById('clientSearch')?.value||'')===query)renderClientRows()}).catch(e=>toast('Pesquisa central indisponível: '+e.message)),180);return true};
  async function refreshCentralAgenda(date){
   if(!centralEnabled())return false;let uid=centralLocalUnitId(),cid=centralUnitId(),result=await Promise.all([centralApi.bookings(date),centralApi.professionals(),centralApi.services(),centralApi.waitlist(),centralApi.tasks().catch(()=>[])]);if(!centralEnabled()||centralLocalUnitId()!==uid||centralUnitId()!==cid)return false;let rows=result[0],pros=result[1],services=result[2];mergeCentralWaitlist(result[3],uid);mergeCentralTasks(result[4],uid);
   db.bookings=(db.bookings||[]).filter(b=>!(b.unit===uid&&b.date===date));
@@ -7536,11 +7584,119 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  const legacyRenderAgenda=window.renderAgenda||((typeof renderAgenda==='function')?renderAgenda:null);
  if(legacyRenderAgenda){let wrapped=function(){let out=legacyRenderAgenda.apply(this,arguments);if(centralEnabled()){let date=agendaDate;refreshCentralAgenda(date).then(ok=>{if(ok&&agendaDate===date)legacyRenderAgenda.apply(this,arguments)}).catch(e=>toast('Agenda central indisponível: '+e.message))}return out};window.renderAgenda=wrapped;try{renderAgenda=wrapped}catch(e){}}
  const legacySaveClient=window.saveClient||((typeof saveClient==='function')?saveClient:null);
- if(legacySaveClient){let wrapped=function auditClientCentralBridge(id=''){if(!centralEnabled())return legacySaveClient.apply(this,arguments);let args=arguments,self=this;return (async()=>{if(!cfName.value.trim()||!cfPhone.value.trim()||!cfSource.value){toast('Preencha nome, celular e como conheceu o Império');return false}try{let row=id?await centralApi.updateClient(id,centralClientPayload()):await centralApi.createClient(centralClientPayload());mergeCentralClients([row]);closeModal();renderClients();toast(id?'Cliente atualizada no banco central ✓':'Cliente cadastrada no banco central ✓');return row}catch(e){toast('Cliente não salva: '+e.message);return false}})()};window.saveClient=wrapped;try{saveClient=wrapped}catch(e){}}
+ if(legacySaveClient){let saving=new Set(),wrapped=function auditClientCentralBridge(id=''){
+  if(!centralEnabled()){if(officialProductionMode()){toast('Sessão central necessária para salvar cliente');return false}return legacySaveClient.apply(this,arguments)}
+  const intent=phase5Context.current();
+  if(!phase5Context.modalPresent(intent)||intent.kind!=='client'||String(intent.form?.id||'')!==String(id||'')){
+   toast('Ficha alterada. Reabra a cliente antes de salvar');return false
+  }
+  if(saving.has(intent))return false;
+  // Capture everything before the first await: never read a different modal during this operation.
+  if(!cfName.value.trim()||!cfPhone.value.trim()||(!id&&!cfSource.value)){toast('Preencha nome, celular e como conheceu o Império');return false}
+  const payload=centralClientPayload();
+  const initial=intent.form||{origin:'',source:''};
+  if(id){
+   if(cfOrigin.value===initial.origin||(!initial.origin&&!cfOrigin.value))delete payload.origin;
+   if(cfSource.value===initial.source)delete payload.source;
+  }
+  const clientId=String(id||''),unit=intent.unit,operation={intent,id:clientId,payload:Object.freeze({...payload}),session:intent.session};
+  saving.add(intent);
+  return (async()=>{try{
+   if(clientId){
+    const current=await centralApi.client(clientId);
+    if(!phase5Context.modalPresent(intent)||!centralEnabled()||centralLocalUnitId()!==unit)return false;
+    if(current?.id!==clientId||current.active!==true)throw Error('Cliente indisponível no banco central');
+   }
+   if(!phase5Context.modalPresent(intent)||!centralEnabled())return false;
+   const row=clientId?await centralApi.updateClient(operation.id,operation.payload):await centralApi.createClient(operation.payload);
+   if(!row?.id||(clientId&&row.id!==clientId)||row.active!==true)throw Error('Resposta central incompatível com a operação');
+   // The server may already have committed; only visual effects are conditional.
+   if(!phase5Context.modalPresent(intent))return row;
+   mergeCentralClients([row]);closeModal();renderClients();
+   toast(clientId?'Cliente atualizada no banco central ✓':'Cliente cadastrada no banco central ✓');
+   return row;
+  }catch(e){if(phase5Context.modalPresent(intent))toast('Cliente não salva: '+e.message);return false}
+   finally{saving.delete(intent)}})()
+ };window.saveClient=wrapped;try{saveClient=wrapped}catch(e){}}
+ const oldOpenClientFormV99=window.openClientForm;
+ if(typeof oldOpenClientFormV99==='function'){let wrapped=function(id){
+  if(!officialProductionMode())return oldOpenClientFormV99.apply(this,arguments);
+  if(!centralEnabled()){toast('Faça login novamente para editar cliente');return false}
+  const intent=phase5Context.adopt('client')||phase5Context.begin('client',{id});
+  if(String(intent.id||'')!==String(id||''))return false;
+  const context=this,args=arguments;
+  const show=row=>{
+   if(!phase5Context.valid(intent))return false;
+   if(id&&(!row||row.id!==id||row.active!==true))throw Error('Cliente não está no banco central');
+   if(row)mergeCentralClients([row]);
+   const result=phase5Context.run(intent,()=>oldOpenClientFormV99.apply(context,args));
+   if(phase5Context.modalPresent(intent)){
+    const c=row||(id?db.clients.find(x=>x.id===id):null);
+    intent.form={id:id||'',origin:c?.origin??'',source:c?.source??''};
+   }
+   return result;
+  };
+  if(!id)return show(null);
+  return centralApi.client(id).then(show).catch(e=>{if(phase5Context.valid(intent))toast('Edição indisponível: '+e.message);return false});
+ };window.openClientForm=wrapped;try{openClientForm=wrapped}catch(e){}}
+ const oldQuickOpenV99=window.openQuickClientFromReservation;
+ if(typeof oldQuickOpenV99==='function'){let wrapped=function(){
+  if(!officialProductionMode())return oldQuickOpenV99.apply(this,arguments);
+  const intent=phase5Context.adopt('quick')||phase5Context.begin('quick');
+  if(!centralEnabled()||!phase5Context.valid(intent))return false;
+  return phase5Context.run(intent,()=>oldQuickOpenV99.apply(this,arguments));
+ };window.openQuickClientFromReservation=wrapped;try{openQuickClientFromReservation=wrapped}catch(e){}}
+ const oldQuickSaveV99=window.saveQuickClientFromReservation;
+ if(typeof oldQuickSaveV99==='function'){const quickSaving=new Set();let wrapped=function(){
+  if(!centralEnabled()){if(officialProductionMode()){toast('Faça login novamente para cadastrar cliente');return false}return oldQuickSaveV99.apply(this,arguments)}
+  const intent=phase5Context.current();
+  if(!intent||intent.kind!=='quick'||!phase5Context.modalPresent(intent))return false;
+  if(quickSaving.has(intent))return false;
+  if(!qcfName.value.trim()||!qcfPhone.value.trim()||!qcfSource.value){toast('Preencha nome, celular e como conheceu o Império');return false}
+  const body=Object.freeze({name:qcfName.value.trim(),phone:qcfPhone.value.trim(),birthDate:qcfBirth.value||undefined,source:qcfSource.value,origin:qcfOrigin.value||undefined});
+  const originalDraft=intent.draft,originalUnit=intent.unit,key=intent.quickKey||(intent.quickKey=operationKey('client'));
+  quickSaving.add(intent);
+  return (async()=>{try{
+   const row=await centralApi.createClient(body,key);
+   if(!row?.id||row.active!==true)throw Error('Cadastro central não confirmado');
+   // Persisting the network Client and attaching it to a particular draft are distinct actions.
+   if(!phase5Context.modalPresent(intent)||!centralEnabled()||centralLocalUnitId()!==originalUnit||window.resDraft!==originalDraft)return row;
+   mergeCentralClients([row]);originalDraft.clientId=row.id;renderReservationModal();toast('Cliente cadastrada e selecionada no banco central ✓');return row
+  }catch(e){if(phase5Context.modalPresent(intent))toast('Cliente não salva: '+e.message);return false}finally{quickSaving.delete(intent)}})();
+ };window.saveQuickClientFromReservation=wrapped;try{saveQuickClientFromReservation=wrapped}catch(e){}}
+ const oldReservationSearchV99=window.reservationClientSearch;
+ if(typeof oldReservationSearchV99==='function'){let generation=0,wrapped=function(){
+  let result=oldReservationSearchV99.apply(this,arguments);if(!centralEnabled())return result;
+  let q=String(document.getElementById('rClientSearch')?.value||'').trim();if(q.length<2)return result;
+  let current=++generation,uid=centralLocalUnitId(),context=this,args=arguments;
+  refreshCentralClients(q).then(ok=>{if(ok&&current===generation&&uid===centralLocalUnitId()&&String(document.getElementById('rClientSearch')?.value||'').trim()===q)oldReservationSearchV99.apply(context,args)}).catch(e=>toast('Pesquisa central indisponível: '+e.message));
+  return result;
+ };window.reservationClientSearch=wrapped;try{reservationClientSearch=wrapped}catch(e){}}
+ const oldAgendaClientSearchV99=window.agendaClientSearchResults;
+ if(typeof oldAgendaClientSearchV99==='function'){let generation=0,wrapped=function(){
+  let result=oldAgendaClientSearchV99.apply(this,arguments);if(!centralEnabled())return result;
+  let q=String(document.getElementById('agendaClientSearch')?.value||'').trim();if(q.length<2)return result;
+  let current=++generation,uid=centralLocalUnitId(),context=this,args=arguments;
+  refreshCentralClients(q).then(ok=>{if(ok&&current===generation&&uid===centralLocalUnitId()&&String(document.getElementById('agendaClientSearch')?.value||'').trim()===q)oldAgendaClientSearchV99.apply(context,args)}).catch(e=>toast('Pesquisa central indisponível: '+e.message));
+  return result;
+ };window.agendaClientSearchResults=wrapped;try{agendaClientSearchResults=wrapped}catch(e){}}
+
  const legacySaveReservation=window.saveReservation||((typeof saveReservation==='function')?saveReservation:null);
- if(legacySaveReservation){let wrapped=function centralReservationBridge(){if(!centralEnabled())return legacySaveReservation.apply(this,arguments);return (async()=>{syncResDraftFromDom();let cli=resDraft.clientId?db.clients.find(x=>x.id===resDraft.clientId):null;if(!cli){toast('Selecione ou cadastre uma cliente');return false}let original=resDraft.appendToBookingId?db.bookings.find(x=>x.id===resDraft.appendToBookingId):null;if(resDraft.appendToBookingId&&!original){toast('Atendimento original não encontrado');return false}let validationUnit=original?.unit||centralLocalUnitId(),validationItems=original?[...structuredClone(original.items),...resDraft.items]:resDraft.items,err=validateDraftLines(validationItems,resDraft.date,original?.id||'',validationUnit,original||null,cli.id);if(err){toast(err);return false}let newItems=resDraft.items.map(it=>({...it,service:db.services.find(s=>s.id===it.serviceId)?.name||it.service}));try{let row;if(original){if(resDraft.date!==original.date){toast('O novo serviço precisa ficar na mesma data da visita');return false}let combined=[...structuredClone(original.items),...newItems];row=await centralApi.updateBooking(original.id,{serviceDate:original.date,status:original.status,notes:original.notes||'',items:combined.map(it=>centralItemPayload(it,original.date))});agendaAddServiceContext=null}else row=await centralApi.createBooking({clientId:cli.id,serviceDate:resDraft.date,status:resDraft.status||'Agendado',items:newItems.map(it=>centralItemPayload(it,resDraft.date))});await refreshCentralAgenda(resDraft.date);agendaDate=resDraft.date;closeModal();legacyRenderAgenda();let returnCmd=window.commandReturnId;window.commandReturnId=null;if(returnCmd){let cmd=db.clientCommands.find(x=>x.id===returnCmd);if(cmd&&row?.id&&!cmd.bookingIds.includes(row.id))cmd.bookingIds.push(row.id);if(cmd)syncCommandAgendaItems(cmd);save();openCommand(returnCmd)}toast(newItems.some(x=>x.forceFit)?'Agendamento central salvo · encaixe autorizado ✓':'Agendamento salvo no banco central ✓');return row}catch(e){toast('Agendamento não salvo: '+e.message);return false}})()};window.saveReservation=wrapped;try{saveReservation=wrapped}catch(e){}}
+ if(legacySaveReservation){let wrapped=function centralReservationBridge(){if(!centralEnabled()){if(officialProductionMode()){toast('Faça login novamente antes de salvar a reserva');return false}return legacySaveReservation.apply(this,arguments)}if(centralReservationBusy)return false;return (async()=>{syncResDraftFromDom();let cli=resDraft.clientId?db.clients.find(x=>x.id===resDraft.clientId):null;if(!cli||!window.__imperioCentralClientIdentity.valid(cli)){toast('Selecione uma cliente do cadastro central');return false}const selectedUnit=centralLocalUnitId(),selectedDate=resDraft.date,selectedItems=JSON.stringify(resDraft.items);let original=resDraft.appendToBookingId?db.bookings.find(x=>x.id===resDraft.appendToBookingId):null;if(resDraft.appendToBookingId&&!original){toast('Atendimento original não encontrado');return false}let validationUnit=original?.unit||centralLocalUnitId(),validationItems=original?[...structuredClone(original.items),...resDraft.items]:resDraft.items,err=validateDraftLines(validationItems,resDraft.date,original?.id||'',validationUnit,original||null,cli.id);if(err){toast(err);return false}let newItems=resDraft.items.map(it=>({...it,service:db.services.find(s=>s.id===it.serviceId)?.name||it.service}));const bookingDraft=window.resDraft,bookingRoot=document.getElementById('modalHost')?.querySelector('.overlay'),bookingSession=phase5Context.session();centralReservationBusy=true;try{let verified=await centralApi.client(cli.id);if(!verified||verified.id!==cli.id||verified.active!==true)throw new Error('Cliente não encontrada ou inativa');if(!centralEnabled()||phase5Context.session()!==bookingSession||window.resDraft!==bookingDraft||document.getElementById('modalHost')?.querySelector('.overlay')!==bookingRoot||centralLocalUnitId()!==selectedUnit||resDraft.date!==selectedDate||JSON.stringify(resDraft.items)!==selectedItems||resDraft.clientId!==cli.id)throw new Error('Contexto da reserva alterado; confira novamente');mergeCentralClients([verified]);let row;if(original){if(resDraft.date!==original.date){toast('O novo serviço precisa ficar na mesma data da visita');return false}let combined=[...structuredClone(original.items),...newItems];row=await centralApi.updateBooking(original.id,{serviceDate:original.date,status:original.status,notes:original.notes||'',items:combined.map(it=>centralItemPayload(it,original.date))});agendaAddServiceContext=null}else row=await centralApi.createBooking({clientId:cli.id,serviceDate:resDraft.date,status:resDraft.status||'Agendado',items:newItems.map(it=>centralItemPayload(it,resDraft.date))},resDraft.centralOperationKey||(resDraft.centralOperationKey=operationKey('booking')));if(phase5Context.session()!==bookingSession||window.resDraft!==bookingDraft||centralLocalUnitId()!==selectedUnit||document.getElementById('modalHost')?.querySelector('.overlay')!==bookingRoot)return row;await refreshCentralAgenda(selectedDate);if(phase5Context.session()!==bookingSession||window.resDraft!==bookingDraft||centralLocalUnitId()!==selectedUnit||document.getElementById('modalHost')?.querySelector('.overlay')!==bookingRoot)return row;agendaDate=selectedDate;closeModal();legacyRenderAgenda();let returnCmd=window.commandReturnId;window.commandReturnId=null;if(returnCmd){let cmd=db.clientCommands.find(x=>x.id===returnCmd);if(cmd&&row?.id&&!cmd.bookingIds.includes(row.id))cmd.bookingIds.push(row.id);if(cmd)syncCommandAgendaItems(cmd);save();openCommand(returnCmd)}toast(newItems.some(x=>x.forceFit)?'Agendamento central salvo · encaixe autorizado ✓':'Agendamento salvo no banco central ✓');return row}catch(e){
+    if(e.status===404){
+     // A booking 404 can mean a missing service or professional, not necessarily the Client.
+     const session=phase5Context.session();
+     try{
+      const found=await centralApi.client(cli.id);
+      if(session===phase5Context.session()&&found?.id===cli.id&&found.active===true)mergeCentralClients([found]);
+     }catch(lookupError){
+      if(lookupError.status===404&&session===phase5Context.session())centralClientIds.delete(String(cli.id));
+     }
+    }
+    if(phase5Context.session()===bookingSession&&window.resDraft===bookingDraft)toast('Agendamento não salvo: '+e.message);return false
+   }finally{centralReservationBusy=false}})()};window.saveReservation=wrapped;try{saveReservation=wrapped}catch(e){}}
  const legacySaveExistingBooking=window.saveExistingBooking||((typeof saveExistingBooking==='function')?saveExistingBooking:null);
- if(legacySaveExistingBooking){let wrapped=async function(){if(!centralEnabled())return legacySaveExistingBooking.apply(this,arguments);bookingDraftSync();let current=db.bookings.find(x=>x.id===editBookingId);if(!current)return;let err=validateDraftLines(editBookingDraft.items,editBookingDraft.date,current.id,current.unit,current,current.clientId||'');if(err){toast(err);return}try{let row=await centralApi.updateBooking(current.id,{serviceDate:editBookingDraft.date,status:editBookingDraft.status,notes:editBookingDraft.notes||'',blockAllDay:!!editBookingDraft.blockAllDay,blockException:!!editBookingDraft.blockException,items:editBookingDraft.items.map(it=>centralItemPayload(it,editBookingDraft.date))});await refreshCentralAgenda(editBookingDraft.date);closeModal();agendaDate=editBookingDraft.date;legacyRenderAgenda();for(const cmd of db.clientCommands||[]){if((cmd.bookingIds||[]).includes(current.id))syncCommandAgendaItems(cmd)}let sum=typeof comboVisitSummaryForBooking==='function'?comboVisitSummaryForBooking(current.id):null;if(sum)toast('Combo aplicado automaticamente · total da visita '+money(sum.total)+' ✓');else toast(row.status==='Cancelado'?'Agendamento cancelado no banco central ✓':'Reserva atualizada no banco central ✓');return row}catch(e){toast('Reserva não atualizada: '+e.message)}};window.saveExistingBooking=wrapped;try{saveExistingBooking=wrapped}catch(e){}}
+ if(legacySaveExistingBooking){let wrapped=async function(){if(!centralEnabled()){if(officialProductionMode()){toast('Sessão central necessária para alterar reserva');return false}return legacySaveExistingBooking.apply(this,arguments)}bookingDraftSync();let current=db.bookings.find(x=>x.id===editBookingId);if(!current)return;let err=validateDraftLines(editBookingDraft.items,editBookingDraft.date,current.id,current.unit,current,current.clientId||'');if(err){toast(err);return}try{let row=await centralApi.updateBooking(current.id,{serviceDate:editBookingDraft.date,status:editBookingDraft.status,notes:editBookingDraft.notes||'',blockAllDay:!!editBookingDraft.blockAllDay,blockException:!!editBookingDraft.blockException,items:editBookingDraft.items.map(it=>centralItemPayload(it,editBookingDraft.date))});await refreshCentralAgenda(editBookingDraft.date);closeModal();agendaDate=editBookingDraft.date;legacyRenderAgenda();for(const cmd of db.clientCommands||[]){if((cmd.bookingIds||[]).includes(current.id))syncCommandAgendaItems(cmd)}let sum=typeof comboVisitSummaryForBooking==='function'?comboVisitSummaryForBooking(current.id):null;if(sum)toast('Combo aplicado automaticamente · total da visita '+money(sum.total)+' ✓');else toast(row.status==='Cancelado'?'Agendamento cancelado no banco central ✓':'Reserva atualizada no banco central ✓');return row}catch(e){toast('Reserva não atualizada: '+e.message)}};window.saveExistingBooking=wrapped;try{saveExistingBooking=wrapped}catch(e){}}
  // Compare only user-editable values. The central booking projection includes server
  // metadata and derived/mirrored fields that must not block an unchanged UI draft.
  function commandBookingEditableFields(booking){
@@ -7584,7 +7740,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function applyCentralUnitGate(){if(!officialProductionMode())return;let picker=document.getElementById('unitPicker');if(!picker)return;let current=String(picker.value||''),rows=CENTRAL_UNIT_OPTIONS.filter(x=>centralAuthenticated()&&centralCanUse(x.centralId)&&centralUnitAllowed(x.centralId));picker.innerHTML=rows.map(x=>`<option value="${x.localId}">${x.name}</option>`).join('');let chosen=rows.some(x=>x.localId===current)?current:(rows.find(x=>x.centralId==='centro')||rows[0])?.localId||'';picker.value=chosen;picker.disabled=rows.length<=1}
  if(legacyBuildAdminNavV99){let wrapped=function(){let out=legacyBuildAdminNavV99.apply(this,arguments);applyCentralUnitGate();return out};window.buildAdminNav=wrapped;try{buildAdminNav=wrapped}catch(e){}}
  const legacyUnitChangeV99=window.handleUnitChange||((typeof handleUnitChange==='function')?handleUnitChange:null);
- if(legacyUnitChangeV99){let wrapped=function(){let requested=document.getElementById('unitPicker')?.value||'';let out=legacyUnitChangeV99.apply(this,arguments);if(officialProductionMode()&&centralAuthenticated()){applyCentralUnitGate();let picker=document.getElementById('unitPicker');if(picker&&[...picker.options].some(x=>x.value===requested))picker.value=requested}return out};window.handleUnitChange=wrapped;try{handleUnitChange=wrapped}catch(e){}}
+ if(legacyUnitChangeV99){let wrapped=function(){let requested=document.getElementById('unitPicker')?.value||'';phase5Context.invalidate();let out=legacyUnitChangeV99.apply(this,arguments);if(officialProductionMode()&&centralAuthenticated()){applyCentralUnitGate();let picker=document.getElementById('unitPicker');if(picker&&[...picker.options].some(x=>x.value===requested))picker.value=requested}return out};window.handleUnitChange=wrapped;try{handleUnitChange=wrapped}catch(e){}}
 
  const legacyStaffLoginV99=window.doLogin||((typeof doLogin==='function')?doLogin:null);
  if(legacyStaffLoginV99){let wrapped=function(){if(!officialProductionMode())return legacyStaffLoginV99.apply(this,arguments);let ue=document.getElementById('loginUser'),pe=document.getElementById('loginPass'),username=ue?.value.trim()||'',password=pe?.value||'';if(!username||!password){toast('Informe usuário e senha');return false}return (async()=>{try{let res=await fetch(endpoint()+'/api/v1/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({username,password})}),txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}if(!res.ok||!data.user)throw centralError(data,res.status);let local=(db.userAccounts||[]).find(x=>String(x.username||'').trim().toLowerCase()===username.toLowerCase()&&x.active!==false);/* In central mode the verified backend principal can log in without a migrated local identity. */let healthRes=await fetch(endpoint()+'/api/v1/health',{credentials:'include',headers:{'Accept':'application/json'}}),health=healthRes.ok?await healthRes.json():{};setCentralWriteUnits(health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)?health.operationalWriteUnits:[]);setCentralSession(data.user,data.csrfToken||'');window.__imperioProfessionalUnitHydration?.hydrateUnits(await centralApi.units());if(local)window.__imperioV63?.sessionSet?.(local.id);if(pe)pe.value='';showOnly('adminApp');buildAdminNav();applyCentralUnitGate();renderAdmin();toast('Sessão central autenticada ✓');return true}catch(e){setCentralSession(null);toast('Login não realizado: '+(e?.message||e));return false}})()};window.doLogin=wrapped;try{doLogin=wrapped}catch(e){}}
