@@ -11,7 +11,7 @@ const source=(start,end)=>{
  return html.slice(a,b);
 };
 
-const db={clients:[{id:'cl_legacy_only',name:'Local'}, {id:'cl_canonical',name:'Cached'}]};
+const db={clients:[{id:'cl_legacy_only',name:'Local'}, {id:'cl_canonical',name:'Cached'}],services:[{id:'s1',name:'Service A'},{id:'s2',name:'Service B'}]};
 const ids=new Set(),normalizeClient=c=>c,localDateISO=()=> '2026-10-10';
 const merge=new Function('db','centralClientIds','normalizeClient','localDateISO','UNIT_TO_LOCAL',
  source('function mergeCentralClients(rows){','function mergeCentralBookings(rows,uid')+';return mergeCentralClients;')
