@@ -12,6 +12,7 @@ ok(html.includes("principal.networkAdmin===true"),'network permission cannot be 
 ok(html.includes("sessionStorage.getItem('imperio-v99-central-authenticated')!=='1'"),'central state requires authenticated session');
 ok(html.includes('assets/js/client-source-network-config.js'),'network source script is loaded');
 ok(js.includes("credentials:'include'"),'central options are read only with authenticated cookie');
+ok(js.includes('window.__imperioDatabase')&&!js.includes('window.db||'),'client source bridge uses exported shared database binding');
 ok(js.includes("X-CSRF-Token"),'network writes require CSRF');
 ok(js.includes("expectedVersion:serverVersion"),'writes protect against concurrent overwrite');
 ok(js.includes("['openClientForm',async function(base,args)")&&js.includes("await refresh();return base.apply(this,args)"),'client form waits for central source hydration');
