@@ -35,5 +35,4 @@ CREATE INDEX "CentralFinanceEntry_unitId_date_status_idx" ON "CentralFinanceEntr
 CREATE INDEX "CentralFinanceEntry_unitId_competenceDate_idx" ON "CentralFinanceEntry"("unitId","competenceDate");
 CREATE INDEX "CentralFinanceEntry_cashSessionId_idx" ON "CentralFinanceEntry"("cashSessionId");
 ALTER TABLE "StockPurchase" ADD COLUMN "financeUnitId" TEXT;
-UPDATE "StockPurchase" SET "financeUnitId" = "destinationLocationId"
- WHERE "destinationLocationId" IN ('centro','big','shopping-contagem');
+-- Existing purchases remain untouched; historical financial ownership requires reconciliation.

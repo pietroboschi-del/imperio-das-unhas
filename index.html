@@ -8752,6 +8752,11 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   networkSources.src='assets/js/client-source-network-config.js';
   networkSources.async=false;
   document.body.appendChild(networkSources);
+  const financeSource=document.createElement('script');
+  financeSource.id='imperio-a3-finance-central-script';
+  financeSource.src='assets/js/a3-finance-central.js';
+  financeSource.async=false;
+  document.body.appendChild(financeSource);
 })();
 </script>
 
@@ -8762,5 +8767,4 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
 
 
 
-<script src="assets/js/a3-finance-central.js"></script>
 </body></html>
