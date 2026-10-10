@@ -9,7 +9,7 @@ const backendRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(backendRoot, '..');
 const BASELINE_SHA = '920d74cbb5856ab3bdb1c63c1c0c762c82346cba';
 const EXPECTED_BASELINE_MIGRATION_COUNT = 13;
-const EXPECTED_TARGET_MIGRATION_COUNT = 22;
+const EXPECTED_TARGET_MIGRATION_COUNT = 23;
 const BASELINE_DB = 'imperio_release_rehearsal_baseline';
 const RESTORED_DB = 'imperio_release_rehearsal_restored';
 
