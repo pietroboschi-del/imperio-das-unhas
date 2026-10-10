@@ -42,6 +42,62 @@ export class FinanceWriteController {
   };
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
  }
+ private async authoritativeCashBalance(tx:Prisma.TransactionClient,row:{id:string;unitId:string;openingAmount:Prisma.Decimal;legacyPayload:unknown}){
+  const zero=new Prisma.Decimal(0),legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload as any:{};
+  const adjustments=Array.isArray(legacy.adjustments)?legacy.adjustments:[];
+  const payments=await tx.commandPayment.findMany({where:{cashSessionId:row.id,unitId:row.unitId,status:'CONFIRMED'},select:{commandId:true,method:true,amount:true,legacyPayload:true}});
+  let received=zero,cash=zero,pix=zero,cards=zero,fees=zero,sangrias=zero,expenses=zero,advances=zero,transfers=zero,adjustmentTotal=zero;
+  for(const p of payments){
+   if(['DIRECT_PROFESSIONAL','BARTER'].includes(p.method))continue;
+   const amount=new Prisma.Decimal(p.amount);received=received.plus(amount);
+   if(p.method==='CASH')cash=cash.plus(amount);
+   if(p.method==='PIX')pix=pix.plus(amount);
+   if(['DEBIT_CARD','CREDIT_CARD'].includes(p.method))cards=cards.plus(amount);
+   const metadata=p.legacyPayload&&typeof p.legacyPayload==='object'&&!Array.isArray(p.legacyPayload)?p.legacyPayload as any:{};
+   const fee=Number(metadata.processorFee||0);
+   if(Number.isFinite(fee))fees=fees.plus(new Prisma.Decimal(fee.toFixed(2)));
+  }
+  for(const a of adjustments){
+   const n=Number(a?.amount);
+   if(!Number.isFinite(n))throw new ConflictException('Ajuste histórico sem valor financeiro confiável');
+   const amount=new Prisma.Decimal(n.toFixed(2));adjustmentTotal=adjustmentTotal.plus(amount);
+   if(amount.lt(0)){
+    const outgoing=amount.negated();sangrias=sangrias.plus(outgoing);
+    const nature=String(a?.payload?.movement?.cashNature||'');
+    if(nature==='expense')expenses=expenses.plus(outgoing);
+    if(nature==='employee_advance')advances=advances.plus(outgoing);
+    if(nature==='transfer')transfers=transfers.plus(outgoing);
+   }
+  }
+  // A tip is materialized as a TIP obligation when a command is fully paid.
+  // Attribute it once to the cash session of the final confirmed payment,
+  // not to every session that received a partial payment.
+  let tips=zero;
+  const commandIds=[...new Set(payments.map(p=>p.commandId))];
+  if(commandIds.length){
+   const allPayments=await tx.commandPayment.findMany({where:{unitId:row.unitId,status:'CONFIRMED',commandId:{in:commandIds}},select:{id:true,commandId:true,cashSessionId:true},orderBy:[{receivedAt:'desc'},{id:'desc'}]});
+   const seen=new Set<string>(),settledHere:string[]=[];
+   for(const payment of allPayments){
+    if(seen.has(payment.commandId))continue;
+    seen.add(payment.commandId);
+    if(payment.cashSessionId===row.id)settledHere.push(payment.commandId);
+   }
+   if(settledHere.length){
+    const obligations=await tx.professionalObligation.findMany({where:{unitId:row.unitId,kind:'TIP',commandId:{in:settledHere}},select:{amount:true,legacyPayload:true}});
+    for(const obligation of obligations){
+     const legacyTip=obligation.legacyPayload&&typeof obligation.legacyPayload==='object'&&!Array.isArray(obligation.legacyPayload)?obligation.legacyPayload as any:{};
+     // The persisted TIP obligation holds net (Decimal) and the historical gross.
+     const value=legacyTip.gross??new Prisma.Decimal(obligation.amount).plus(legacyTip.deduction||0);
+     const gross=new Prisma.Decimal(String(value));
+     if(!gross.isFinite()||gross.lt(0)||!gross.eq(gross.toDecimalPlaces(2)))throw new ConflictException('Gorjeta persistida com valor bruto inválido');
+     tips=tips.plus(gross);
+    }
+   }
+  }
+  const expected=new Prisma.Decimal(row.openingAmount).plus(cash).plus(adjustmentTotal);
+  const snapshot={received:Number(received),cash:Number(cash),pix:Number(pix),cards:Number(cards),fees:Number(fees),sangrias:Number(sangrias),expenses:Number(expenses),advances:Number(advances),transfers:Number(transfers),tips:Number(tips),physicalExpected:Number(expected)};
+  return {expected,snapshot};
+ }
  private stockSaleOperationKey(commandId:string,line:any,index:number){
   return 'sale_'+createHash('sha256').update(commandId+'|SALE|'+index+'|'+String(line?.id||'')+'|'+String(line?.productId||'')).digest('hex').slice(0,40)
  }
@@ -93,7 +149,7 @@ export class FinanceWriteController {
  @UnitScoped() @RequirePermissions('cash.close')
  async closeCash(@Req() req:ImperioRequest,@Param('id') id:string,@Body() b:CloseCashDto){
   assertOperationalWriteEnabled(req.unitId!);return this.prisma.$transaction(async tx=>{await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${'cash-session|'+id}))`;const row=await tx.cashSession.findFirst({where:{id,unitId:req.unitId!}});if(!row)throw new NotFoundException('Caixa não encontrado nesta unidade');if(row.status!=='OPEN')throw new ConflictException('Caixa já fechado');
-   const legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload as any:{};const updated=await tx.cashSession.update({where:{id},data:{status:'CLOSED',closingAmount:this.money(b.closingAmount),closedAt:new Date(),closedByUserId:req.principal!.userId,legacyPayload:{...legacy,systemExpected:b.systemExpected??null,difference:b.difference??null,closeNote:b.closeNote||'',snapshot:b.snapshot||null} as Prisma.InputJsonValue,version:{increment:1}}});
+   const legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload as any:{};const {expected,snapshot}=await this.authoritativeCashBalance(tx,row);const counted=this.money(b.closingAmount),difference=counted.minus(expected);const updated=await tx.cashSession.update({where:{id},data:{status:'CLOSED',closingAmount:counted,closedAt:new Date(),closedByUserId:req.principal!.userId,legacyPayload:{...legacy,systemExpected:Number(expected),difference:Number(difference),closeNote:b.closeNote||'',snapshot} as Prisma.InputJsonValue,version:{increment:1}}});
    await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'cash.closed',entityType:'CashSession',entityId:id,legacyPayload:{closingAmount:b.closingAmount},occurredAt:new Date()}});return updated;});
  }
 
@@ -143,7 +199,7 @@ export class FinanceWriteController {
     recipientSnapshot={professionalId:b.professionalId!,name:professional.professional.name,unitId:req.unitId!,cashImpact:false,treasuryImpact:false};
    }else if(b.professionalId)throw new ConflictException('Destinatária profissional é exclusiva do pagamento direto');
    if(!outsideCash)await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${req.unitId!}), hashtext(${'cash-session|'+(b.cashSessionId||'')}))`;
-   const cash=outsideCash?null:await tx.cashSession.findFirst({where:{id:b.cashSessionId||'',unitId:req.unitId!,status:'OPEN'}});if(!outsideCash&&!cash)throw new ConflictException('Caixa aberto da unidade é obrigatório');const currentRemaining=new Prisma.Decimal(cmd.remainingAmount),excess=this.money(b.creditExcessAmount||0);if(amount.gt(currentRemaining)&&!amount.minus(currentRemaining).eq(excess))throw new ConflictException('Pagamento supera saldo da comanda');const applied=Prisma.Decimal.min(amount,currentRemaining);
+   const cash=outsideCash?null:await tx.cashSession.findFirst({where:{id:b.cashSessionId||'',unitId:req.unitId!,status:'OPEN'}});if(!outsideCash&&!cash)throw new ConflictException('Caixa aberto da unidade é obrigatório');const currentRemaining=new Prisma.Decimal(cmd.remainingAmount),excess=this.money(b.creditExcessAmount||0),actualExcess=Prisma.Decimal.max(amount.minus(currentRemaining),new Prisma.Decimal(0));if(!excess.eq(actualExcess))throw new ConflictException('Crédito só é permitido para o excedente real do pagamento');if(actualExcess.gt(0)&&(outsideCash||!cmd.clientId))throw new ConflictException('Excedente exige cliente e pagamento recebido pelo caixa');const applied=Prisma.Decimal.min(amount,currentRemaining);
    const remaining=currentRemaining.minus(applied);const payment=await tx.commandPayment.create({data:{id,commandId,unitId:req.unitId!,cashSessionId:cash?.id||null,method:b.method,amount,status:'CONFIRMED',receivedByUserId:req.principal!.userId,legacyPayload:{source:'central_api',...(recipientSnapshot?{recipientSnapshot}:{}),professionalId:b.professionalId||null,cashImpact:!outsideCash,treasuryImpact:!outsideCash,accountId:outsideCash?null:(b.accountId||null),processorFee:b.processorFee||0,creditExcessAmount:String(excess),idempotencyHash}}});await tx.openCommand.update({where:{id:commandId},data:{remainingAmount:remaining,status:remaining.eq(0)?'CLOSED':'OPEN',version:{increment:1}}});if(remaining.eq(0)){await this.applyCommandStockSale(tx,cmd,req.unitId!,req.principal!.userId);const items=await tx.commandServiceItem.findMany({where:{commandId,unitId:req.unitId!}});for(const item of items){if(new Prisma.Decimal(item.commissionAmount).lte(0))continue;const obligationId='obl_'+createHash('sha256').update(item.id+'|COMMISSION').digest('hex').slice(0,40);await tx.professionalObligation.upsert({where:{commandItemId_kind:{commandItemId:item.id,kind:'COMMISSION'}},create:{id:obligationId,professionalId:item.professionalId,unitId:req.unitId!,commandId,commandItemId:item.id,kind:'COMMISSION',competenceDate:cmd.serviceDate,amount:item.commissionAmount,paidAmount:0,status:'OPEN',legacyPayload:{source:'command_close',commissionSnapshot:true}},update:{}});}const snap=(cmd.legacyPayload as any)?.operationalSnapshot||{},tip=snap?.tipPreview;if(tip?.professionalId&&Number(tip.net||0)>0){const tipId='tipobl_'+createHash('sha256').update(commandId+'|TIP').digest('hex').slice(0,40);await tx.professionalObligation.upsert({where:{id:tipId},create:{id:tipId,professionalId:String(tip.professionalId),unitId:req.unitId!,commandId,kind:'TIP',competenceDate:cmd.serviceDate,amount:this.money(Number(tip.net)),paidAmount:0,status:'OPEN',legacyPayload:{source:'command_close',gross:tip.gross||0,deduction:tip.deduction||0}},update:{}});}if(cmd.clientId&&new Prisma.Decimal(cmd.appliedCreditAmount).gt(0)){await tx.$queryRaw`SELECT id FROM "ClientCreditOpening" WHERE "clientId"=${cmd.clientId} ORDER BY id FOR UPDATE`;let left=new Prisma.Decimal(cmd.appliedCreditAmount),credits=await tx.clientCreditOpening.findMany({where:{clientId:cmd.clientId,amount:{gt:0}},orderBy:{createdAt:'asc'}});for(const cr of credits){if(left.lte(0))break;const take=Prisma.Decimal.min(left,cr.amount),next=new Prisma.Decimal(cr.amount).minus(take);await tx.clientCreditOpening.update({where:{id:cr.id},data:{amount:next}});left=left.minus(take);}if(left.gt(0))throw new ConflictException('Crédito da cliente insuficiente no banco central');}if(cmd.clientId&&excess.gt(0)){const creditId='credit_'+createHash('sha256').update(commandId+'|EXCESS').digest('hex').slice(0,40);await tx.clientCreditOpening.upsert({where:{id:creditId},create:{id:creditId,clientId:cmd.clientId,amount:excess,currency:'BRL',source:'command_excess'},update:{amount:excess}});}}await tx.auditEvent.create({data:{id:randomUUID(),userId:req.principal!.userId,unitId:req.unitId!,action:'command.payment_received',entityType:'OpenCommand',entityId:commandId,legacyPayload:{paymentId:id,method:b.method,professionalId:b.professionalId||null,cashImpact:!outsideCash,treasuryImpact:!outsideCash,amount:String(amount)},occurredAt:new Date()}});return payment;});
  }
  @Post('professional-settlements')
