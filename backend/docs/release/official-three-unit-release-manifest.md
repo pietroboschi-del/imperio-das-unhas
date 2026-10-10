@@ -60,6 +60,7 @@ Expected pending from historical 13-migration baseline to target: `11` migration
 8. `20261006_wa5_1_messaging_automation`
 9. `20261008_wa2_outbox_reconciliation_required`
 10. `20261010_phase5_client_source_network_config`
+11. `20261010_a3_fin_rep_authoritative_ledger`
 
 ## BACKUP REQUIREMENT
 
