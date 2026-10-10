@@ -26,16 +26,16 @@ eq(db.clients.find(c=>c.id==='cl_canonical').technicalProvenance,'central_api','
 
 let loginValid=true,localWrites=0,requests=[],errors=[],fetchCount=0;
 const selected=db.clients.find(c=>c.id==='op_central');
-const window={commandReturnId:null,__imperioCentralClientIdentity:{valid:c=>!!c&&ids.has(c.id)&&c.central===true&&c.active===true},saveReservation:()=>{localWrites++;return false}};
+const window={resDraft:draft,commandReturnId:null,__imperioCentralClientIdentity:{valid:c=>!!c&&ids.has(c.id)&&c.central===true&&c.active===true},saveReservation:()=>{localWrites++;return false}};
 const draft={clientId:'cl_legacy_only',date:'2026-10-12',status:'Agendado',items:[{serviceId:'s1',pro:'p1',time:'10:00',duration:30,price:50},{serviceId:'s2',pro:'p2',time:'10:30',duration:40,price:70}]};
 const booking={
  client:async id=>{fetchCount++;return db.clients.find(c=>c.id===id&&ids.has(id))||null},
  createBooking:async(body,key)=>{requests.push({body,key});return{id:'booking_ci',clientId:body.clientId,status:'Agendado'}}
 };
-const ctx=new Function('window','saveReservation','centralEnabled','officialProductionMode','toast','centralReservationBusy','syncResDraftFromDom','resDraft','db','validateDraftLines','centralLocalUnitId','centralApi','mergeCentralClients','centralItemPayload','operationKey','refreshCentralAgenda','closeModal','legacyRenderAgenda','centralClientIds','save','openCommand','syncCommandAgendaItems','money',
+const ctx=new Function('window','saveReservation','centralEnabled','officialProductionMode','toast','centralReservationBusy','syncResDraftFromDom','resDraft','db','validateDraftLines','centralLocalUnitId','centralApi','mergeCentralClients','centralItemPayload','operationKey','refreshCentralAgenda','closeModal','legacyRenderAgenda','centralClientIds','save','openCommand','syncCommandAgendaItems','money','document','phase5Context',
  source('const legacySaveReservation=window.saveReservation','const legacySaveExistingBooking=window.saveExistingBooking')+
  ';return ()=>window.saveReservation();')(
- window,window.saveReservation,()=>loginValid,()=>true,m=>errors.push(m),false,()=>{},draft,db,()=>null,()=> 'u1',booking,merge,(it,date)=>({serviceId:it.serviceId,professionalId:it.pro,startAt:date+'T'+it.time+':00-03:00',unitPrice:it.price,durationMin:it.duration}),()=> 'stable-key',async()=>true,()=>{},()=>{},ids,()=>{},()=>{},()=>{},x=>x
+ window,window.saveReservation,()=>loginValid,()=>true,m=>errors.push(m),false,()=>{},draft,db,()=>null,()=> 'u1',booking,merge,(it,date)=>({serviceId:it.serviceId,professionalId:it.pro,startAt:date+'T'+it.time+':00-03:00',unitPrice:it.price,durationMin:it.duration}),()=> 'stable-key',async()=>true,()=>{},()=>{},ids,()=>{},()=>{},()=>{},x=>x,{getElementById:()=>({querySelector:()=>null})},{session:()=>1}
 );
 eq(await ctx(),false,'local-only candidate blocked from booking');
 eq(requests.length,0,'no central write for legacy ID');

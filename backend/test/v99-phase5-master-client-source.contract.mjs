@@ -15,7 +15,7 @@ ok(js.includes("credentials:'include'"),'central options are read only with auth
 ok(js.includes('window.__imperioDatabase')&&!js.includes('window.db||'),'client source bridge uses exported shared database binding');
 ok(js.includes("X-CSRF-Token"),'network writes require CSRF');
 ok(js.includes("expectedVersion:serverVersion"),'writes protect against concurrent overwrite');
-ok(js.includes("['openClientForm',async function(base,args)")&&js.includes("await refresh();return base.apply(this,args)"),'client form waits for central source hydration');
+ok(js.includes("['openClientForm','client'")&&js.includes("manager.run(intent,()=>base.apply(self,args))")&&js.includes("if(!(await refresh())||!manager?.valid(intent))return false"),'client form awaits central source hydration and discards obsolete intent');
 ok(js.includes("window.__imperioNetworkClientSources"),'central bridge exposes read-only diagnostics');
 ok(!js.includes('localStorage.setItem'),'no local-only authoritative source');
 ok(controller.includes("@Controller('api/v1/config/client-sources')"),'central endpoint installed');
