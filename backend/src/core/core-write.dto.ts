@@ -12,6 +12,7 @@ export class CreateClientDto {
   @IsOptional() @IsString() @MaxLength(160) city?: string;
   @IsOptional() @IsString() @MaxLength(160) profession?: string;
   @IsOptional() @IsString() @MaxLength(160) source?: string;
+  @IsOptional() @IsIn(['Presencial','WhatsApp','Telefone','Site / Agendamento online','Outro']) origin?: string;
   @IsOptional() @IsString() @MaxLength(2000) notes?: string;
 }
 
@@ -26,6 +27,7 @@ export class UpdateClientDto {
   @IsOptional() @IsString() @MaxLength(160) city?: string;
   @IsOptional() @IsString() @MaxLength(160) profession?: string;
   @IsOptional() @IsString() @MaxLength(160) source?: string;
+  @IsOptional() @IsIn(['Presencial','WhatsApp','Telefone','Site / Agendamento online','Outro']) origin?: string;
   @IsOptional() @IsString() @MaxLength(2000) notes?: string;
 }
 

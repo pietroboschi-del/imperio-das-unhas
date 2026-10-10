@@ -34,12 +34,12 @@ export class CoreWriteController {
   private phone(value?:string|null){const d=String(value||'').replace(/\D/g,'');if(!d)return null;if(d.startsWith('55')&&d.length>=12)return '+'+d;if(d.length===10||d.length===11)return '+55'+d;return '+'+d}
   private normName(value?:string|null){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()}
   private profile(body:CreateClientDto|UpdateClientDto){
-    return Object.fromEntries(Object.entries({cpf:body.cpf,birthDate:body.birthDate,cep:body.cep,neighborhood:body.neighborhood,city:body.city,profession:body.profession,source:body.source,notes:body.notes}).filter(([,v])=>v!==undefined));
+    return Object.fromEntries(Object.entries({cpf:body.cpf,birthDate:body.birthDate,cep:body.cep,neighborhood:body.neighborhood,city:body.city,profession:body.profession,source:body.source,origin:body.origin,notes:body.notes}).filter(([,v])=>v!==undefined));
   }
   private clientView(row:any){
     const legacy=row?.legacyPayload&&typeof row.legacyPayload==='object'?row.legacyPayload:{};
     const p=legacy?.operationalProfile&&typeof legacy.operationalProfile==='object'?legacy.operationalProfile:legacy;
-    return {id:row.id,name:row.name,active:row.active,phone:row.phone,email:row.email,registrationUnitId:row.registrationUnitId,version:row.version,cpf:p?.cpf||'',birthDate:p?.birthDate||'',cep:p?.cep||'',neighborhood:p?.neighborhood||'',city:p?.city||'',profession:p?.profession||'',source:p?.source||'',notes:p?.notes||''};
+    return {id:row.id,name:row.name,active:row.active,phone:row.phone,email:row.email,registrationUnitId:row.registrationUnitId,version:row.version,cpf:p?.cpf||'',birthDate:p?.birthDate||'',cep:p?.cep||'',neighborhood:p?.neighborhood||'',city:p?.city||'',profession:p?.profession||'',source:p?.source||'',origin:p?.origin||'',notes:p?.notes||''};
   }
   private async duplicateClient(name:string,phone:string|null,email:string|null,excludeId?:string,db:any=this.prisma){
     const ors:any[]=[];if(phone)ors.push({phone});if(email)ors.push({email});if(!ors.length)return null;
