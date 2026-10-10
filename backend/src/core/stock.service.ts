@@ -159,6 +159,9 @@ export class StockService {
   }
   async purchase(p:ImperioPrincipal,body:any,key?:string){
     const idem=this.key('stock.purchase',key),locationId=String(body.destinationLocationId||'');
+    const financeUnitId=String(body.financeUnitId||(CANONICAL_UNITS.includes(locationId as any)?locationId:''));
+    if(!CANONICAL_UNITS.includes(financeUnitId as any))throw new ConflictException('Unidade financeira da compra obrigatória');
+    if(financeUnitId!==locationId&&!this.unitAccess(p,financeUnitId,'finance.manage'))throw new ForbiddenException('Sem permissão financeira na unidade da obrigação');
     await this.assertWriteLocations(p,[locationId]);
     const raw=Array.isArray(body.items)?body.items:[];if(!raw.length)throw new ConflictException('Compra precisa de ao menos um item');
     return this.prisma.$transaction(async tx=>{
@@ -166,7 +169,7 @@ export class StockService {
       const products=await this.productsByIds(tx,raw.map((x:any)=>String(x.productId)));
       const lines:{productId:string;qty:number;unitCost:number;sortOrder:number}[]=raw.map((x:any,i:number)=>({productId:String(x.productId),qty:Number(x.qty),unitCost:Number(x.unitCost),sortOrder:i}));if(lines.some((x:{productId:string;qty:number;unitCost:number;sortOrder:number})=>!Number.isFinite(x.qty)||!(n(D(x.qty))>0)||x.unitCost<0||!Number.isFinite(x.unitCost)))throw new ConflictException('Quantidade/custo inválido na compra');
       const goods=lines.reduce((s:number,x:{productId:string;qty:number;unitCost:number;sortOrder:number})=>s+x.qty*x.unitCost,0),freightInput=Number(body.freight||0),freight=n(D(freightInput,2)),total=goods+freight,purchaseId=randomUUID();
-      const row=await tx.stockPurchase.create({data:{id:purchaseId,destinationLocationId:locationId,purchaseDate:dateOnly(body.purchaseDate),supplier:String(body.supplier||'').trim()||'Não informado',freight:D(freight,2),goodsTotal:D(goods,2),total:D(total,2),note:String(body.note||'').trim()||null,createdByUserId:p.userId,idempotencyKey:idem}});
+      const row=await tx.stockPurchase.create({data:{id:purchaseId,destinationLocationId:locationId,financeUnitId,purchaseDate:dateOnly(body.purchaseDate),supplier:String(body.supplier||'').trim()||'Não informado',freight:D(freight,2),goodsTotal:D(goods,2),total:D(total,2),note:String(body.note||'').trim()||null,createdByUserId:p.userId,idempotencyKey:idem}});
       if(!Number.isFinite(freightInput)||freightInput<0)throw new ConflictException('Frete inválido');
       let allocatedFreight=D(0);
       for(const line of lines){
