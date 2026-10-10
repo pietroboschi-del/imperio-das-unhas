@@ -7,7 +7,7 @@ async function wait(){for(let i=0;i<80;i++){try{if((await fetch(base+'/api/v1/he
 const cookie=r=>(r.headers.get('set-cookie')||'').split(';')[0];
 async function main(){
  await prisma.stockMovement.deleteMany();await prisma.stockTransferItem.deleteMany();await prisma.stockTransfer.deleteMany();await prisma.stockPurchaseItem.deleteMany();await prisma.stockPurchase.deleteMany();await prisma.stockBalance.deleteMany();await prisma.product.deleteMany();await prisma.stockLocation.deleteMany();
- await prisma.commandPayment.deleteMany();await prisma.commandServiceItem.deleteMany();await prisma.cashSession.deleteMany();await prisma.openCommand.deleteMany();await prisma.auditEvent.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.unit.deleteMany();
+ await prisma.clientCreditOpening.deleteMany();await prisma.commandPayment.deleteMany();await prisma.commandServiceItem.deleteMany();await prisma.cashSession.deleteMany();await prisma.openCommand.deleteMany();await prisma.auditEvent.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.unit.deleteMany();
  for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
  for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']])await prisma.stockLocation.create({data:{id,kind:'UNIT',unitId:id,name,active:true}});
  await prisma.product.create({data:{id:'finance-prod-sale',name:'Produto Revenda CI',type:'RESALE',defaultCost:7.5,salePrice:10,active:true}});
@@ -83,9 +83,52 @@ async function main(){
  r=await fetch(base+'/api/v1/commands',{method:'POST',headers:{...h,'idempotency-key':'cmd-race'},body:JSON.stringify({serviceDate:'2026-10-06',grossAmount:50,discountAmount:0})});ok(r.ok,'abre comanda concorrência');const raceCmd=await r.json();
  const payRace=await Promise.all([fetch(base+`/api/v1/commands/${raceCmd.id}/payments`,{method:'POST',headers:{...h,'idempotency-key':'race-pay-a'},body:JSON.stringify({cashSessionId:cash.id,method:'PIX',amount:50})}),fetch(base+`/api/v1/commands/${raceCmd.id}/payments`,{method:'POST',headers:{...h,'idempotency-key':'race-pay-b'},body:JSON.stringify({cashSessionId:cash.id,method:'PIX',amount:50})})]);
  const payStatuses=payRace.map(x=>x.status).sort((a,b)=>a-b);ok(payStatuses[0]>=200&&payStatuses[0]<300,'um pagamento concorrente aceito');ok(payStatuses[1]===409,'segundo pagamento concorrente bloqueado');ok(await prisma.commandPayment.count({where:{commandId:raceCmd.id}})===1,'somente um pagamento concorrente persistido');
- r=await fetch(base+`/api/v1/cash-sessions/${cash.id}/close`,{method:'POST',headers:h,body:JSON.stringify({closingAmount:240,systemExpected:240,difference:0,closeNote:'CI',snapshot:{received:140}})});ok(r.ok,'fecha caixa depois da concorrência');
+
+ // A2-FIN-01: all credit comes from the exact backend-calculated overpayment, never from a UI flag alone.
+ await prisma.client.create({data:{id:'a2-fin-client',name:'Cliente Financeiro A2',phone:'31980000001',registrationUnitId:'centro'}});
+ await prisma.clientCreditOpening.create({data:{id:'a2-existing-credit',clientId:'a2-fin-client',amount:2.50,currency:'BRL',source:'legitimate_prior_credit'}});
+ const financeClient='a2-fin-client';
+ r=await fetch(base+'/api/v1/commands',{method:'POST',headers:{...h,'idempotency-key':'a2-credit-command'},body:JSON.stringify({clientId:financeClient,serviceDate:'2026-10-06',grossAmount:10.05})});ok(r.ok,'cria comanda financeira com cliente');const creditCmd=await r.json();
+ const payCredit=(key,body,headers=h)=>fetch(base+`/api/v1/commands/${creditCmd.id}/payments`,{method:'POST',headers:{...headers,'idempotency-key':key},body:JSON.stringify({cashSessionId:cash.id,method:'CASH',...body})});
+ r=await payCredit('a2-forged-partial',{amount:4,creditExcessAmount:1});ok(r.status===409,'pagamento parcial não pode criar crédito fictício');
+ let preservedCmd=await prisma.openCommand.findUniqueOrThrow({where:{id:creditCmd.id}});
+ ok(Number(preservedCmd.remainingAmount)===10.05&&await prisma.commandPayment.count({where:{commandId:creditCmd.id}})===0&&Number((await prisma.clientCreditOpening.findUniqueOrThrow({where:{id:'a2-existing-credit'}})).amount)===2.5,'rejeição é atômica e preserva crédito histórico');
+ r=await payCredit('a2-partial-legitimate',{amount:4});ok(r.ok,'pagamento parcial legítimo aceito');
+ preservedCmd=await prisma.openCommand.findUniqueOrThrow({where:{id:creditCmd.id}});ok(Number(preservedCmd.remainingAmount)===6.05&&preservedCmd.status==='OPEN','saldo parcial permanece aberto e exato');
+ r=await payCredit('a2-forged-final',{amount:6.05,creditExcessAmount:0.01});ok(r.status===409,'quitação exata não cria crédito artificial de um centavo');
+ r=await payCredit('a2-unreported-excess',{amount:6.06});ok(r.status===409,'excedente não declarado não é aceito como saldo devedor');
+ ok(await prisma.commandPayment.count({where:{commandId:creditCmd.id}})===1&&await prisma.clientCreditOpening.count({where:{clientId:financeClient}})===1,'erros não persistem pagamentos ou créditos');
+ const creditRace=await Promise.all([payCredit('a2-real-excess',{amount:6.06,creditExcessAmount:0.01}),payCredit('a2-racing-excess',{amount:6.06,creditExcessAmount:0.01})]);
+ const creditRaceStatuses=creditRace.map(x=>x.status).sort((a,b)=>a-b);
+ ok(creditRaceStatuses[0]>=200&&creditRaceStatuses[0]<300&&creditRaceStatuses[1]===409,'corrida de quitação com excedente só confirma um pagamento');
+ let credits=await prisma.clientCreditOpening.findMany({where:{clientId:financeClient},orderBy:{id:'asc'}});
+ ok(credits.length===2&&credits.some(x=>x.source==='command_excess'&&Number(x.amount)===0.01)&&credits.some(x=>x.id==='a2-existing-credit'&&Number(x.amount)===2.5),'excedente real cria apenas um crédito preservando saldo anterior');
+ r=await payCredit('a2-real-excess',{amount:6.06,creditExcessAmount:0.01});ok(r.ok,'replay idempotente do excedente real');
+ ok(await prisma.commandPayment.count({where:{commandId:creditCmd.id}})===2&&await prisma.clientCreditOpening.count({where:{clientId:financeClient}})===2,'replay não duplica crédito nem pagamento');
+ r=await payCredit('a2-real-excess',{amount:6.07,creditExcessAmount:0.02});ok(r.status===409,'mesma idempotência rejeita payload financeiro diferente');
+ r=await fetch(base+'/api/v1/commands',{method:'POST',headers:{...h,'idempotency-key':'a2-no-client'},body:JSON.stringify({serviceDate:'2026-10-06',grossAmount:10})});const noClient=await r.json();
+ r=await fetch(base+`/api/v1/commands/${noClient.id}/payments`,{method:'POST',headers:{...h,'idempotency-key':'a2-no-client-excess'},body:JSON.stringify({cashSessionId:cash.id,method:'PIX',amount:11,creditExcessAmount:1})});ok(r.status===409,'excedente sem cliente não vira crédito sem destinatária');
+ r=await fetch(base+'/api/v1/commands',{method:'POST',headers:{...h,'idempotency-key':'a2-barter'},body:JSON.stringify({clientId:financeClient,serviceDate:'2026-10-06',grossAmount:10})});const barterCmd=await r.json();
+ r=await fetch(base+`/api/v1/commands/${barterCmd.id}/payments`,{method:'POST',headers:{...h,'idempotency-key':'a2-barter-excess'},body:JSON.stringify({method:'BARTER',amount:11,creditExcessAmount:1})});ok(r.status===409,'permuta não cria crédito financeiro sem recebimento no caixa');
+ for(const unit of ['big','shopping-contagem']){r=await payCredit('a2-cross-unit-'+unit,{amount:1},{...h,'x-unit-id':unit});ok(r.status===403,'crédito segregado de '+unit)}
+
+ // A2-CX-02: cash opening + confirmed CASH payments + signed adjustments, never UI summary.
+ r=await fetch(base+`/api/v1/cash-sessions/${cash.id}/adjustments`,{method:'POST',headers:{...h,'idempotency-key':'a2-sangria'},body:JSON.stringify({kind:'Sangria · Despesa',amount:-5,payload:{movement:{cashNature:'expense'}}})});ok(r.ok,'sangria registrada e validada no banco');
+ const honestExpected=130.06; // abertura 100 + suprimento 25 - sangria 5 + CASH parcial 4.00 + CASH final 6.06.
+ r=await fetch(base+`/api/v1/cash-sessions/${cash.id}/close`,{method:'POST',headers:h,body:JSON.stringify({closingAmount:240,systemExpected:99999,difference:-99999,closeNote:'CI',snapshot:{received:999999,cash:999999,physicalExpected:999999,expenses:999999}})});ok(r.ok,'fechamento ignora saldos e diferenças forjados pelo frontend');
+ let closed=await prisma.cashSession.findUniqueOrThrow({where:{id:cash.id}});
+ ok(Number(closed.legacyPayload.systemExpected)===honestExpected&&Number(closed.legacyPayload.difference)===109.94,'saldo e diferença derivados pelo backend com precisão de centavos');
+ ok(Number(closed.legacyPayload.snapshot.cash)===10.06&&Number(closed.legacyPayload.snapshot.physicalExpected)===honestExpected&&Number(closed.legacyPayload.snapshot.expenses)===5,'snapshot de conferência monetária substituído por valores persistidos');
+ ok(Number(closed.closingAmount)===240&&closed.status==='CLOSED'&&closed.legacyPayload.closeNote==='CI','valor contado e observação legítimos preservados');
+ const closedVersion=closed.version,closedAudit=await prisma.auditEvent.count({where:{entityId:cash.id,action:'cash.closed'}});
+ r=await fetch(base+`/api/v1/cash-sessions/${cash.id}/close`,{method:'POST',headers:h,body:JSON.stringify({closingAmount:1,systemExpected:1,difference:0})});ok(r.status===409,'replay de fechamento não sobrescreve conferência');
+ closed=await prisma.cashSession.findUniqueOrThrow({where:{id:cash.id}});
+ ok(closed.version===closedVersion&&Number(closed.closingAmount)===240&&await prisma.auditEvent.count({where:{entityId:cash.id,action:'cash.closed'}})===closedAudit,'replay rejeitado preserva versão, valores e auditoria');
  r=await fetch(base+`/api/v1/cash-sessions/${cash.id}/reopen`,{method:'POST',headers:h,body:JSON.stringify({reason:'conferência CI'})});ok(r.ok,'reabre caixa central');
- r=await fetch(base+`/api/v1/cash-sessions/${cash.id}/close`,{method:'POST',headers:h,body:JSON.stringify({closingAmount:240})});ok(r.ok,'fecha caixa novamente');
+ const closeRace=await Promise.all([240,241].map(n=>fetch(base+`/api/v1/cash-sessions/${cash.id}/close`,{method:'POST',headers:h,body:JSON.stringify({closingAmount:n,systemExpected:0,difference:0})})));
+ const closeStatuses=closeRace.map(x=>x.status).sort((a,b)=>a-b);ok(closeStatuses[0]>=200&&closeStatuses[0]<300&&closeStatuses[1]===409,'duplo fechamento concorrente não gera dois fechamentos');
+ closed=await prisma.cashSession.findUniqueOrThrow({where:{id:cash.id}});
+ ok(Number(closed.legacyPayload.systemExpected)===honestExpected&&Number(closed.legacyPayload.difference)===Number(closed.closingAmount)-honestExpected&&await prisma.auditEvent.count({where:{entityId:cash.id,action:'cash.closed'}})===closedAudit+1,'reabertura e nova concorrência preservam fonte de verdade e trilha de auditoria');
  const cashRace=await Promise.all([fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...h,'idempotency-key':'cash-race-a'},body:JSON.stringify({businessDate:'2026-10-07',openingAmount:0})}),fetch(base+'/api/v1/cash-sessions',{method:'POST',headers:{...h,'idempotency-key':'cash-race-b'},body:JSON.stringify({businessDate:'2026-10-07',openingAmount:0})})]);
  const cashStatuses=cashRace.map(x=>x.status).sort((a,b)=>a-b);ok(cashStatuses[0]>=200&&cashStatuses[0]<300,'um caixa concorrente aberto');ok(cashStatuses[1]===409,'segundo caixa concorrente bloqueado');ok(await prisma.cashSession.count({where:{unitId:'centro',businessDate:new Date('2026-10-07T00:00:00.000Z'),status:'OPEN'}})===1,'somente um caixa aberto na data');
   ok(await prisma.cashSession.count({where:{unitId:{not:'centro'}}})===0,'outras unidades sem caixa');ok(await prisma.auditEvent.count({where:{unitId:'centro'}})>=5,'auditoria financeira registrada');console.log(JSON.stringify({ok:true,tests:n,feature:'cash_command_payment_e2e'}));
