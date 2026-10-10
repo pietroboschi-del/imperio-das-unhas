@@ -54,7 +54,10 @@ async function edits(){
  await w.openClientForm('H');fields.origin='Presencial';await w.saveClient('H');
  eq(patches.at(-1).body.origin,'Presencial','explicit valid origin change sent');
  eq(Object.hasOwn(patches.at(-1).body,'source'),false,'changing origin does not rewrite source');
- await w.openClientForm('Z');fields.phone='31999992222';await w.saveClient('Z');
+ await w.openClientForm('Z');fields.phone='31999992222';const prior=patches.length;await w.saveClient('Z');
+ eq(patches.length,prior+1,'historic Client with no source can still save a phone change');
+ eq(patches.at(-1).id,'Z','partial historic update targets the right Client');
+ eq(patches.at(-1).body.phone,'31999992222','changed phone is submitted to canonical record');
  eq(Object.hasOwn(patches.at(-1).body,'origin'),false,'missing origin not rewritten');
  eq(Object.hasOwn(patches.at(-1).body,'source'),false,'missing source not rewritten');
 }
