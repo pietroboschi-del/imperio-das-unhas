@@ -33,7 +33,7 @@
     "test:characterization": "node ../tests_characterization/run-characterization-gate.mjs",
     "test:professional-obligations": "python3 test/v98a-professional-obligation-parity.test.py",
     "test:operational-writes": "node test/v99-operational-writes.integration.mjs && node test/v99-centro-cutover.integration.mjs",
-    "test:finance-flow": "node test/v99-finance-flow.integration.mjs && node test/v99-finance-math.integration.mjs",
+    "test:finance-flow": "node test/v99-finance-flow.integration.mjs && node test/v99-finance-math.integration.mjs && node test/a3-fin-rep.integration.mjs",
     "test:public-booking": "node test/v99-public-booking.integration.mjs",
     "test:three-unit-ui-e2e": "python3 test/three-unit-ui-e2e.py",
     "test:frontend-central-bridge": "node test/v99-frontend-central-bridge.contract.mjs && node test/v99-central-payment-retry.behavior.mjs && node test/v99-frontend-user-access-central.contract.mjs && node test/v99-client-network-history.contract.mjs && node test/v99-phase5-p1-bridge.behavior.mjs && node test/v99-phase5-p1-async-clients.behavior.mjs && node test/v99-phase5-p1-source-order.behavior.mjs && node test/v99-phase5-p1-booking-errors.behavior.mjs",

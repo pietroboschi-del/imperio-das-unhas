@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ImperioPrincipal } from '../common/request-context';
 import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
-import { hasPermissions, permissionSet } from '../auth/permission-policy';
+import { evaluateAccess, hasPermissions, permissionSet } from '../auth/permission-policy';
 
 const CANONICAL_UNITS=['centro','big','shopping-contagem'] as const;
 const LEGACY_LOCATION_MAP:Record<string,string>={central:'central',centro:'centro',big:'big','shopping-contagem':'shopping-contagem',u1:'big',u2:'shopping-contagem',u3:'centro'};
@@ -161,7 +161,7 @@ export class StockService {
     const idem=this.key('stock.purchase',key),locationId=String(body.destinationLocationId||'');
     const financeUnitId=String(body.financeUnitId||(CANONICAL_UNITS.includes(locationId as any)?locationId:''));
     if(!CANONICAL_UNITS.includes(financeUnitId as any))throw new ConflictException('Unidade financeira da compra obrigatória');
-    if(financeUnitId!==locationId&&!this.unitAccess(p,financeUnitId,'finance.manage'))throw new ForbiddenException('Sem permissão financeira na unidade da obrigação');
+    if(financeUnitId!==locationId&&!evaluateAccess({networkAdmin:p.networkAdmin,globalPermissions:p.permissions,unitAccesses:p.unitAccesses,unitScoped:true,unitId:financeUnitId,requiredPermissions:['finance.manage']}).allowed)throw new ForbiddenException('Sem permissão financeira na unidade da obrigação');
     await this.assertWriteLocations(p,[locationId]);
     const raw=Array.isArray(body.items)?body.items:[];if(!raw.length)throw new ConflictException('Compra precisa de ao menos um item');
     return this.prisma.$transaction(async tx=>{
