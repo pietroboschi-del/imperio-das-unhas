@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const path=new URL('../../index.html',import.meta.url),html=fs.readFileSync(path,'utf8');
+const js=fs.readFileSync(new URL('../../assets/js/client-source-network-config.js',import.meta.url),'utf8');
+const controller=fs.readFileSync(new URL('../src/core/client-source-config.controller.ts',import.meta.url),'utf8');
+const prisma=fs.readFileSync(new URL('../prisma/schema.prisma',import.meta.url),'utf8');
+const migration=fs.readFileSync(new URL('../prisma/migrations/20261010_phase5_client_source_network_config/migration.sql',import.meta.url),'utf8');
+const core=fs.readFileSync(new URL('../src/core/core.module.ts',import.meta.url),'utf8');
+let tests=0;function ok(value,message){tests++;assert.ok(value,message)}
+ok(html.includes("principal.systemRole==='OWNER'"),'legacy V63 admin must rely on network OWNER');
+ok(html.includes("principal.networkAdmin===true"),'network permission cannot be granted to reception');
+ok(html.includes("sessionStorage.getItem('imperio-v99-central-authenticated')!=='1'"),'central state requires authenticated session');
+ok(html.includes('assets/js/client-source-network-config.js'),'network source script is loaded');
+ok(js.includes("credentials:'include'"),'central options are read only with authenticated cookie');
+ok(js.includes('window.__imperioDatabase')&&!js.includes('window.db||'),'client source bridge uses exported shared database binding');
+ok(js.includes("X-CSRF-Token"),'network writes require CSRF');
+ok(js.includes("expectedVersion:serverVersion"),'writes protect against concurrent overwrite');
+ok(js.includes("['openClientForm',async function(base,args)")&&js.includes("await refresh();return base.apply(this,args)"),'client form waits for central source hydration');
+ok(js.includes("window.__imperioNetworkClientSources"),'central bridge exposes read-only diagnostics');
+ok(!js.includes('localStorage.setItem'),'no local-only authoritative source');
+ok(controller.includes("@Controller('api/v1/config/client-sources')"),'central endpoint installed');
+ok(controller.includes('@Authenticated()')&&controller.includes('@NetworkAdmin()'),'read signed-in/write network-owner');
+ok(controller.includes('version!==body.expectedVersion'),'optimistic concurrency enforced');
+ok(controller.includes('auditEvent.create'),'writes audited');
+ok(prisma.includes('model ClientSourceConfig {'),'persisted centrally via Prisma');
+ok(migration.includes('CREATE TABLE "ClientSourceConfig"'),'additive migration exists');
+ok(core.includes('controllers:[ClientSourceConfigController,'),'backend route registered');
+console.log(JSON.stringify({ok:true,tests,feature:'phase5_master_client_source_config_contract'}));

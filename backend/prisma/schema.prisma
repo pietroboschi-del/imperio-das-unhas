@@ -943,3 +943,11 @@ model ProfessionalSettlement {
 
   @@index([professionalId, unitId, paidAt])
 }
+
+// Global client acquisition sources; isolated from historical Client.legacyPayload.
+model ClientSourceConfig {
+  id        String   @id
+  value     Json
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt
+}

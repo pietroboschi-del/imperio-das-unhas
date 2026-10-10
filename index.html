@@ -4130,7 +4130,7 @@ window.v56PublicSearchSlots=function(){let date=document.getElementById('bkPubli
  function currentUser(){let sid=sessionGet();return (db.userAccounts||[]).find(u=>u.id===sid&&u.active!==false)||null}
  function currentUserId(){return currentUser()?.id||''}
  function roleLabel(role){return ROLE_LABELS[role]||role||'Operador'}
- function canManageSettings(user=currentUser()){return !!user&&user.active!==false&&user.role==='admin'}
+ function canManageSettings(user=currentUser()){try{if(typeof location!=='undefined'&&!!location.hostname&&/^https?:$/.test(String(location.protocol||''))&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){if(sessionStorage.getItem('imperio-v99-central-authenticated')!=='1')return false;const principal=JSON.parse(sessionStorage.getItem('imperio-v99-central-principal')||'null');return !!principal&&principal.networkAdmin===true&&principal.systemRole==='OWNER'&&!!(principal.userId||principal.id)}}catch(e){return false}return !!user&&user.active!==false&&user.role==='admin'}
  function allowedUnits(user=currentUser()){
   let active=(db.units||[]).filter(u=>u.active!==false);
   // In production the verified central scope supersedes every legacy local role.
@@ -8591,6 +8591,11 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
   script.src = 'assets/js/central-users-admin.js';
   script.async = false;
   document.body.appendChild(script);
+  const networkSources=document.createElement('script');
+  networkSources.id='imperio-network-client-source-script';
+  networkSources.src='assets/js/client-source-network-config.js';
+  networkSources.async=false;
+  document.body.appendChild(networkSources);
 })();
 </script>
 
