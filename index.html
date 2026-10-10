@@ -416,8 +416,16 @@ Deseja mover o bloqueio mesmo assim?`))return}if(b.blockSeriesId&&!confirm('Este
 function digits(v=''){return String(v).replace(/\D/g,'')}
 function normName(v=''){return String(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase()}
 function cepLookup(cep){const d=digits(cep);const demo={'32340000':{neighborhood:'Eldorado',city:'Contagem'},'32040000':{neighborhood:'Centro',city:'Contagem'},'32110000':{neighborhood:'Cabral',city:'Contagem'},'32280000':{neighborhood:'Riacho das Pedras',city:'Contagem'},'32041000':{neighborhood:'Inconfidentes',city:'Contagem'},'30130010':{neighborhood:'Funcionários',city:'Belo Horizonte'}};return demo[d]||null}
-function sourceOptions(selected=''){return db.acquisitionSources.filter(x=>x.active||x.name===selected).map(x=>`<option value="${escapeAttr(x.name)}" ${x.name===selected?'selected':''}>${escapeHtml(x.name)}</option>`).join('')}
-function originOptions(selected='Presencial'){return [...(selected==='Não informado'?['Não informado']:[]),'Presencial','WhatsApp','Telefone','Site / Agendamento online','Outro'].map(x=>`<option ${x===selected?'selected':''}>${x}</option>`).join('')}
+function sourceOptions(selected=''){
+ const value=String(selected??''),options=db.acquisitionSources.filter(x=>x.active||x.name===value);
+ const historical=value&&!options.some(x=>x.name===value)?'<option value="'+escapeAttr(value)+'" selected>'+escapeHtml(value)+' (valor histórico)</option>':'';
+ return historical+options.map(x=>'<option value="'+escapeAttr(x.name)+'" '+(x.name===value?'selected':'')+'>'+escapeHtml(x.name)+'</option>').join('')
+}
+function originOptions(selected=''){
+ const allowed=['Presencial','WhatsApp','Telefone','Site / Agendamento online','Outro'],old=String(selected??'');
+ const historical=old&&!allowed.includes(old)?'<option value="'+escapeAttr(old)+'" selected>'+escapeHtml(old)+' (valor histórico)</option>':'';
+ return '<option value="" '+(!old?'selected':'')+'>Não informada</option>'+historical+allowed.map(x=>'<option value="'+escapeAttr(x)+'" '+(x===old?'selected':'')+'>'+escapeHtml(x)+'</option>').join('')
+}
 function currentUserName(){return 'Master'}
 
 function storageNotify(message,kind='error'){
@@ -840,7 +848,7 @@ function openClientForm(id=null){
  </div><div class="help">O sistema usa CEP, bairro e cidade. Rua, número e complemento não são necessários.</div></div>
  <div class="client-section"><h3>Relacionamento</h3><div class="form-grid">
   <div class="field"><label class="required">Como conheceu o Império?</label><select id="cfSource"><option value="">Selecione</option>${sourceOptions(c?.source||'')}</select></div>
-  <div class="field"><label>Origem do cadastro</label><select id="cfOrigin" ${id?'disabled':''}>${originOptions(c?.origin||'Presencial')}</select><div class="help">Canal em que o cadastro chegou: presencial, WhatsApp, telefone etc.</div></div>
+  <div class="field"><label>Origem do cadastro</label><select id="cfOrigin" ${id?'disabled':''}>${originOptions(c?.origin??(id?'':'Presencial'))}</select><div class="help">Canal em que o cadastro chegou: presencial, WhatsApp, telefone etc.</div></div>
   <div class="field"><label>Cadastrado por</label><input value="${escapeAttr(c?.createdBy||currentUserName())}" readonly></div>
   <div class="field"><label>Unidade do cadastro</label><input value="${escapeAttr(db.units.find(u=>u.id===(c?.registrationUnit||(unitPicker?.value||'')))?.name||'—')}" readonly></div>
   <div class="field full"><label>Observações</label><textarea id="cfNotes" rows="3">${escapeHtml(c?.notes||'')}</textarea></div>
@@ -7214,12 +7222,12 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(!uid)throw new Error('Selecione uma unidade');return uid
  }
  async function centralRequest(path,opt={}){
-  let uid=opt.unitRequired===false?'':await ensureCentralUnitId();
+  const requestSession=phase5Context.session();let uid=opt.unitRequired===false?'':await ensureCentralUnitId();
   let hasBody=opt.body!==undefined,headers={Accept:'application/json',...(uid?{'X-Unit-Id':uid}:{}),...(hasBody?{'Content-Type':'application/json'}:{}),...(opt.key?{'Idempotency-Key':opt.key}:{}),...(opt.headers||{})},token=centralCsrf();
   if(token)headers['X-CSRF-Token']=token;
   let res=await fetch(endpoint()+path,{credentials:'include',cache:'no-store',method:opt.method||'GET',headers,body:hasBody?JSON.stringify(opt.body):undefined}),txt=await res.text(),data=null;
   try{data=txt?JSON.parse(txt):null}catch(e){data={message:txt}}
-  if(!res.ok){if(res.status===401&&officialProductionMode()){setCentralSession(null);applyCentralUnitGate();showOnly('loginApp');toast('Sessão expirada. Entre novamente para continuar.')}throw centralError(data,res.status)}return data
+  if(!res.ok){if(res.status===401&&officialProductionMode()&&requestSession===phase5Context.session()){setCentralSession(null);applyCentralUnitGate();showOnly('loginApp');toast('Sessão expirada. Entre novamente para continuar.')}throw centralError(data,res.status)}return data
  }
  function localStatus(s){return ({SCHEDULED:'Agendado',CANCELLED:'Cancelado',CANCELED:'Cancelado',CANCELADO:'Cancelado'})[String(s||'')]||String(s||'Agendado')}
  function centralItemPayload(it,date){
@@ -7319,7 +7327,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   receiveStockTransfer(id){return centralRequest('/api/v1/stock/transfers/'+encodeURIComponent(id)+'/receive',{method:'POST',body:{},unitRequired:false})}
  });
  function mergeCentralClients(rows){
-  for(const x of rows||[]){if(!x?.id||x.active!==true)continue;centralClientIds.add(String(x.id));let c=db.clients.find(v=>v.id===x.id);if(!c){c={id:x.id,last:'—',next:'—',visits:0,createdAt:localDateISO()};db.clients.push(c)}normalizeClient(c);Object.assign(c,{name:x.name||c.name||'',phone:x.phone||'',email:x.email||'',cpf:x.cpf||'',birthDate:x.birthDate||'',cep:x.cep||'',neighborhood:x.neighborhood||'',city:x.city||'',profession:x.profession||'',source:x.source||'',origin:x.origin||'Não informado',notes:x.notes||'',registrationUnit:UNIT_TO_LOCAL[x.registrationUnitId]||x.registrationUnitId||c.registrationUnit||'',technicalProvenance:'central_api',central:true,active:true})}
+  for(const x of rows||[]){if(!x?.id||x.active!==true)continue;centralClientIds.add(String(x.id));let c=db.clients.find(v=>v.id===x.id);if(!c){c={id:x.id,last:'—',next:'—',visits:0,createdAt:localDateISO()};db.clients.push(c)}normalizeClient(c);Object.assign(c,{name:x.name||c.name||'',phone:x.phone||'',email:x.email||'',cpf:x.cpf||'',birthDate:x.birthDate||'',cep:x.cep||'',neighborhood:x.neighborhood||'',city:x.city||'',profession:x.profession||'',source:x.source||'',origin:x.origin??'',notes:x.notes||'',registrationUnit:UNIT_TO_LOCAL[x.registrationUnitId]||x.registrationUnitId||c.registrationUnit||'',technicalProvenance:'central_api',central:true,active:true})}
  }
  function mergeCentralBookings(rows,uid=centralLocalUnitId()){
   for(const x of rows||[]){let date=String(x.serviceDate||'').slice(0,10),remoteItems=Array.isArray(x.items)?x.items:[],items=remoteItems.map((ri,i)=>{let start=ri.startAt?new Date(ri.startAt):null,time=start&&!Number.isNaN(start.getTime())?start.toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hour12:false}):'',srv=ri.service||{},pro=ri.professional||{};return {serviceId:ri.serviceId||srv.id||'',service:ri.serviceId?(srv.name||db.services.find(s=>s.id===ri.serviceId)?.name||''):(x.notes||'Horário bloqueado'),pro:ri.professionalId||pro.id||'',time,duration:Number(ri.durationMin||srv.durationMin||30),price:Number(ri.unitPrice??srv.price??0),preference:!!ri.preference,forceFit:!!ri.forceFit}}),b=db.bookings.find(v=>v.id===x.id);
@@ -7631,17 +7639,30 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(!id)return show(null);
   return centralApi.client(id).then(show).catch(e=>{if(phase5Context.valid(intent))toast('Edição indisponível: '+e.message);return false});
  };window.openClientForm=wrapped;try{openClientForm=wrapped}catch(e){}}
+ const oldQuickOpenV99=window.openQuickClientFromReservation;
+ if(typeof oldQuickOpenV99==='function'){let wrapped=function(){
+  if(!officialProductionMode())return oldQuickOpenV99.apply(this,arguments);
+  const intent=phase5Context.adopt('quick')||phase5Context.begin('quick');
+  if(!centralEnabled()||!phase5Context.valid(intent))return false;
+  return phase5Context.run(intent,()=>oldQuickOpenV99.apply(this,arguments));
+ };window.openQuickClientFromReservation=wrapped;try{openQuickClientFromReservation=wrapped}catch(e){}}
  const oldQuickSaveV99=window.saveQuickClientFromReservation;
  if(typeof oldQuickSaveV99==='function'){let wrapped=function(){
   if(!centralEnabled()){if(officialProductionMode()){toast('Faça login novamente para cadastrar cliente');return false}return oldQuickSaveV99.apply(this,arguments)}
+  const intent=phase5Context.current();
+  if(!intent||intent.kind!=='quick'||!phase5Context.modalPresent(intent))return false;
   if(centralQuickBusy)return false;
   if(!qcfName.value.trim()||!qcfPhone.value.trim()||!qcfSource.value){toast('Preencha nome, celular e como conheceu o Império');return false}
+  const body=Object.freeze({name:qcfName.value.trim(),phone:qcfPhone.value.trim(),birthDate:qcfBirth.value||undefined,source:qcfSource.value,origin:qcfOrigin.value||undefined});
+  const originalDraft=intent.draft,originalUnit=intent.unit,key=intent.quickKey||(intent.quickKey=operationKey('client'));
   centralQuickBusy=true;
   return (async()=>{try{
-   let row=await centralApi.createClient({name:qcfName.value.trim(),phone:qcfPhone.value.trim(),birthDate:qcfBirth.value||undefined,source:qcfSource.value,origin:qcfOrigin.value||undefined});
+   const row=await centralApi.createClient(body,key);
    if(!row?.id||row.active!==true)throw Error('Cadastro central não confirmado');
-   mergeCentralClients([row]);resDraft.clientId=row.id;renderReservationModal();toast('Cliente cadastrada e selecionada no banco central ✓');return row
-  }catch(e){toast('Cliente não salva: '+e.message);return false}finally{centralQuickBusy=false}})();
+   // Persisting the network Client and attaching it to a particular draft are distinct actions.
+   if(!phase5Context.modalPresent(intent)||!centralEnabled()||centralLocalUnitId()!==originalUnit||window.resDraft!==originalDraft)return row;
+   mergeCentralClients([row]);originalDraft.clientId=row.id;renderReservationModal();toast('Cliente cadastrada e selecionada no banco central ✓');return row
+  }catch(e){if(phase5Context.modalPresent(intent))toast('Cliente não salva: '+e.message);return false}finally{centralQuickBusy=false}})();
  };window.saveQuickClientFromReservation=wrapped;try{saveQuickClientFromReservation=wrapped}catch(e){}}
  const oldReservationSearchV99=window.reservationClientSearch;
  if(typeof oldReservationSearchV99==='function'){let generation=0,wrapped=function(){
@@ -7661,7 +7682,19 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  };window.agendaClientSearchResults=wrapped;try{agendaClientSearchResults=wrapped}catch(e){}}
 
  const legacySaveReservation=window.saveReservation||((typeof saveReservation==='function')?saveReservation:null);
- if(legacySaveReservation){let wrapped=function centralReservationBridge(){if(!centralEnabled()){if(officialProductionMode()){toast('Faça login novamente antes de salvar a reserva');return false}return legacySaveReservation.apply(this,arguments)}if(centralReservationBusy)return false;return (async()=>{syncResDraftFromDom();let cli=resDraft.clientId?db.clients.find(x=>x.id===resDraft.clientId):null;if(!cli||!window.__imperioCentralClientIdentity.valid(cli)){toast('Selecione uma cliente do cadastro central');return false}const selectedUnit=centralLocalUnitId(),selectedDate=resDraft.date,selectedItems=JSON.stringify(resDraft.items);let original=resDraft.appendToBookingId?db.bookings.find(x=>x.id===resDraft.appendToBookingId):null;if(resDraft.appendToBookingId&&!original){toast('Atendimento original não encontrado');return false}let validationUnit=original?.unit||centralLocalUnitId(),validationItems=original?[...structuredClone(original.items),...resDraft.items]:resDraft.items,err=validateDraftLines(validationItems,resDraft.date,original?.id||'',validationUnit,original||null,cli.id);if(err){toast(err);return false}let newItems=resDraft.items.map(it=>({...it,service:db.services.find(s=>s.id===it.serviceId)?.name||it.service}));centralReservationBusy=true;try{let verified=await centralApi.client(cli.id);if(!verified||verified.id!==cli.id||verified.active!==true)throw new Error('Cliente não encontrada ou inativa');if(!centralEnabled()||centralLocalUnitId()!==selectedUnit||resDraft.date!==selectedDate||JSON.stringify(resDraft.items)!==selectedItems||resDraft.clientId!==cli.id)throw new Error('Contexto da reserva alterado; confira novamente');mergeCentralClients([verified]);let row;if(original){if(resDraft.date!==original.date){toast('O novo serviço precisa ficar na mesma data da visita');return false}let combined=[...structuredClone(original.items),...newItems];row=await centralApi.updateBooking(original.id,{serviceDate:original.date,status:original.status,notes:original.notes||'',items:combined.map(it=>centralItemPayload(it,original.date))});agendaAddServiceContext=null}else row=await centralApi.createBooking({clientId:cli.id,serviceDate:resDraft.date,status:resDraft.status||'Agendado',items:newItems.map(it=>centralItemPayload(it,resDraft.date))},resDraft.centralOperationKey||(resDraft.centralOperationKey=operationKey('booking')));await refreshCentralAgenda(resDraft.date);agendaDate=resDraft.date;closeModal();legacyRenderAgenda();let returnCmd=window.commandReturnId;window.commandReturnId=null;if(returnCmd){let cmd=db.clientCommands.find(x=>x.id===returnCmd);if(cmd&&row?.id&&!cmd.bookingIds.includes(row.id))cmd.bookingIds.push(row.id);if(cmd)syncCommandAgendaItems(cmd);save();openCommand(returnCmd)}toast(newItems.some(x=>x.forceFit)?'Agendamento central salvo · encaixe autorizado ✓':'Agendamento salvo no banco central ✓');return row}catch(e){if(e.status===404)centralClientIds.delete(String(cli.id));toast('Agendamento não salvo: '+e.message);return false}finally{centralReservationBusy=false}})()};window.saveReservation=wrapped;try{saveReservation=wrapped}catch(e){}}
+ if(legacySaveReservation){let wrapped=function centralReservationBridge(){if(!centralEnabled()){if(officialProductionMode()){toast('Faça login novamente antes de salvar a reserva');return false}return legacySaveReservation.apply(this,arguments)}if(centralReservationBusy)return false;return (async()=>{syncResDraftFromDom();let cli=resDraft.clientId?db.clients.find(x=>x.id===resDraft.clientId):null;if(!cli||!window.__imperioCentralClientIdentity.valid(cli)){toast('Selecione uma cliente do cadastro central');return false}const selectedUnit=centralLocalUnitId(),selectedDate=resDraft.date,selectedItems=JSON.stringify(resDraft.items);let original=resDraft.appendToBookingId?db.bookings.find(x=>x.id===resDraft.appendToBookingId):null;if(resDraft.appendToBookingId&&!original){toast('Atendimento original não encontrado');return false}let validationUnit=original?.unit||centralLocalUnitId(),validationItems=original?[...structuredClone(original.items),...resDraft.items]:resDraft.items,err=validateDraftLines(validationItems,resDraft.date,original?.id||'',validationUnit,original||null,cli.id);if(err){toast(err);return false}let newItems=resDraft.items.map(it=>({...it,service:db.services.find(s=>s.id===it.serviceId)?.name||it.service}));centralReservationBusy=true;try{let verified=await centralApi.client(cli.id);if(!verified||verified.id!==cli.id||verified.active!==true)throw new Error('Cliente não encontrada ou inativa');if(!centralEnabled()||centralLocalUnitId()!==selectedUnit||resDraft.date!==selectedDate||JSON.stringify(resDraft.items)!==selectedItems||resDraft.clientId!==cli.id)throw new Error('Contexto da reserva alterado; confira novamente');mergeCentralClients([verified]);let row;if(original){if(resDraft.date!==original.date){toast('O novo serviço precisa ficar na mesma data da visita');return false}let combined=[...structuredClone(original.items),...newItems];row=await centralApi.updateBooking(original.id,{serviceDate:original.date,status:original.status,notes:original.notes||'',items:combined.map(it=>centralItemPayload(it,original.date))});agendaAddServiceContext=null}else row=await centralApi.createBooking({clientId:cli.id,serviceDate:resDraft.date,status:resDraft.status||'Agendado',items:newItems.map(it=>centralItemPayload(it,resDraft.date))},resDraft.centralOperationKey||(resDraft.centralOperationKey=operationKey('booking')));await refreshCentralAgenda(resDraft.date);agendaDate=resDraft.date;closeModal();legacyRenderAgenda();let returnCmd=window.commandReturnId;window.commandReturnId=null;if(returnCmd){let cmd=db.clientCommands.find(x=>x.id===returnCmd);if(cmd&&row?.id&&!cmd.bookingIds.includes(row.id))cmd.bookingIds.push(row.id);if(cmd)syncCommandAgendaItems(cmd);save();openCommand(returnCmd)}toast(newItems.some(x=>x.forceFit)?'Agendamento central salvo · encaixe autorizado ✓':'Agendamento salvo no banco central ✓');return row}catch(e){
+    if(e.status===404){
+     // A booking 404 can mean a missing service or professional, not necessarily the Client.
+     const session=phase5Context.session();
+     try{
+      const found=await centralApi.client(cli.id);
+      if(session===phase5Context.session()&&found?.id===cli.id&&found.active===true)mergeCentralClients([found]);
+     }catch(lookupError){
+      if(lookupError.status===404&&session===phase5Context.session())centralClientIds.delete(String(cli.id));
+     }
+    }
+    toast('Agendamento não salvo: '+e.message);return false
+   }finally{centralReservationBusy=false}})()};window.saveReservation=wrapped;try{saveReservation=wrapped}catch(e){}}
  const legacySaveExistingBooking=window.saveExistingBooking||((typeof saveExistingBooking==='function')?saveExistingBooking:null);
  if(legacySaveExistingBooking){let wrapped=async function(){if(!centralEnabled()){if(officialProductionMode()){toast('Sessão central necessária para alterar reserva');return false}return legacySaveExistingBooking.apply(this,arguments)}bookingDraftSync();let current=db.bookings.find(x=>x.id===editBookingId);if(!current)return;let err=validateDraftLines(editBookingDraft.items,editBookingDraft.date,current.id,current.unit,current,current.clientId||'');if(err){toast(err);return}try{let row=await centralApi.updateBooking(current.id,{serviceDate:editBookingDraft.date,status:editBookingDraft.status,notes:editBookingDraft.notes||'',blockAllDay:!!editBookingDraft.blockAllDay,blockException:!!editBookingDraft.blockException,items:editBookingDraft.items.map(it=>centralItemPayload(it,editBookingDraft.date))});await refreshCentralAgenda(editBookingDraft.date);closeModal();agendaDate=editBookingDraft.date;legacyRenderAgenda();for(const cmd of db.clientCommands||[]){if((cmd.bookingIds||[]).includes(current.id))syncCommandAgendaItems(cmd)}let sum=typeof comboVisitSummaryForBooking==='function'?comboVisitSummaryForBooking(current.id):null;if(sum)toast('Combo aplicado automaticamente · total da visita '+money(sum.total)+' ✓');else toast(row.status==='Cancelado'?'Agendamento cancelado no banco central ✓':'Reserva atualizada no banco central ✓');return row}catch(e){toast('Reserva não atualizada: '+e.message)}};window.saveExistingBooking=wrapped;try{saveExistingBooking=wrapped}catch(e){}}
  // Compare only user-editable values. The central booking projection includes server
