@@ -41,7 +41,7 @@ assert.ok(api,'bridge loaded');
 await api.receipts('2026-10-07','2026-10-08',['centro']);
 const closed=api.centralClosedRows();
 assert.equal(closed.length,2,'same account/session separated by date');
-assert.deepEqual(closed.map(x=>x.date).sort(),['2026-10-07','2026-10-08']);
+assert.deepEqual(Array.from(closed,x=>x.date).sort(),['2026-10-07','2026-10-08']);
 assert.equal(closed.reduce((sum,x)=>sum+x.amount,0),115,'manual income not duplicated in cash closures');
 assert.equal(closed.flatMap(x=>x.movements).length,3,'command receipts and monthly counted exactly once');
 assert.equal(api.centralNonReceiptRows().length,1,'unverified local postings excluded');
