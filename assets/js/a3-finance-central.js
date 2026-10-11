@@ -130,7 +130,20 @@
     if(e.kind==='MONTHLY_RECEIPT')db.clientReceivablePayments.push({id:e.id,clientId:e.clientId,unitId:local[unit]||unit,date:String(e.date).slice(0,10),amount:currency(e.amount),methodId:({PIX:'pm_pix',CASH:'pm_cash',DEBIT_CARD:'pm_debit',CREDIT_CARD:'pm_credit',TRANSFER:'pm_transfer'})[e.metadata?.method]||'pm_other',accountId:e.accountId,allocations:(e.metadata?.allocations||[]).map(x=>({...x,unitId:local[x.sourceUnitId]||x.sourceUnitId})),central:true});
    }
    for(const rv of receivables||[])if(!db.clientReceivables.some(x=>x.id===rv.id&&x.central))db.clientReceivables.push({id:rv.id,clientId:rv.clientId,unitId:local[rv.unitId]||rv.unitId,commandId:rv.legacyPayload?.commandId||'',date:String(rv.sourceDate||rv.createdAt).slice(0,10),dueDate:rv.dueDate?String(rv.dueDate).slice(0,10):'',originalAmount:currency(rv.originalAmount),balance:currency(rv.balance),status:rv.status==='PAID'?'Quitado':rv.status==='PARTIAL'?'Parcial':'Em aberto',central:true});
-   for(const p of payables||[]){let row=(db.stockPurchases||[]).find(x=>x.id===p.id);if(row){row.financeUnitId=local[unit]||unit;row.financeStatus=p.financeStatus;row.paidDate=p.settlement?.date?String(p.settlement.date).slice(0,10):'';row.paidAccountId=p.settlement?.accountId||'';}}
+   for(const p of payables||[]){
+    db.stockPurchases=db.stockPurchases||[];
+    let row=db.stockPurchases.find(x=>x.id===p.id);
+    if(!row){row={...p,unitId:local[unit]||unit,central:true};db.stockPurchases.push(row);}
+    row.financeUnitId=local[unit]||unit;row.financeStatus=p.financeStatus;row.paidDate=p.settlement?.date?String(p.settlement.date).slice(0,10):'';row.paidAccountId=p.settlement?.accountId||'';
+    // Open obligations are payable facts, not realized DRE cost or a second payment.
+    if(p.financeStatus==='A pagar')db.demoFinancialEntries.push({
+     id:'a3_payable_'+p.id,unitId:local[unit]||unit,sourceType:'stock_purchase',sourceId:p.id,
+     date:String(p.purchaseDate).slice(0,10),originalDate:String(p.purchaseDate).slice(0,10),
+     amount:-currency(p.total),nature:'Compra de estoque a pagar',category:'Estoque / fornecedor',
+     account:'Fornecedor',origin:p.supplier||'Compra de estoque',status:'Previsto',
+     dreImpact:false,capitalizedInStock:true,central:true
+    });
+   }
   }
   window.__a3FinanceHydratedAt=Date.now();
  }
