@@ -3,6 +3,7 @@ import {spawn, execFileSync} from 'node:child_process';
 import {once} from 'node:events';
 import {PrismaClient} from '@prisma/client';
 import {readFileSync} from 'node:fs';
+if(!String(process.env.DATABASE_URL||'').includes('imperio_ci')||!/(localhost|127\.0\.0\.1)/.test(process.env.DATABASE_URL||''))throw Error('A3 integration must use isolated imperio_ci');
 const prisma=new PrismaClient(),port=Number(process.env.A3_FINANCE_TEST_PORT||3227),root='http://127.0.0.1:'+port;
 const cookie=r=>(r.headers.get('set-cookie')||'').split(';')[0];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -48,11 +49,15 @@ async function main(){
   r=await call(owner,'centro','/commands/'+cmd.id+'/payments','POST',{method:'MONTHLY_RECEIVABLE',amount:150},'a3-monthly-credit');ok(r.ok,'conta mensal não exige caixa nem credita recebimento');
   const rv=await prisma.receivableOpening.findFirstOrThrow({where:{clientId:'a2-fin-client',originalAmount:150}});
   ok(Number(rv.balance)===150,'recebível central de competência 150 persistido');
-  const monthly={clientId:'a2-fin-client',amount:50,date:day,accountId:'a3_centro_bank',method:'PIX',cashSessionId:open.id};
+  await prisma.receivableOpening.create({data:{id:'a3-foreign-big',clientId:'a2-fin-client',unitId:'big',sourceDate:new Date(day+'T00:00:00.000Z'),originalAmount:250,balance:250,status:'OPEN'}});
+  const monthly={clientId:'a2-fin-client',receivableIds:[rv.id],amount:50,date:day,accountId:'a3_centro_bank',method:'PIX',cashSessionId:open.id};
   r=await call(owner,'centro','/finance/receivables/settle','POST',monthly,'a3-monthly-50');ok(r.ok,'liquida 50 mensal');const settlement=await r.json();
   r=await call(operator,'centro','/finance/receivables/settle','POST',monthly,'a3-monthly-50');ok(r.status===403,'permissão separada de baixa mensal');
   r=await call(owner,'centro','/finance/receivables/settle','POST',monthly,'a3-monthly-50');ok(r.ok&&(await r.json()).id===settlement.id,'repetição não duplica baixa');
   ok(Number((await prisma.receivableOpening.findUniqueOrThrow({where:{id:rv.id}})).balance)===100,'saldo mensal preserva pagamento parcial');
+  ok(Number((await prisma.receivableOpening.findUniqueOrThrow({where:{id:'a3-foreign-big'}})).balance)===250,'divida Big nao bloqueia baixa Centro nem sofre mutacao');
+  r=await call(owner,'centro','/finance/receivables/settle','POST',{...monthly,receivableIds:[]},'a3-empty-selection');ok(r.status===409,'obrigacoes explicitamente selecionadas obrigatorias');
+  r=await call(owner,'centro','/finance/receivables/settle','POST',{...monthly,receivableIds:[rv.id,'not-a-receivable']},'a3-missing-debt');ok(r.status===409,'baixa de obrigacao inexistente impedida');
   const race=await Promise.all(['A','B'].map(v=>call(owner,'centro','/finance/receivables/settle','POST',{...monthly,amount:80},'a3-monthly-race-'+v)));
   ok(race.map(v=>v.status).sort().join(',')==='201,409','concorrência bloqueia recebimento duplicado');
   ok(Number((await prisma.receivableOpening.findUniqueOrThrow({where:{id:rv.id}})).balance)===20,'apenas um recebimento concorrente aplicado');
@@ -76,7 +81,35 @@ async function main(){
   r=await call(owner,'big','/finance/reports/receipt-summary?from=2026-10-07&to=2026-10-08');ok(r.ok&&(await r.json()).receipts.every(p=>p.unitId==='big'),'relatório Big não inclui Centro');
   r=await call(owner,'shopping-contagem','/finance/reports/receipt-summary?from=2026-10-07&to=2026-10-08');ok(r.ok&&(await r.json()).receipts.every(p=>p.unitId==='shopping-contagem'),'relatório Shopping segregado');
   ok(await prisma.auditEvent.count({where:{action:{in:['finance.monthly.received','finance.manual.created','finance.purchase.settled']}}})>=3,'trilha de auditoria persistida');
-  console.log(JSON.stringify({ok:true,checks:count,feature:'A3_FIN_REP_postgres_multi_session_three_units'}));
+  // A3-REA-02: backend never overwrites a previously registered account without a confirmed version.
+  const aBefore=await prisma.centralFinanceAccount.findUniqueOrThrow({where:{id:'a3_centro_bank'}});
+  r=await call(owner,'centro','/finance/accounts','POST',{id:aBefore.id,name:'Conta alterada sem reconciliação',type:aBefore.type,metadata:{paymentMethodIds:['pm_pix']}});ok(r.status===409,'conta nao pode ser sobrescrita por cache local');
+  r=await call(owner,'centro','/finance/accounts','POST',{id:aBefore.id,name:aBefore.name,type:aBefore.type,active:true,metadata:{paymentMethodIds:['pm_pix'],feeRules:{pm_pix:{percent:1.25,fixed:0,settlementDays:1}},details:{internalCode:'A3'}} ,expectedUpdatedAt:aBefore.updatedAt.toISOString()});ok(r.ok,'configuracao explicitamente reconciliada');const aSaved=await r.json();
+  r=await call(owner,'centro','/finance/accounts');ok((await r.json()).find(x=>x.id===aSaved.id)?.metadata?.feeRules?.pm_pix?.percent===1.25,'regras de conta preservadas entre sessoes');
+  r=await call(owner,'centro','/finance/accounts','POST',{id:aBefore.id,name:'Sobrescrita obsoleta',type:aBefore.type,expectedUpdatedAt:aBefore.updatedAt.toISOString()});ok(r.status===409,'versao obsoleta protegida');
+  // A3-REA-04: historical volumes exceed both old 1000 and 1500 caps.
+  const fixtureDate=new Date('2026-10-09T00:00:00.000Z');
+  const ids=Array.from({length:1555},(_,i)=>String(i).padStart(5,'0'));
+  try{
+   await prisma.centralFinanceEntry.createMany({data:ids.map(x=>({id:'a3-page-entry-'+x,unitId:'centro',accountId:'a3_centro_bank',kind:'MANUAL',idempotencyHash:'synthetic-a3-'+x,date:fixtureDate,competenceDate:fixtureDate,amount:1,status:'Efetivado',createdByUserId:((await prisma.user.findUniqueOrThrow({where:{username:process.env.ADMIN_USERNAME},select:{id:true}})).id)}))});
+   await prisma.receivableOpening.createMany({data:ids.map(x=>({id:'a3-page-recv-'+x,unitId:'centro',clientId:'a2-fin-client',sourceDate:fixtureDate,originalAmount:1,balance:1,status:'OPEN'}))});
+   await prisma.stockPurchase.createMany({data:ids.map(x=>({id:'a3-page-buy-'+x,financeUnitId:'centro',destinationLocationId:'centro',purchaseDate:fixtureDate,supplier:'Fixture A3',goodsTotal:1,total:1,createdByUserId:(await prisma.user.findUniqueOrThrow({where:{username:process.env.ADMIN_USERNAME},select:{id:true}})).id,idempotencyKey:'a3-page-buy-'+x}))});
+   const collect=async path=>{let found=[],cursor='';for(let i=0;i<20;i++){const uri=path+(cursor?(path.includes('?')?'&':'?')+'cursor='+encodeURIComponent(cursor):'');const response=await call(owner,'centro',uri);ok(response.ok,'pagina financeira '+path+' '+i);const items=await response.json();found.push(...items);if(items.length<500)return found;cursor=items.at(-1)?.id;if(!cursor)throw Error('Cursor perdido')}throw Error('Paginação finita não encerrou')};
+   const allE=await collect('/finance/entries?from=2026-10-01&to=2026-10-31');
+   const allR=await collect('/finance/receivables?clientId=a2-fin-client');
+   const allP=await collect('/finance/purchase-payables');
+   ok(allE.filter(x=>x.id.startsWith('a3-page-entry-')).length===1555,'todos os 1555 lançamentos');
+   ok(allR.filter(x=>x.id.startsWith('a3-page-recv-')).length===1555,'todos os 1555 recebiveis');
+   ok(allP.filter(x=>x.id.startsWith('a3-page-buy-')).length===1555,'todas as 1555 compras');
+   ok(new Set(allE.map(x=>x.id)).size===allE.length,'sem duplicacao na paginacao financeira');
+   ok(new Set(allR.map(x=>x.id)).size===allR.length,'sem duplicacao de recebiveis');
+   ok(new Set(allP.map(x=>x.id)).size===allP.length,'sem duplicacao de compras');
+  }finally{
+   await prisma.centralFinanceEntry.deleteMany({where:{id:{startsWith:'a3-page-entry-'}}});
+   await prisma.receivableOpening.deleteMany({where:{id:{startsWith:'a3-page-recv-'}}});
+   await prisma.stockPurchase.deleteMany({where:{id:{startsWith:'a3-page-buy-'}}});
+  }
+  console.log(JSON.stringify({ok:true,checks:count,feature:'A3_FIN_REP_postgres_multi_session_three_units_REA'}));
  }finally{server.kill('SIGTERM');await Promise.race([once(server,'exit'),pause(2500)]).catch(()=>{});await prisma.$disconnect();}
 }
 main().catch(async e=>{console.error(e.stack||e);await prisma.$disconnect().catch(()=>{});process.exit(1)});
