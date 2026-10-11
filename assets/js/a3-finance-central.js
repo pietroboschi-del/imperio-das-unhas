@@ -280,7 +280,11 @@
   if(!(amount>0)||amount>selected.reduce((sum,x)=>sum+currency(x.balance),0)+0.009){errorMessage(Error('Valor excede o saldo das obrigações selecionadas'));return false}
   try{
    await needAccount(accountId,unit);
-   const method=({pm_cash:'CASH',pm_pix:'PIX',pm_debit:'DEBIT_CARD',pm_credit:'CREDIT_CARD',pm_transfer:'TRANSFER'})[input('cmPayMethod')]||'OTHER';
+   const paymentId=input('cmPayMethod');
+   const standard={pm_cash:'CASH',pm_pix:'PIX',pm_debit:'DEBIT_CARD',pm_credit:'CREDIT_CARD',pm_transfer:'TRANSFER'};
+   const configured=(state()?.paymentMethods||[]).find(m=>m.id===paymentId);
+   const byKind={cash:'CASH',pix:'PIX',debit:'DEBIT_CARD',credit:'CREDIT_CARD',transfer:'TRANSFER',other:'OTHER'};
+   const method=standard[paymentId]||byKind[String(configured?.kind||'').toLowerCase()]||'OTHER';
    const pay=await request('/api/v1/finance/receivables/settle',unit,{method:'POST',key:keyFor(),body:{clientId,accountId,receivableIds,amount,date,method,cashSessionId:cashSession(unit,date)}});
    await hydrate(units('finance.read'));clearKey();window.closeModal?.();window.openClient?.(clientId,'conta_mensal');window.toast?.('Baixa confirmada no PostgreSQL');return pay;
   }catch(e){errorMessage(e);return false}
