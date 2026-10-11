@@ -33,7 +33,7 @@ export class TaskCentralController {
   if(!b||typeof b!=='object'||Array.isArray(b))throw new ConflictException('Dados inválidos');
   if(b.unitId&&b.unitId!==req.unitId)throw new ForbiddenException('Unidade divergente');
   const priority=this.str(b.priority||'normal',30),category=this.str(b.category||'general',40);
-  if(!['low','normal','high','critical'].includes(priority)||!['general','finance','clients','stock','professionals','partnership','operations'].includes(category))throw new ConflictException('Classificação inválida');
+  if(!['low','normal','high','critical'].includes(priority)||!['general','finance','clients','stock','professionals','partnership'].includes(category))throw new ConflictException('Classificação inválida');
   return {title:this.str(b.title,160,true),dueDate:this.date(b.dueDate),priority,category,note:this.str(b.note,2000),assignedUserId:this.str(b.assignedUserId||req.principal!.userId,128,true)};
  }
  private expected(v:any){const d=new Date(v);if(typeof v!=='string'||!v||!Number.isFinite(d.valueOf()))throw new ConflictException('Versão obrigatória');return d.getTime()}
