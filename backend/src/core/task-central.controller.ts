@@ -87,7 +87,7 @@ export class TaskCentralController {
    const current=await this.current(tx,req,id);
    if(current.updatedAt.getTime()!==expected)throw new ConflictException('Conflito: atualize a tarefa antes de editar');
    await this.assignee(tx,data.assignedUserId,req.unitId!);
-   const row=await tx.managementTask.update({where:{id},data});
+   const row=await tx.managementTask.update({where:{id},data:{...data,updatedAt:new Date(Math.max(Date.now(),current.updatedAt.getTime()+1))}});
    await this.audit(tx,req,event,hash,'task.manual.updated',id,this.snapshot(current),this.snapshot(row));return row;
   });
  }
@@ -101,7 +101,7 @@ export class TaskCentralController {
    const current=await this.current(tx,req,id);
    if(current.updatedAt.getTime()!==expected)throw new ConflictException('Conflito: tarefa modificada em outra sessão');
    if(current.status===target)throw new ConflictException('Tarefa já está neste estado');
-   const row=await tx.managementTask.update({where:{id},data:{status:target}});
+   const row=await tx.managementTask.update({where:{id},data:{status:target,updatedAt:new Date(Math.max(Date.now(),current.updatedAt.getTime()+1))}});
    await this.audit(tx,req,event,hash,target==='DONE'?'task.manual.completed':'task.manual.reopened',id,this.snapshot(current),this.snapshot(row));return row;
   });
  }
