@@ -94,7 +94,7 @@ Monitor backend/frontend health, sanitized errors, agenda/client consistency, un
 | Publish release record | Audit trail complete | Open blocker | Mark release blocked |
 
 
-**Phase 5 delta:** this runbook's 13-migration baseline is historical. The live backend/PostgreSQL may already have advanced; never assume 10 pending in production. Determine the pending list by live read-only ledger, compare hashes with the 23-migration manifest, restore an encrypted fresh backup in isolation, and obtain separate approval before any database migration.
+**Phase 5 delta:** this runbook's 13-migration baseline is historical. The live backend/PostgreSQL may already have advanced; never assume 10 pending in production. Determine the pending list by live read-only ledger, compare hashes with the 24-migration manifest, restore an encrypted fresh backup in isolation, and obtain separate approval before any database migration.
 
 
 ## A3-FIN-REP financial migration release restriction

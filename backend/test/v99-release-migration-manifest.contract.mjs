@@ -20,6 +20,6 @@ assert.ok(target.includes('20261008_wa2_outbox_reconciliation_required'));
 assert.match(manifest,/Target count: `24`/);
 assert.match(rehearsal,/EXPECTED_TARGET_MIGRATION_COUNT = 24/);
 assert.match(runbook,/Applies the exact pending delta toward 24/);
-assert.match(runbook,/23 migrations, no pending/);
+assert.match(runbook,/24 migrations, no pending/);
 assert.match(workflow,/Synthetic 13-to-24 migration rehearsal/);
 console.log(JSON.stringify({ok:true,feature:'release_manifest_migration_parity',migrations:names.length,baseline:13,pending:11}));
