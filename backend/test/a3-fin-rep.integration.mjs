@@ -92,7 +92,7 @@ async function main(){
   const fixtureDate=new Date('2026-10-09T00:00:00.000Z');
   const ids=Array.from({length:1555},(_,i)=>String(i).padStart(5,'0'));
   try{
-   await prisma.centralFinanceEntry.createMany({data:ids.map(x=>({id:'a3-page-entry-'+x,unitId:'centro',accountId:'a3_centro_bank',kind:'MANUAL',idempotencyHash:'synthetic-a3-'+x,date:fixtureDate,competenceDate:fixtureDate,amount:1,status:'Efetivado',createdByUserId:((await prisma.user.findUniqueOrThrow({where:{username:process.env.ADMIN_USERNAME},select:{id:true}})).id)}))});
+   await prisma.centralFinanceEntry.createMany({data:ids.map(x=>({id:'a3-page-entry-'+x,unitId:'centro',accountId:'a3_centro_bank',kind:'MANUAL',idempotencyHash:'synthetic-a3-'+x,date:fixtureDate,competenceDate:fixtureDate,amount:1,status:'Efetivado',createdByUserId:ownerUserId}))});
    await prisma.receivableOpening.createMany({data:ids.map(x=>({id:'a3-page-recv-'+x,unitId:'centro',clientId:'a2-fin-client',sourceDate:fixtureDate,originalAmount:1,balance:1,status:'OPEN'}))});
    await prisma.stockPurchase.createMany({data:ids.map(x=>({id:'a3-page-buy-'+x,financeUnitId:'centro',destinationLocationId:'centro',purchaseDate:fixtureDate,supplier:'Fixture A3',goodsTotal:1,total:1,createdByUserId:ownerUserId,idempotencyKey:'a3-page-buy-'+x}))});
    const collect=async path=>{let found=[],cursor='';for(let i=0;i<20;i++){const uri=path+(cursor?(path.includes('?')?'&':'?')+'cursor='+encodeURIComponent(cursor):'');const response=await call(owner,'centro',uri);ok(response.ok,'pagina financeira '+path+' '+i);const items=await response.json();found.push(...items);if(items.length<500)return found;cursor=items.at(-1)?.id;if(!cursor)throw Error('Cursor perdido')}throw Error('Paginação finita não encerrou')};
