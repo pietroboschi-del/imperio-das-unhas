@@ -664,6 +664,46 @@ model ClientPackageOpening {
   @@index([clientId, status])
 }
 
+// A3: authoritative financial ledger, independent of browser localStorage.
+model CentralFinanceAccount {
+  id        String   @id
+  unitId    String
+  name      String
+  type      String
+  active    Boolean  @default(true)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([unitId, active])
+}
+
+model CentralFinanceEntry {
+  id              String   @id
+  unitId          String
+  accountId       String
+  kind            String
+  sourceId        String?
+  idempotencyHash String
+  date            DateTime @db.Date
+  competenceDate  DateTime @db.Date
+  dueDate         DateTime? @db.Date
+  amount          Decimal  @db.Decimal(14,2)
+  status          String
+  cashSessionId   String?
+  clientId        String?
+  category        String?
+  description     String?
+  metadata        Json?
+  createdByUserId String
+  createdAt       DateTime @default(now())
+
+  @@unique([kind, sourceId])
+  @@index([unitId, date, status])
+  @@index([unitId, competenceDate])
+  @@index([cashSessionId])
+}
+
 model ReceivableOpening {
   id             String   @id
   clientId       String?
@@ -788,6 +828,7 @@ model StockMovement {
 model StockPurchase {
   id                    String   @id @default(cuid())
   destinationLocationId String
+  financeUnitId         String?
   purchaseDate          DateTime @db.Date
   supplier              String
   freight               Decimal  @default(0) @db.Decimal(14,2)

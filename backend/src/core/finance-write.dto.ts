@@ -21,7 +21,7 @@ export class CreateCommandDto {
 export class ReceivePaymentDto {
  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(128) professionalId?:string;
  @IsOptional() @IsString() @MaxLength(128) cashSessionId?:string;
- @IsIn(['CASH','PIX','DEBIT_CARD','CREDIT_CARD','TRANSFER','OTHER','DIRECT_PROFESSIONAL','BARTER']) method!:string;
+ @IsIn(['CASH','PIX','DEBIT_CARD','CREDIT_CARD','TRANSFER','OTHER','DIRECT_PROFESSIONAL','BARTER','MONTHLY_RECEIVABLE']) method!:string;
  @IsNumber({maxDecimalPlaces:2}) @Min(0.01) amount!:number;
  @IsOptional() @IsString() @MaxLength(128) accountId?:string;
  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) processorFee?:number;

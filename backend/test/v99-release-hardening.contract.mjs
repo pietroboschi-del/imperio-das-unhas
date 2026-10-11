@@ -88,7 +88,7 @@ for (const needle of [
   'SYNTHETIC_REHEARSAL',
   '920d74cbb5856ab3bdb1c63c1c0c762c82346cba',
   'EXPECTED_BASELINE_MIGRATION_COUNT = 13',
-  'EXPECTED_TARGET_MIGRATION_COUNT = 23',
+  'EXPECTED_TARGET_MIGRATION_COUNT = 24',
   'pg_dump',
   'pg_restore',
   '--list',
@@ -107,7 +107,7 @@ for (const needle of [
 ok(!/railway|proxy|production/i.test(rehearsal), 'synthetic rehearsal does not target production/Railway/proxy');
 
 const workflow = read('../../.github/workflows/backend-ci.yml');
-ok(workflow.includes('Synthetic 13-to-23 migration rehearsal'), 'CI includes synthetic migration rehearsal step');
+ok(workflow.includes('Synthetic 13-to-24 migration rehearsal'), 'CI includes synthetic migration rehearsal step');
 ok(workflow.includes('npm run test:migration-upgrade-rehearsal'), 'CI runs migration upgrade rehearsal');
 ok(workflow.includes('npm run test:release-hardening'), 'CI runs release hardening contracts');
 
