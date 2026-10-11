@@ -70,7 +70,7 @@
    if(!active()||!allowed(unit,'tasks.manage'))throw Error('Acesso central não autorizado');
    if(!body.title)throw Error('Título obrigatório');
    await api('/api/v1/tasks'+(t?'/'+encodeURIComponent(t.id):''),unit,t?'PATCH':'POST',body,key||(key=crypto.randomUUID()));
-   key='';await refresh();closeModal();window.toast?.('Tarefa gravada no PostgreSQL');return true;
+   await refresh();key='';closeModal();window.toast?.('Tarefa gravada no PostgreSQL');return true;
   }catch(e){report(e);return false}
  }
  async function status(id){
