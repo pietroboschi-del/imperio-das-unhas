@@ -149,6 +149,7 @@
 
 /* A4_TASK_01: load the isolated PostgreSQL task bridge after central bootstrap. */
 (function(){
+ if(typeof document==='undefined'||typeof document.createElement!=='function'||!document.body)return;
  if(document.getElementById('imperio-a4-task-script'))return;
  const s=document.createElement('script');
  s.id='imperio-a4-task-script';
