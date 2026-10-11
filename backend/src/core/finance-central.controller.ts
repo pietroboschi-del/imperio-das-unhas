@@ -71,7 +71,10 @@ export class FinanceCentralController {
    await this.lock(tx,'finance-account',id);
    const prior=await tx.centralFinanceAccount.findUnique({where:{id}});
    if(prior&&prior.unitId!==req.unitId)throw new ForbiddenException('Conta registrada em outra unidade');
-   const data={name,type,active:b.active!==false};
+   if(prior&&(!b.expectedUpdatedAt||!Number.isFinite(new Date(b.expectedUpdatedAt).valueOf())||new Date(b.expectedUpdatedAt).getTime()!==prior.updatedAt.getTime()))throw new ConflictException('Conta alterada ou ainda não reconciliada; recarregue antes de modificar');
+   const metadata=b.metadata;
+   if(metadata!==undefined&&(!metadata||typeof metadata!=='object'||Array.isArray(metadata)||JSON.stringify(metadata).length>10000))throw new ConflictException('Configurações da conta inválidas');
+   const data={name,type,active:b.active!==false,...(metadata===undefined?{}:{metadata:metadata as Prisma.InputJsonValue})};
    const row=prior?await tx.centralFinanceAccount.update({where:{id},data}):await tx.centralFinanceAccount.create({data:{id,unitId:req.unitId!,...data}});
    await this.audit(tx,req,'finance.account.saved','CentralFinanceAccount',id,{type,active:data.active});
    return row;
@@ -79,9 +82,12 @@ export class FinanceCentralController {
  }
 
  @Get('entries') @UnitScoped() @RequirePermissions('finance.read')
- entries(@Req() req:ImperioRequest,@Query('from') from?:string,@Query('to') to?:string){
+ entries(@Req() req:ImperioRequest,@Query('from') from?:string,@Query('to') to?:string,@Query('cursor') cursor?:string){
+  if((from&&!to)||(!from&&to))throw new ConflictException('Informe início e fim do período');
   const date=from&&to?{gte:this.date(from),lte:this.date(to)}:undefined;
-  return this.prisma.centralFinanceEntry.findMany({where:{unitId:req.unitId!,...(date?{date}:{})},orderBy:[{date:'desc'},{createdAt:'desc'}],take:1500});
+  if(from&&to&&from>to)throw new ConflictException('Período inválido');
+  if(cursor&&cursor.length>128)throw new ConflictException('Cursor inválido');
+  return this.prisma.centralFinanceEntry.findMany({where:{unitId:req.unitId!,...(date?{date}:{}),...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:'asc'},take:500});
  }
  @Post('entries') @UnitScoped() @RequirePermissions('finance.manage')
  async manual(@Req() req:ImperioRequest,@Body() b:any,@Headers('idempotency-key') key?:string){
@@ -103,16 +109,19 @@ export class FinanceCentralController {
  }
 
  @Get('receivables') @UnitScoped() @RequirePermissions('finance.read')
- receivables(@Req() req:ImperioRequest,@Query('clientId') clientId?:string){
-  const p=req.principal!,units=p.networkAdmin?undefined:p.unitIds.filter(x=>evaluateAccess({networkAdmin:false,globalPermissions:p.permissions,unitAccesses:p.unitAccesses,unitScoped:true,unitId:x,requiredPermissions:['finance.read']}).allowed);
-  return this.prisma.receivableOpening.findMany({where:{...(clientId?{clientId}:{}),...(units?{unitId:{in:units}}:{})},orderBy:[{sourceDate:'asc'},{createdAt:'asc'},{id:'asc'}],take:1500});
+ receivables(@Req() req:ImperioRequest,@Query('clientId') clientId?:string,@Query('cursor') cursor?:string){
+  if(cursor&&cursor.length>128)throw new ConflictException('Cursor inválido');
+  return this.prisma.receivableOpening.findMany({where:{unitId:req.unitId!,...(clientId?{clientId}:{}),...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:'asc'},take:500});
  }
  @Post('receivables/settle') @UnitScoped() @RequirePermissions('finance.receivables.settle')
  async settleReceivable(@Req() req:ImperioRequest,@Body() b:any,@Headers('idempotency-key') key?:string){
   assertOperationalWriteEnabled(req.unitId!);
   const clientId=String(b.clientId||''),accountId=String(b.accountId||''),amount=this.money(b.amount),date=this.date(b.date),method=String(b.method||'');
   if(!clientId||!accountId||!['CASH','PIX','DEBIT_CARD','CREDIT_CARD','TRANSFER','OTHER'].includes(method))throw new ConflictException('Recebimento mensal inválido');
-  const op=this.op(req.unitId!,'MONTHLY_RECEIPT',key,{clientId,accountId,amount:String(amount),date:b.date,method,cashSessionId:b.cashSessionId||null});
+  const selectedIds=Array.isArray(b.receivableIds)?b.receivableIds:[];
+  if(!selectedIds.length||selectedIds.length>500||selectedIds.some((id:unknown)=>typeof id!=='string'||!id||id.length>128)||new Set(selectedIds).size!==selectedIds.length)throw new ConflictException('Selecione explicitamente os recebíveis para a baixa');
+  const receivableIds=[...selectedIds].sort();
+  const op=this.op(req.unitId!,'MONTHLY_RECEIPT',key,{clientId,accountId,receivableIds,amount:String(amount),date:b.date,method,cashSessionId:b.cashSessionId||null});
   return this.prisma.$transaction(async tx=>{
    await this.lock(tx,'finance-op',op.id);
    const prior=await tx.centralFinanceEntry.findUnique({where:{id:op.id}});if(prior)return this.replay(prior,op.hash);
@@ -120,8 +129,12 @@ export class FinanceCentralController {
    if(!await tx.client.findUnique({where:{id:clientId}}))throw new ConflictException('Cliente central inexistente');
    const account=await this.account(tx,req.unitId!,accountId);
    const session=await this.session(tx,req.unitId!,account.type,b.cashSessionId);
-   const rows=await tx.receivableOpening.findMany({where:{clientId,balance:{gt:0}},orderBy:[{sourceDate:'asc'},{createdAt:'asc'},{id:'asc'}]});
-   for(const rv of rows)if(rv.unitId)this.permission(req.principal!,rv.unitId,'finance.receivables.settle');
+   const rows=await tx.receivableOpening.findMany({where:{id:{in:receivableIds},clientId,balance:{gt:0}},orderBy:[{sourceDate:'asc'},{createdAt:'asc'},{id:'asc'}]});
+   if(rows.length!==receivableIds.length)throw new ConflictException('Recebível selecionado inexistente, quitado ou divergente');
+   for(const rv of rows){
+    if(!rv.unitId)throw new ConflictException('Recebível sem unidade de origem reconciliada');
+    this.permission(req.principal!,rv.unitId,'finance.receivables.settle');
+   }
    const due=rows.reduce((s,x)=>s.plus(x.balance),new Prisma.Decimal(0));
    if(amount.gt(due))throw new ConflictException('Valor excede os recebíveis persistidos');
    let left=amount;const allocations:any[]=[];
@@ -133,8 +146,9 @@ export class FinanceCentralController {
  }
 
  @Get('purchase-payables') @UnitScoped() @RequirePermissions('finance.read')
- async payables(@Req() req:ImperioRequest){
-  const p=await this.prisma.stockPurchase.findMany({where:{financeUnitId:req.unitId!},orderBy:{purchaseDate:'desc'},take:1000});
+ async payables(@Req() req:ImperioRequest,@Query('cursor') cursor?:string){
+  if(cursor&&cursor.length>128)throw new ConflictException('Cursor inválido');
+  const p=await this.prisma.stockPurchase.findMany({where:{financeUnitId:req.unitId!,...(cursor?{id:{gt:cursor}}:{})},orderBy:{id:'asc'},take:500});
   const paid=await this.prisma.centralFinanceEntry.findMany({where:{kind:'PURCHASE_SETTLEMENT',unitId:req.unitId!,sourceId:{in:p.map(x=>x.id)}},select:{sourceId:true,id:true,date:true,accountId:true}});
   const byId=new Map(paid.map(x=>[x.sourceId,x]));
   return p.map(x=>({...x,financeStatus:byId.has(x.id)?'Pago':'A pagar',settlement:byId.get(x.id)||null}));
