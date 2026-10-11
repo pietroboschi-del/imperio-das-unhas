@@ -32,7 +32,7 @@
  }
  async function refresh(){
   if(!production())return [];
-  if(!active()){rows=[];if(state())state().managementTasks=[];show();throw Error('Autenticação no backend obrigatória')}
+  if(!active()){rows=[];show();throw Error('Autenticação no backend obrigatória')}
   if(busy)return rows;busy=true;
   try{
    const parts=await Promise.all(units('tasks.read').map(async u=>{
@@ -46,8 +46,8 @@
    rows=parts.flat();
    people=[{id:principal()?.userId,displayName:principal()?.displayName||'Eu',active:true}];
    if(principal()?.networkAdmin){try{people=await api('/api/v1/admin/users','centro')}catch{}}
-   if(state())state().managementTasks=[];show();return rows;
-  }catch(e){rows=[];if(state())state().managementTasks=[];show();throw e}finally{busy=false}
+   show();return rows;
+  }catch(e){rows=[];show();throw e}finally{busy=false}
  }
  function form(id=''){
   let t=rows.find(x=>x.id===id),allowedUnits=units('tasks.manage');
@@ -86,7 +86,7 @@
  window.v66CompleteTask=id=>production()?status(id):old.complete?.(id);
  window.v66ReopenTask=id=>production()?status(id):old.reopen?.(id);
  window.v66Refresh=function(){if(!production())return old.refresh?.();refresh().catch(report)};
- window.renderAdmin=function(){if(production()&&pageActive()&&state())state().managementTasks=[];let out=old.render?.apply(this,arguments);if(production()&&pageActive()){show();refresh().catch(report)}return out};
+ window.renderAdmin=function(){let local=state(),masked=production()&&pageActive()&&local,prior=masked?local.managementTasks:null,out;try{if(masked)local.managementTasks=[];out=old.render?.apply(this,arguments)}finally{if(masked)local.managementTasks=prior}if(production()&&pageActive()){show();refresh().catch(report)}return out};
  try{renderAdmin=window.renderAdmin}catch{}
  window.__a4Task={refresh:()=>refresh().catch(report),status,rows:()=>rows,sourceOfTruth:'postgresql'};
 })();
