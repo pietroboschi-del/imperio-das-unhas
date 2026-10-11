@@ -145,3 +145,14 @@
  install();
  window.__imperioCentralUsersSecure={open,verify,load};
 })();
+
+
+/* A4_TASK_01: load the isolated PostgreSQL task bridge after central bootstrap. */
+(function(){
+ if(document.getElementById('imperio-a4-task-script'))return;
+ const s=document.createElement('script');
+ s.id='imperio-a4-task-script';
+ s.src='assets/js/a4-tasks-central.js';
+ s.async=false;
+ document.body.appendChild(s);
+})();
