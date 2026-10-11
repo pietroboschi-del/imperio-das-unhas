@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import { readFileSync } from 'node:fs';
@@ -26,7 +26,9 @@ async function call(headers,unit,path,method='GET',body,key){
  return fetch(host+'/api/v1'+path,{method,headers:{...headers,'x-unit-id':unit,...(key?{'idempotency-key':key}:{})},body:body===undefined?undefined:JSON.stringify(body)});
 }
 async function main(){
- const src=readFileSync(new URL('../../assets/js/a4-tasks-central.js',import.meta.url),'utf8');
+ const file=new URL('../../assets/js/a4-tasks-central.js',import.meta.url);
+ execFileSync(process.execPath,['--check',file.pathname]);
+ const src=readFileSync(file,'utf8');
  ok(src.includes("sourceOfTruth:'postgresql'"),'frontend central obrigatório');
  ok(!src.includes('save({render:false})'),'sem persistência local como autoridade');
  await cleanup();
