@@ -148,6 +148,16 @@ jobs:
         run: npm run test:characterization
       - name: Create CI administrator
         run: npm run admin:create
+      - name: A3 operational Chromium forms isolated synthetic
+        run: python3 test/a3-fin-forms.operational.chromium.py
+      - name: A3 operational evidence upload synthetic only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a3-operational-forms-evidence
+          path: backend/test-evidence/a3-forms/
+          retention-days: 7
+          if-no-files-found: ignore
       - name: CLIENTS_ONLY rehearsal integration
         run: npm run test:client-batch-rehearsal
       - name: CLIENTS_ONLY Excel integration
