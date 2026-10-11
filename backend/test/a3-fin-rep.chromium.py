@@ -48,7 +48,7 @@ JS_CALL="""async ({method,path,body,key})=>{
 def invoke(page,method,path,body=None,key=None):
     return page.evaluate(JS_CALL,{"method":method,"path":path,"body":body,"key":key})
 
-env={**os.environ,"PORT":str(API_PORT),"OPERATIONAL_WRITES_ENABLED":"true","OPERATIONAL_WRITES_UNITS":"centro,big,shopping-contagem","CORS_ORIGINS":UI,"COOKIE_SECURE":"false","COOKIE_SAME_SITE":"lax"}
+env={**os.environ,"PORT":str(API_PORT),"OPERATIONAL_WRITES_ENABLED":"true","OPERATIONAL_WRITES_UNITS":"centro,big,shopping-contagem","CORS_ORIGINS":UI}
 processes=[]
 try:
     processes.append(subprocess.Popen([sys.executable,"-m","http.server",str(FRONT_PORT),"--bind","127.0.0.1"],cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.PIPE))
