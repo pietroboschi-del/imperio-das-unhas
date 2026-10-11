@@ -168,7 +168,7 @@ jobs:
         run: npm run test:release-checksum-preflight
       - name: Release migration manifest parity
         run: npm run test:release-migration-manifest
-      - name: Synthetic 13-to-23 migration rehearsal
+      - name: Synthetic 13-to-24 migration rehearsal
         env:
           DATABASE_URL: postgresql://imperio:imperio_ci@localhost:5432/imperio_ci?schema=public
           SYNTHETIC_REHEARSAL: "1"
@@ -177,6 +177,10 @@ jobs:
           EVOLUTION_WEBHOOK_ENABLED: "false"
           WHATSAPP_AGENT_API_ENABLED: "false"
         run: npm run test:migration-upgrade-rehearsal
+      - name: A3 restored legacy purchase migration clone
+        env:
+          SYNTHETIC_REHEARSAL: "1"
+        run: node tools/a3-legacy-purchase-restore-rehearsal.mjs
       - name: Multi-unit operational write tests
         run: npm run test:operational-writes
       - name: Three-unit stock foundation
@@ -185,6 +189,8 @@ jobs:
         run: npm run test:booking-item-data-model
       - name: Multi-unit cash command payment flow
         run: npm run test:finance-flow
+      - name: A3 authoritative finance Chromium two sessions
+        run: python3 test/a3-fin-rep.chromium.py
       - name: Three-unit public booking flow
         run: npm run test:public-booking
       - name: Empty-state integrated operational journey

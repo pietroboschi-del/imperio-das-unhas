@@ -32,7 +32,7 @@ Baseline count: `13`.
 
 ## TARGET_MIGRATIONS
 
-Target count: `23`. Baseline migrations above plus:
+Target count: `24`. Baseline migrations above plus:
 
 1. `20261004_v99_client_duplicate_review_target_client`
 2. `20261004_v99_command_service_quantity`
@@ -44,10 +44,11 @@ Target count: `23`. Baseline migrations above plus:
 8. `20261006_wa5_1_messaging_automation`
 9. `20261008_wa2_outbox_reconciliation_required`
 10. `20261010_phase5_client_source_network_config`
+11. `20261010_a3_fin_rep_authoritative_ledger`
 
 ## PENDING_MIGRATIONS
 
-Expected pending from historical 13-migration baseline to target: `10` migrations (subject to **current** live ledger verification; never assume production still has 13).
+Expected pending from historical 13-migration baseline to target: `11` migrations (subject to **current** live ledger verification; never assume production still has 13).
 
 1. `20261004_v99_client_duplicate_review_target_client`
 2. `20261004_v99_command_service_quantity`
@@ -59,6 +60,7 @@ Expected pending from historical 13-migration baseline to target: `10` migration
 8. `20261006_wa5_1_messaging_automation`
 9. `20261008_wa2_outbox_reconciliation_required`
 10. `20261010_phase5_client_source_network_config`
+11. `20261010_a3_fin_rep_authoritative_ledger`
 
 ## BACKUP REQUIREMENT
 
@@ -74,7 +76,7 @@ LIVE_BACKEND_SHA=920d74cbb5856ab3bdb1c63c1c0c762c82346cba LIVE_FRONTEND_SHA=a5e4
 DATABASE_URL='<authorized-readonly-url>' npm run release:preflight
 ```
 
-All commands above run from `backend/`. On the target artifact, `release:preflight` deliberately returns exit 2 / `ok=false` before upgrade if migrations are pending; their precise count MUST be derived from the live ledger. This is acceptable for a historical 13-migration baseline ONLY when `databaseCount=13`, `filesystemCount=23`, the applied names exactly match EXPECTED_BASELINE_MIGRATIONS, pending names exactly match PENDING_MIGRATIONS, all baseline checksum comparisons match, and every unexpected/incomplete/rolled-back/missing-checksum/missing-local-SQL/missing-unit collection is empty. Exit 1 or any other discrepancy aborts; exit 2 alone is never approval. After upgrade require exit 0 / `ok=true` and 23 applied. Compare the baseline at the *live backend SHA* separately from target 23, including checksum SHA-256 for each applied migration. Abort if live contains an unexpected migration. Live ledger remains NOT VERIFIED until queried with authorized read-only credentials. Historical baseline condition (13 migrations) applies only if live still equals `EXPECTED_BASELINE_MIGRATIONS`, no incomplete rows, no rolled back rows, no unexpected database-only migrations, and canonical units `centro`, `big`, `shopping-contagem` exist.
+All commands above run from `backend/`. On the target artifact, `release:preflight` deliberately returns exit 2 / `ok=false` before upgrade if migrations are pending; their precise count MUST be derived from the live ledger. This is acceptable for a historical 13-migration baseline ONLY when `databaseCount=13`, `filesystemCount=24`, the applied names exactly match EXPECTED_BASELINE_MIGRATIONS, pending names exactly match PENDING_MIGRATIONS, all baseline checksum comparisons match, and every unexpected/incomplete/rolled-back/missing-checksum/missing-local-SQL/missing-unit collection is empty. Exit 1 or any other discrepancy aborts; exit 2 alone is never approval. After upgrade require exit 0 / `ok=true` and 24 applied. Compare the baseline at the *live backend SHA* separately from target 24, including checksum SHA-256 for each applied migration. Abort if live contains an unexpected migration. Live ledger remains NOT VERIFIED until queried with authorized read-only credentials. Historical baseline condition (13 migrations) applies only if live still equals `EXPECTED_BASELINE_MIGRATIONS`, no incomplete rows, no rolled back rows, no unexpected database-only migrations, and canonical units `centro`, `big`, `shopping-contagem` exist.
 
 ## MIGRATION COMMAND
 
@@ -93,7 +95,7 @@ DATABASE_URL='<authorized-readonly-url>' npm run release:preflight
 npm run diagnostic:three-units
 ```
 
-Required result: target migration count `23`, no pending migrations, no incomplete migrations, no rolled back migrations, and no missing canonical units.
+Required result: target migration count `24`, no pending migrations, no incomplete migrations, no rolled back migrations, and no missing canonical units.
 
 ## BACKEND DEPLOY CHECKS
 
@@ -119,4 +121,4 @@ Use code rollback only for code-only failures after database integrity is verifi
 
 ## PHASE_5_CLIENT_SOURCE_CONFIG_DELTA
 
-The additive migration `20261010_phase5_client_source_network_config` creates only the network-wide acquisition-source configuration table. The historical 13→22 rehearsal is not evidence of this new migration. Before any production apply, reconcile the *current* production Prisma ledger and hashes against this 23-migration target, restore a fresh verified backup in isolation, and obtain separate explicit production migration authorization. Never replay already-applied migrations.
+The additional isolated A3 migration `20261010_a3_fin_rep_authoritative_ledger` adds financial ledger/account tables and stock purchase finance ownership; NO historical UPDATE. Both require separate production authorization. The additive migration `20261010_phase5_client_source_network_config` creates only the network-wide acquisition-source configuration table. The historical 13→22 rehearsal is not evidence of this new migration. Before any production apply, reconcile the *current* production Prisma ledger and hashes against this 24-migration target, restore a fresh verified backup in isolation, and obtain separate explicit production migration authorization. Never replay already-applied migrations.
