@@ -26,6 +26,7 @@ async function call(headers,unit,path,method='GET',body,key){
  return fetch(host+'/api/v1'+path,{method,headers:{...headers,'x-unit-id':unit,...(key?{'idempotency-key':key}:{})},body:body===undefined?undefined:JSON.stringify(body)});
 }
 async function main(){
+ if(process.env.CI!=='true'||!/\/imperio_ci(?:\?|$)/.test(String(process.env.DATABASE_URL||'')))throw Error('Teste A4 exige ambiente CI e banco imperio_ci isolado');
  const file=new URL('../../assets/js/a4-tasks-central.js',import.meta.url);
  execFileSync(process.execPath,['--check',file.pathname]);
  const src=readFileSync(file,'utf8');
