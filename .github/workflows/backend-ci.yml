@@ -177,6 +177,10 @@ jobs:
           EVOLUTION_WEBHOOK_ENABLED: "false"
           WHATSAPP_AGENT_API_ENABLED: "false"
         run: npm run test:migration-upgrade-rehearsal
+      - name: A3 restored legacy purchase migration clone
+        env:
+          SYNTHETIC_REHEARSAL: "1"
+        run: node tools/a3-legacy-purchase-restore-rehearsal.mjs
       - name: Multi-unit operational write tests
         run: npm run test:operational-writes
       - name: Three-unit stock foundation
