@@ -191,13 +191,13 @@ jobs:
         run: npm run test:finance-flow
       - name: A3 authoritative finance Chromium two sessions
         run: python3 test/a3-fin-rep.chromium.py
-      - name: A3-PAY-01 custom payment kind and PostgreSQL cash/reports
-        run: |
-          node test/a3-pay-01.frontend.behavior.mjs
-          node test/a3-pay-01.integration.mjs
       - name: Three-unit public booking flow
         run: npm run test:public-booking
       - name: Empty-state integrated operational journey
         run: npm run test:empty-state-journey
       - name: Three-unit real Chromium UI bootstrap
         run: npm run test:three-unit-ui-e2e
+      - name: A3-PAY-01 custom payment kind and PostgreSQL cash/reports
+        run: |
+          node test/a3-pay-01.frontend.behavior.mjs
+          node test/a3-pay-01.integration.mjs
