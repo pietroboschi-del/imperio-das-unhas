@@ -44,7 +44,7 @@ export class TaskCentralController {
   const u=await tx.user.findUnique({where:{id},include:{unitAccesses:{where:{unitId:unit,active:true}}}});
   if(!u||!u.active||(!u.networkAdmin&&!u.unitAccesses.length))throw new ConflictException('Responsável sem acesso à unidade');
  }
- private snapshot(x:any){return {title:x.title,unitId:x.unitId,assignedUserId:x.assignedUserId,status:x.status,note:x.note,updatedAt:x.updatedAt}}
+ private snapshot(x:any){return {title:x.title,dueDate:x.dueDate?new Date(x.dueDate).toISOString().slice(0,10):null,priority:x.priority,category:x.category,unitId:x.unitId,assignedUserId:x.assignedUserId,status:x.status,note:x.note,updatedAt:x.updatedAt}}
  private async audit(tx:Prisma.TransactionClient,req:ImperioRequest,id:string,hash:string,action:string,taskId:string,before:any,after:any){
   await tx.auditEvent.create({data:{id,userId:req.principal!.userId,unitId:req.unitId!,action,entityType:'ManagementTask',entityId:taskId,occurredAt:new Date(),legacyPayload:{source:'A4_TASK_01',requestHash:hash,before,after}}});
  }
