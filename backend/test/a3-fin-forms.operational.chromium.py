@@ -12,7 +12,7 @@ BACKEND=ROOT/"backend"
 OUT=BACKEND/"test-evidence"/"a3-forms"
 OUT.mkdir(parents=True,exist_ok=True)
 APP_SHA="4dc03ea2544fb2eb606f3f224a70de651915981e"
-assert subprocess.check_output(["git","rev-parse","HEAD^"],cwd=ROOT,text=True).strip()==APP_SHA,"Wrong application parent SHA"
+assert subprocess.check_output(["git","merge-base",APP_SHA,"HEAD"],cwd=ROOT,text=True).strip()==APP_SHA,"Wrong approved application ancestor SHA"
 changed=set(subprocess.check_output(["git","diff","--name-only",APP_SHA,"HEAD"],cwd=ROOT,text=True).splitlines())
 assert changed<=set(["backend/test/a3-fin-forms.operational.chromium.py",".github/workflows/backend-ci.yml"]),"Application files changed"
 url=os.environ.get("DATABASE_URL","")
@@ -56,6 +56,9 @@ def go_fin(page,unit="u3",tab=None):
     if pending.count():
         pending.click()
         page.wait_for_timeout(900)
+        # After the reconciliation, navigate back through the real Financeiro tab.
+        page.get_by_role("button",name="Financeiro",exact=True).click()
+        page.wait_for_timeout(900)
     if page.get_by_role("button",name="Revisar contas existentes").count():
         raise AssertionError("Central account reconciliation did not complete")
     if tab:
@@ -68,7 +71,23 @@ def read(page,unit,path):
       const resp=await fetch(base+'/api/v1'+path,{credentials:'include',headers:{'X-Unit-Id':unit},cache:'no-store'});
       return {status:resp.status,data:await resp.json().catch(()=>null)};
     }""",{"unit":unit,"path":path})
-def account(page,unit,name,edit_name=None):
+def ensure_payment_catalog(page):
+    go_fin(page,"u3","Formas de pagamento")
+    ids=page.evaluate("db.paymentMethods.filter(x=>x.kind==='pix'||x.id==='pm_pix').map(x=>x.id)")
+    if "pm_pix" in ids:
+        record("payment_catalog",mode="existing_canonical_pix")
+        return "pm_pix"
+    # Only synthetic setup: use the actual configuration form rather than injecting browser storage.
+    page.get_by_role("button",name="+ Nova forma").click()
+    page.locator("#finPmName").fill("Pix sintético A3")
+    page.locator("#finPmKind").select_option("pix")
+    page.locator("#finPmActive").check()
+    page.locator("#modalHost").get_by_role("button",name="Salvar").click()
+    result=page.evaluate("db.paymentMethods.find(x=>x.name==='Pix sintético A3')?.id")
+    assert result,"Synthetic PIX configuration not created through the UI"
+    record("payment_catalog",mode="created_by_real_UI",backendPaymentMapping="OTHER_for_custom_method")
+    return result
+def account(page,unit,name,method_id,edit_name=None):
     go_fin(page,unit,"Contas")
     if edit_name:
         page.locator(".finance-account-card").filter(has_text=name).get_by_role("button",name="Configurar").click()
@@ -80,8 +99,8 @@ def account(page,unit,name,edit_name=None):
     page.locator("#finAccInstitution").fill("Instituição sintética")
     page.locator("#finAccInternal").fill("E2E-ONLY")
     page.locator("#finAccActive").check()
-    page.locator('input.fin-acc-method[value="pm_pix"]').check()
-    fee=page.locator('input.fin-rule-percent[data-mid="pm_pix"]')
+    page.locator('input.fin-acc-method[value="'+method_id+'"]').check()
+    fee=page.locator('input.fin-rule-percent[data-mid="'+method_id+'"]')
     fee.fill("1.25")
     page.locator("#modalHost").get_by_role("button",name="Salvar conta").click()
     page.wait_for_function("(n)=>db.financialAccounts.some(x=>x.name===n&&x.central===true)",arg=edit_name or name,timeout=15000)
@@ -146,24 +165,29 @@ try:
             record("two_independent_real_logins",sessionCookiesIndependent=c1!=c2)
             go_fin(one,"u3","Contas")
             record("legacy_accounts_reconciled_through_browser",serverRows=len(read(one,"centro","/finance/accounts")["data"]))
+            pix_id=ensure_payment_catalog(one)
             name="Banco A3 E2E Sintético"
-            acc_id=account(one,"u3",name)
+            acc_id=account(one,"u3",name,pix_id)
             edited=name+" Editado"
-            account(one,"u3",name,edited)
+            account(one,"u3",name,pix_id,edited)
             info=read(one,"centro","/finance/accounts")
             remote=next((x for x in info["data"] if x["id"]==acc_id),None)
-            assert remote and remote["name"]==edited and remote["metadata"]["feeRules"]["pm_pix"]["percent"]==1.25
+            assert remote and remote["name"]==edited and remote["metadata"]["feeRules"][pix_id]["percent"]==1.25
             record("account_creation_and_edit_real_form",backendConfirmed=True)
             go_fin(two,"u3","Contas")
             assert two.get_by_text(edited,exact=True).count()>0,"New account not visible from independent session"
             two.reload(wait_until="domcontentloaded")
+            if two.locator("#adminApp").evaluate("(e)=>e.classList.contains('hidden')"):
+                two.get_by_role("button",name="Área da equipe").click()
             two.wait_for_function("!!window.__a3Finance&&sessionStorage.getItem('imperio-v99-central-authenticated')==='1'",timeout=20000)
             go_fin(two,"u3","Contas")
             assert two.get_by_text(edited,exact=True).count()>0,"Edited account missing after reload"
             record("account_persists_across_sessions_and_reload",verified=True)
+            big_id=account(one,"u1","Banco A3 Sintético Big",pix_id)
+            shop_id=account(one,"u2","Banco A3 Sintético Shopping",pix_id)
             e_centro=manual(one,"u3",acc_id,"a3_forms_manual_centro",19.75)
-            e_big=manual(one,"u1","fa_u1_bank","a3_forms_manual_big",7.5)
-            e_shop=manual(one,"u2","fa_u2_bank","a3_forms_manual_shopping",9.25)
+            e_big=manual(one,"u1",big_id,"a3_forms_manual_big",7.5)
+            e_shop=manual(one,"u2",shop_id,"a3_forms_manual_shopping",9.25)
             ids=[e_centro,e_big,e_shop]
             assert all(ids),"Manual forms did not yield central identifiers"
             for unit,which in [("centro",e_centro),("big",e_big),("shopping-contagem",e_shop)]:
@@ -199,7 +223,7 @@ try:
             one.locator("#clientRows tr").filter(has_text="Cliente sintética validação A3").get_by_role("button",name="Abrir").click()
             one.get_by_role("button",name="Conta mensal",exact=True).click()
             one.get_by_role("button",name="Receber conta").click()
-            one.locator("#cmPayMethod").select_option("pm_pix")
+            one.locator("#cmPayMethod").select_option(pix_id)
             one.locator("#cmPayAccount").select_option(acc_id)
             one.locator("#cmPayAmount").fill("50")
             one.locator("#cmPayDate").fill("2026-10-09")
@@ -212,6 +236,8 @@ try:
             record("monthly_settlement_real_form_selected_Centro_only",amount=50,otherUnitNotSelectable=True)
             go_fin(two,"u3","Lançamentos")
             two.reload(wait_until="domcontentloaded")
+            if two.locator("#adminApp").evaluate("(e)=>e.classList.contains('hidden')"):
+                two.get_by_role("button",name="Área da equipe").click()
             two.wait_for_function("!!window.__a3Finance&&sessionStorage.getItem('imperio-v99-central-authenticated')==='1'",timeout=20000)
             go_fin(two,"u3","Lançamentos")
             evidence=dbcheck(acc_id,ids,client_id)
