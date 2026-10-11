@@ -109,13 +109,20 @@
   }
   window.__a3AccountsPending=pendingAccounts.map(({localAccount:a,centralAccount:c})=>({id:a.id,unitId:a.unitId,name:a.name,reason:c?'divergent':'missing'}));
   if(pendingAccounts.length)throw Error(pendingAccounts.length+' conta(s) aguardam reconciliação. Use Revisar contas antes de usar os relatórios.');
-  legacyHistoryCount=(db.demoFinancialEntries||[]).filter(e=>!e.central&&isCovered(e)).length;
+  // Keep a read-only copy of all unvalidated local facts; never count these as central revenue.
+  db.a3LegacyFinanceArchive=db.a3LegacyFinanceArchive||{entries:[],receivables:[],payments:[]};
+  const quarantine=(field,dest)=>{
+   const old=db.a3LegacyFinanceArchive[dest]||[],known=new Set(old.map(x=>x.id));
+   for(const row of db[field]||[])if(isCovered(row)&&!row.central&&!known.has(row.id)){old.push(structuredClone(row));known.add(row.id)}
+   db.a3LegacyFinanceArchive[dest]=old;
+   db[field]=(db[field]||[]).filter(x=>!isCovered(x));
+  };
+  quarantine('demoFinancialEntries','entries');
+  quarantine('clientReceivables','receivables');
+  quarantine('clientReceivablePayments','payments');
+  legacyHistoryCount=Object.values(db.a3LegacyFinanceArchive).reduce((sum,items)=>sum+items.length,0);
   window.__a3UnreconciledHistoryCount=legacyHistoryCount;
-  // Browser records remain untouched in saved storage. Official projections use central facts only.
-  db.demoFinancialEntries=(db.demoFinancialEntries||[]).filter(x=>!isCovered(x)||!x.central);
-  db.financialAccounts=(db.financialAccounts||[]).filter(x=>!isCovered(x)||(!x.central&&!access.length));
-  db.clientReceivables=(db.clientReceivables||[]).filter(x=>!isCovered(x)||!x.central);
-  db.clientReceivablePayments=(db.clientReceivablePayments||[]).filter(x=>!x.central||!isCovered(x));
+  db.financialAccounts=(db.financialAccounts||[]).filter(x=>!isCovered(x));
   for(const {unit,accounts,entries,receivables,payables} of reads){
    for(const a of accounts||[])db.financialAccounts.push(normalizedAccount(a));
    for(const e of entries||[]){
