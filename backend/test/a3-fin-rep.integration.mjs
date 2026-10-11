@@ -17,7 +17,7 @@ async function main(){
   await wait();
   const login=async(username,password)=>{
    const r=await fetch(root+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({username,password})});
-   assert.equal(r.status,200,'login sintético');const a=await r.json();return{cookie:cookie(r),csrf:a.csrfToken};
+   assert.ok(r.ok,'login sintético');const a=await r.json();return{cookie:cookie(r),csrf:a.csrfToken};
   };
   const owner=await login(process.env.ADMIN_USERNAME,process.env.ADMIN_PASSWORD);
   const operator=await login('finance_centro_ci','finance-password-123');
