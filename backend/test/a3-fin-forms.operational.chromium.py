@@ -195,9 +195,13 @@ try:
                 assert response["status"]==200 and sum(x["id"]==which for x in response["data"])==1
                 assert all(x["unitId"]==unit for x in response["data"])
             go_fin(two,"u3","Lançamentos")
+            # The owner has an intentionally consolidated ledger until the unit-header filter is applied.
+            unit_filter=two.locator(".finance-ledger th").filter(has_text="Unidade").locator("select.finance-th-filter")
+            unit_filter.select_option("u3")
             assert two.get_by_text("a3_forms_manual_centro").count()>0
             assert two.get_by_text("a3_forms_manual_big").count()==0
-            record("manual_income_three_units_real_forms_and_second_session",entries=3,crossUnitLeak=False)
+            assert two.get_by_text("a3_forms_manual_shopping").count()==0
+            record("manual_income_three_units_real_forms_and_second_session",entries=3,explicitUnitFilter="centro",crossUnitLeak=False)
             # Client fixture is CREATED through the real registration UI; SQL inserts only synthetic open obligations.
             one.locator("#unitPicker").select_option("u3")
             one.get_by_role("button",name="Clientes",exact=True).click()
