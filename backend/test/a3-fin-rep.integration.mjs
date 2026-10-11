@@ -88,12 +88,13 @@ async function main(){
   r=await call(owner,'centro','/finance/accounts');ok((await r.json()).find(x=>x.id===aSaved.id)?.metadata?.feeRules?.pm_pix?.percent===1.25,'regras de conta preservadas entre sessoes');
   r=await call(owner,'centro','/finance/accounts','POST',{id:aBefore.id,name:'Sobrescrita obsoleta',type:aBefore.type,expectedUpdatedAt:aBefore.updatedAt.toISOString()});ok(r.status===409,'versao obsoleta protegida');
   // A3-REA-04: historical volumes exceed both old 1000 and 1500 caps.
+  const ownerUserId=(await prisma.user.findUniqueOrThrow({where:{username:process.env.ADMIN_USERNAME},select:{id:true}})).id;
   const fixtureDate=new Date('2026-10-09T00:00:00.000Z');
   const ids=Array.from({length:1555},(_,i)=>String(i).padStart(5,'0'));
   try{
    await prisma.centralFinanceEntry.createMany({data:ids.map(x=>({id:'a3-page-entry-'+x,unitId:'centro',accountId:'a3_centro_bank',kind:'MANUAL',idempotencyHash:'synthetic-a3-'+x,date:fixtureDate,competenceDate:fixtureDate,amount:1,status:'Efetivado',createdByUserId:((await prisma.user.findUniqueOrThrow({where:{username:process.env.ADMIN_USERNAME},select:{id:true}})).id)}))});
    await prisma.receivableOpening.createMany({data:ids.map(x=>({id:'a3-page-recv-'+x,unitId:'centro',clientId:'a2-fin-client',sourceDate:fixtureDate,originalAmount:1,balance:1,status:'OPEN'}))});
-   await prisma.stockPurchase.createMany({data:ids.map(x=>({id:'a3-page-buy-'+x,financeUnitId:'centro',destinationLocationId:'centro',purchaseDate:fixtureDate,supplier:'Fixture A3',goodsTotal:1,total:1,createdByUserId:(await prisma.user.findUniqueOrThrow({where:{username:process.env.ADMIN_USERNAME},select:{id:true}})).id,idempotencyKey:'a3-page-buy-'+x}))});
+   await prisma.stockPurchase.createMany({data:ids.map(x=>({id:'a3-page-buy-'+x,financeUnitId:'centro',destinationLocationId:'centro',purchaseDate:fixtureDate,supplier:'Fixture A3',goodsTotal:1,total:1,createdByUserId:ownerUserId,idempotencyKey:'a3-page-buy-'+x}))});
    const collect=async path=>{let found=[],cursor='';for(let i=0;i<20;i++){const uri=path+(cursor?(path.includes('?')?'&':'?')+'cursor='+encodeURIComponent(cursor):'');const response=await call(owner,'centro',uri);ok(response.ok,'pagina financeira '+path+' '+i);const items=await response.json();found.push(...items);if(items.length<500)return found;cursor=items.at(-1)?.id;if(!cursor)throw Error('Cursor perdido')}throw Error('Paginação finita não encerrou')};
    const allE=await collect('/finance/entries?from=2026-10-01&to=2026-10-31');
    const allR=await collect('/finance/receivables?clientId=a2-fin-client');
