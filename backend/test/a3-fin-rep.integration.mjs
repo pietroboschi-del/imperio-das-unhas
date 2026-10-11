@@ -31,6 +31,7 @@ async function main(){
   let r=await call(operator,'big','/finance/accounts');ok(r.status===403,'operador Centro não lê contas Big');
   const day='2026-10-07',another='2026-10-08';
   const amount={direction:'income',status:'Efetivado',date:day,competenceDate:day,amount:20,accountId:'a3_centro_cash',cashSessionId:null,category:'Outros',description:'Lançamento CI A3'};
+  r=await call(owner,'centro','/cash-sessions','POST',{businessDate:day,openingAmount:0},'a3-fresh-cash-session');ok(r.ok,'abre nova sessão sintética após fechamento das regressões anteriores');
   const open=await prisma.cashSession.findFirstOrThrow({where:{unitId:'centro',businessDate:new Date(day+'T00:00:00.000Z'),status:'OPEN'}});
   amount.cashSessionId=open.id;
   r=await call(operator,'centro','/finance/entries','POST',amount,'a3-manual-unique');ok(r.ok,'grava lançamento central');const created=await r.json();
