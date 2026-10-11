@@ -185,6 +185,8 @@ jobs:
         run: npm run test:booking-item-data-model
       - name: Multi-unit cash command payment flow
         run: npm run test:finance-flow
+      - name: A4 central task persistence
+        run: npm run test:tasks-central
       - name: Three-unit public booking flow
         run: npm run test:public-booking
       - name: Empty-state integrated operational journey
