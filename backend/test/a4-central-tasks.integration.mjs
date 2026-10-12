@@ -68,6 +68,22 @@ async function main(){
   const fresh=await prisma.managementTask.findUniqueOrThrow({where:{id:created.id}});
   const race=await Promise.all(['A','B'].map(s=>call(boss,'centro','/tasks/'+created.id,'PATCH',{...payload,title:'Concorrente '+s,expectedUpdatedAt:fresh.updatedAt},'a4-race-'+s)));
   ok(race.filter(x=>x.ok).length===1&&race.filter(x=>x.status===409).length===1,'concorrência preserva versão');
+  // A4-F03: central admin saves explicit task permissions per unit; backend enforces them.
+  r=await call(boss,'centro','/admin/users/a4-viewer/access','PATCH',{
+   permissions:[],units:[{unitId:'centro',role:'reception',permissions:['tasks.read','tasks.manage']},
+    {unitId:'big',role:'reception',permissions:['tasks.read']}]
+  });ok(r.ok,'owner saves task grants through central admin API');
+  const savedGrants=await prisma.userUnitAccess.findMany({where:{userId:'a4-viewer'}});
+  ok(savedGrants.some(x=>x.unitId==='centro'&&x.permissions.includes('tasks.manage'))
+   &&savedGrants.some(x=>x.unitId==='big'&&x.permissions.includes('tasks.read')&&!x.permissions.includes('tasks.manage')),
+   'unit-specific grants persist in PostgreSQL, not browser state');
+  r=await call(viewer,'big','/tasks');ok(r.ok,'tasks.read grants Big read');
+  r=await call(viewer,'big','/tasks','POST',{...payload,unitId:'big',assignedUserId:'a4-big'},'a4-viewer-big-denied');
+  ok(r.status===403,'Big tasks.read does not imply tasks.manage');
+  r=await call(viewer,'centro','/tasks','POST',{...payload,title:'Gravação após concessão',assignedUserId:'a4-centro'},'a4-viewer-centro-allowed');
+  ok(r.status===201,'Centro tasks.manage can write after persisted grant');
+  r=await call(viewer,'shopping-contagem','/tasks');ok(r.status===403,'grants never extend to third unit');
+
   console.log(JSON.stringify({ok:true,checks,module:'A4-TASK-01'}));
  }finally{server.kill('SIGTERM');await cleanup();await prisma.$disconnect()}
 }
