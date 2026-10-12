@@ -46,6 +46,7 @@ window.__imperioCentralApi={status:()=>({endpoint:'https://api.a4.test'}),disabl
 </script></body></html>"""
 gate = asyncio.Event()
 delayed = False
+late_unauthorized = False
 hits = 0
 checks = 0
 def check(cond, message):
@@ -76,6 +77,8 @@ async def handler(route):
   if delayed and unit=='centro':
    hits += 1
    await gate.wait()
+   if late_unauthorized:
+    await route.fulfill(status=401,headers=headers,body='{"message":"expired old user"}');return
   data=[x for x in DATA if x['unitId']==unit]
   await route.fulfill(status=200,headers=headers,body=json.dumps(data));return
  if path.startswith('/api/v1/tasks') and req.method in ('POST','PATCH'):
@@ -112,7 +115,7 @@ async def make_page(browser,user):
  return context,page
 
 async def main():
- global delayed,hits
+ global delayed,late_unauthorized,hits
  async with async_playwright() as play:
   browser=await play.chromium.launch(headless=True)
   ownerctx,owner=await make_page(browser,OWNER)
@@ -173,6 +176,22 @@ async def main():
   gate.set();delayed=False
   await owner.wait_for_timeout(150)
   check(await owner.locator('[data-central-task="manual_centro_seed"]').count()==0,'late Centro reply discarded')
+  # Old-user 401 must not disable the current user's valid session.
+  await authenticate(owner,CENTRO)
+  await owner.evaluate('window.__a4Task.invalidate()')
+  delayed=True;late_unauthorized=True;gate.clear();hits=0
+  await owner.evaluate('() => {window.__staleAuthRefresh=window.__a4Task.refresh(true)}')
+  for _ in range(100):
+   if hits:break
+   await asyncio.sleep(.03)
+  check(hits>0,'old user 401 request actually held pending')
+  await authenticate(owner,BIG)
+  check(await owner.evaluate('window.__a4Task.refresh(true).then(()=>true)'),'new Big user loaded during old pending 401')
+  gate.set();delayed=False
+  await owner.evaluate('window.__staleAuthRefresh')
+  late_unauthorized=False
+  check(await owner.evaluate("sessionStorage.getItem('imperio-v99-central-authenticated')")=='1','old 401 does not log out current user')
+  check(await owner.locator('[data-central-task="manual_big_seed"]').count()==1,'old 401 retains current Big tasks')
   await authenticate(owner,CENTRO)
   await owner.evaluate("() => {window.__a4Task.invalidate();window.__a4Task.refresh(true)}")
   await owner.wait_for_function('window.__a4Task.counts().loaded>0')
