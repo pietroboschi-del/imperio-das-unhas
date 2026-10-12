@@ -81,6 +81,9 @@
    return '<div class="v66-item" data-central-task="'+escape(t.id)+'"><div class="v66-main"><h4>'+escape(t.title)+'</h4><p>'+escape(t.note||'')+'</p><div class="v66-meta"><span class="v66-chip">'+escape(t.unitId)+'</span><span class="v66-chip">'+escape(t.priority)+'</span><span class="v66-chip">'+escape(t.dueDate?String(t.dueDate).slice(0,10):'Sem prazo')+'</span><span class="v66-chip">'+(t.status==='DONE'?'Concluída':'Aberta')+'</span><span class="v66-chip">'+escape(people.find(p=>p.id===t.assignedUserId)?.displayName||t.assignedUserId)+'</span><span class="v66-chip">'+(t.sourceType==='MANUAL'?'Manual':'Automática, somente leitura')+'</span></div></div><div class="v66-actions">'+buttons+'</div></div>';
   }).join('');
   const legacyHtml=legacy.length?'<details id="a4LegacyArchive"><summary>Consulta de tarefas locais antigas ('+legacy.length+') — somente leitura, fora dos indicadores</summary><p class="muted">Não migradas. Revisar pendências antes da operação definitiva.</p>'+legacy.map(t=>'<div class="v66-item"><div class="v66-main"><b>'+escape(t.title)+'</b><p>'+escape(t.note||'')+'</p><small>'+escape(t.unitId||'Sem unidade')+' · '+escape(t.status||'OPEN')+'</small></div></div>').join('')+'</details>':'';
+  // The Tarefas navigation badge counts the same central OPEN records as this panel.
+  const nav=document.querySelector('#adminTabs button[onclick*="actions"]');
+  if(nav){let badge=nav.querySelector('.v66-badge');if(open.length){if(!badge){badge=document.createElement('span');badge.className='v66-badge';nav.appendChild(badge);}badge.textContent=open.length>99?'99+':String(open.length);}else badge?.remove();}
   const readUnits=units('tasks.read');const canCreate=units('tasks.manage').length>0;
   target.innerHTML='<div class="card" style="padding:15px;margin-bottom:16px">'
    +'<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><h3 style="margin:0">Tarefas centrais — PostgreSQL</h3><button class="btn btn-ghost btn-sm" onclick="window.__a4Task.refresh(true)">Atualizar</button>'
@@ -204,6 +207,15 @@
  window.v66SaveTask=save;
  window.v66CompleteTask=id=>production()?status(id):old.complete?.(id);
  window.v66ReopenTask=id=>production()?status(id):old.reopen?.(id);
+ // V66 filter refresh re-renders the alert list directly; apply the same local-task mask.
+ const priorV66Refresh=window.v66Refresh;
+ if(typeof priorV66Refresh==='function')window.v66Refresh=function(){
+  if(!production()||!pageActive())return priorV66Refresh.apply(this,arguments);
+  const local=state(),previous=local?.managementTasks;
+  let result;try{if(local)local.managementTasks=[];result=priorV66Refresh.apply(this,arguments);}
+  finally{if(local)local.managementTasks=previous;}
+  show();return result;
+ };
  // Preserve the V66 filter/alert/automation handlers and mask legacy manual rows only during its rendering.
  window.renderAdmin=function(){
   if(!production()||!pageActive())return old.render?.apply(this,arguments);
