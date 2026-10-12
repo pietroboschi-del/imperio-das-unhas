@@ -25,7 +25,7 @@
   if(badge)badge.textContent=(principal.displayName||principal.username||'Master')+' · Administração da rede';
   return principal;
  }
- const permissions=['units.read','agenda.read','agenda.manage','clients.read','clients.manage','cash.read','cash.open','cash.close','cash.adjust','cash.reopen','finance.read','finance.manage','stock.read','stock.manage','catalog.read','catalog.manage','professionals.read','professionals.manage','reports.read'];
+ const permissions=['units.read','agenda.read','agenda.manage','clients.read','clients.manage','cash.read','cash.open','cash.close','cash.adjust','cash.reopen','finance.read','finance.manage','stock.read','stock.manage','catalog.read','catalog.manage','professionals.read','professionals.manage','reports.read','tasks.read','tasks.manage'];
  function renderList(){
   const h=host();if(!h)return;
   h.innerHTML='<div class="page-head"><h1>Usuários e Acessos — Administração Central</h1><button class="btn btn-primary" id="centralUsersNew">Novo usuário</button></div><p>Fonte de verdade: backend central. Outras configurações permanecem restritas.</p><div id="centralUsersRows"></div>';
@@ -49,10 +49,14 @@
    '<div class="field"><label>Perfil<select name="systemRole"><option value="OPERATOR">Operação</option><option value="ADMINISTRATIVE">Administração</option></select></label></div>'+
    '<div class="field"><label><input type="checkbox" name="active" '+(u?.active!==false?'checked':'')+'> Ativo</label></div>'+
    '<fieldset><legend>Unidades</legend>'+units.map(x=>'<label class="check"><input type="checkbox" data-unit="'+esc(x.id)+'" '+(selected.has(x.id)?'checked':'')+'> '+esc(x.name||x.id)+'</label>').join('')+'</fieldset>'+
-   '<fieldset><legend>Permissões por unidade</legend>'+units.filter(x=>selected.has(x.id)).map(x=>'<div><b>'+esc(x.name||x.id)+'</b>'+permissions.map(p=>'<label class="check"><input type="checkbox" data-unit-permission="'+esc(x.id)+'" value="'+p+'" '+(new Set((u?.unitAccesses||[]).find(a=>a.unitId===x.id)?.permissions||[]).has(p)?'checked':'')+'> '+p+'</label>').join('')+'</div>').join('')+'</fieldset>'+ 
+   '<fieldset><legend>Permissões por unidade</legend>'+units.map(x=>'<div><b>'+esc(x.name||x.id)+'</b>'+permissions.map(p=>'<label class="check"><input type="checkbox" data-unit-permission="'+esc(x.id)+'" value="'+p+'" '+(new Set((u?.unitAccesses||[]).find(a=>a.unitId===x.id)?.permissions||[]).has(p)?'checked':'')+' '+(selected.has(x.id)?'':'disabled')+'> '+p+'</label>').join('')+'</div>').join('')+'</fieldset>'+
+ 
    '<fieldset><legend>Permissões globais</legend>'+permissions.map(p=>'<label class="check"><input type="checkbox" data-global="'+p+'" '+(globals.has(p)?'checked':'')+'> '+p+'</label>').join('')+'</fieldset>'+
    '<div class="field full"><button class="btn btn-primary" type="submit">Salvar no backend</button> <button class="btn btn-soft" type="button" id="centralUsersBack">Voltar</button></div></form><p id="centralUsersMessage" role="status"></p>';
   h.querySelector('[name="systemRole"]').value=u?.systemRole||'OPERATOR';
+  h.querySelectorAll('[data-unit]').forEach(cb=>cb.addEventListener('change',()=>{
+   h.querySelectorAll('[data-unit-permission]').forEach(p=>{if(p.dataset.unitPermission===cb.dataset.unit){p.disabled=!cb.checked;if(!cb.checked)p.checked=false;}});
+  }));
   h.querySelector('#centralUsersBack').addEventListener('click',renderList);
   h.querySelector('#centralUsersForm').addEventListener('submit',async event=>{
    event.preventDefault();
