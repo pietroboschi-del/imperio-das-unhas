@@ -27,12 +27,14 @@
   complete:window.v66CompleteTask,reopen:window.v66ReopenTask};
  function invalidate(){
   generation++;context='';rows=[];people=[];pending=null;key='';loading=false;error='';
+  if(document.getElementById('a4Title'))window.closeModal?.();
   filters.unit='all';filters.status='open';filters.priority='all';filters.assignee='all';
   if(pageActive()&&production()){const h=document.getElementById('adminPage');if(h)h.innerHTML='<p role="status">Sessão central indisponível. Entre novamente para consultar tarefas.</p>';}
  }
  function syncIdentity(){
   const next=identity();
   if(next!==context){generation++;context=next;rows=[];people=[];pending=null;key='';loading=false;error='';
+   if(document.getElementById('a4Title'))window.closeModal?.();
    filters.unit='all';filters.status='open';filters.priority='all';filters.assignee='all';}
   return next;
  }
@@ -72,7 +74,7 @@
   const items=filtered(),open=rows.filter(t=>t.status!=='DONE'),done=rows.filter(t=>t.status==='DONE');
   const overdue=open.filter(t=>t.dueDate&&String(t.dueDate).slice(0,10)<new Date().toISOString().slice(0,10));
   const peopleOptions=[...new Map(rows.map(t=>[t.assignedUserId,people.find(p=>p.id===t.assignedUserId)?.displayName||t.assignedUserId]).filter(x=>x[0])).entries()];
-  const legacy=(state()?.managementTasks||[]).filter(t=>!rows.some(r=>r.id===t.id));
+  const legacy=(state()?.managementTasks||[]).filter(t=>{const p=principal(),unit=map[t.unitId]||t.unitId;return (p?.networkAdmin||(unit&&allowed(unit,'tasks.read')))&&!rows.some(r=>r.id===t.id)});
   const list=items.map(t=>{
    const editable=allowed(t.unitId,'tasks.manage')&&t.sourceType==='MANUAL';
    const buttons=editable?'<button class="btn btn-ghost btn-sm" onclick="v66OpenTask(\''+escape(t.id)+'\')">Editar</button> <button class="btn btn-primary btn-sm" onclick="window.__a4Task.status(\''+escape(t.id)+'\')">'+(t.status==='DONE'?'Reabrir':'Concluir')+'</button>':'';
