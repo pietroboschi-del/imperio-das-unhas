@@ -14,7 +14,7 @@ async function main(){
  await prisma.auditEvent.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.serviceCategory.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.unit.deleteMany();
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
  await prisma.service.createMany({data:[{id:'s1',name:'Manicure',price:'50.00',durationMin:60},{id:'s2',name:'Pedicure',price:'60.00',durationMin:45}]});
- await prisma.professional.create({data:{id:'p1',name:'Profissional 1',legacyPayload:{services:['s1','s2']},units:{create:[{unitId:'centro'}]}}});
+ await prisma.professional.create({data:{id:'p1',name:'Profissional 1',legacyPayload:{services:['s1','s2'],schedule:Object.fromEntries(Array.from({length:7},(_,d)=>['centro-'+d,{work:true,start:'09:00',end:'23:00'}]))},units:{create:[{unitId:'centro'}]}}});
  const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
  server.stdout.on('data',d=>{childStdout+=String(d)});server.stderr.on('data',d=>{childStderr+=String(d)});server.on('error',e=>{childError=e});server.on('exit',(code,signal)=>{childExit={code,signal}});
  try{

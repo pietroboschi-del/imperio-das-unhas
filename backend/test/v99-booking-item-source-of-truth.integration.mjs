@@ -26,7 +26,7 @@ async function main(){
   {id:'gel',categoryId:'hands-cat',name:'Gel',price:'90',durationMin:60,legacyPayload:{clientArea:'hands',mustFinishBeforeSameArea:true,proRules:{p1:{enabled:true,duration:60,price:95},p2:{enabled:true,duration:60,price:90}}}},
   {id:'pedi',categoryId:'feet-cat',name:'Pedicure',price:'50',durationMin:45,legacyPayload:{clientArea:'feet',mustFinishBeforeSameArea:false,proRules:{p1:{enabled:true,duration:45,price:50},p2:{enabled:true,duration:35,price:60}}}},
  ]});
- for(const p of ['p1','p2'])await prisma.professional.create({data:{id:p,name:'Profissional '+p,active:true,legacyPayload:{services:['mani','gel','pedi']},units:{create:['centro','big','shopping-contagem'].map(unitId=>({unitId,active:true}))}}});
+ for(const p of ['p1','p2'])await prisma.professional.create({data:{id:p,name:'Profissional '+p,active:true,legacyPayload:{services:['mani','gel','pedi'],schedule:Object.fromEntries(['centro','big','shopping-contagem'].flatMap(u=>Array.from({length:7},(_,d)=>[u+'-'+d,{work:true,start:'09:00',end:'23:00'}])))},units:{create:['centro','big','shopping-contagem'].map(unitId=>({unitId,active:true}))}}});
 
  const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem'},stdio:['ignore','pipe','pipe']});
  try{
@@ -77,6 +77,37 @@ async function main(){
   const afterCancel=await prisma.bookingItem.findMany({where:{bookingId:shopping.id},orderBy:{sortOrder:'asc'}});
   ok(afterCancel.length===beforeCancel.length&&afterCancel.map(x=>x.id).join(',')===beforeCancel.map(x=>x.id).join(','),'cancel preserves items');
 
+
+  // A1-AG01 P1: a cancelled multi-item visit can only be reactivated within all current shifts.
+  const savedShopping=await prisma.booking.findUniqueOrThrow({where:{id:shopping.id},include:{items:{orderBy:{sortOrder:'asc'}}}});
+  r=await req('/api/v1/bookings/'+shopping.id,{method:'PATCH',headers:{...mh,'x-unit-id':'shopping-contagem'},body:{status:'Agendado'}});
+  ok(r.ok,'cancelled booking reactivates within professional shifts');
+  let reopened=await prisma.booking.findUniqueOrThrow({where:{id:shopping.id},include:{items:{orderBy:{sortOrder:'asc'}}}});
+  ok(reopened.items.map(x=>x.id).join(',')===savedShopping.items.map(x=>x.id).join(',')&&reopened.status==='Agendado','reactivation preserves existing BookingItems');
+  r=await req('/api/v1/bookings/'+shopping.id,{method:'PATCH',headers:{...mh,'x-unit-id':'shopping-contagem'},body:{status:'Cancelado'}});
+  ok(r.ok,'normal cancellation remains valid');
+  const previousPro=await prisma.professional.findUniqueOrThrow({where:{id:'p2'}});
+  const previousConfig=previousPro.legacyPayload;
+  await prisma.professional.update({where:{id:'p2'},data:{legacyPayload:{...previousConfig,schedule:{...previousConfig.schedule,'shopping-contagem-3':{work:false,start:'09:00',end:'23:00'}}}}});
+  r=await req('/api/v1/bookings/'+shopping.id,{method:'PATCH',headers:{...mh,'x-unit-id':'shopping-contagem'},body:{notes:'Observação histórica preservada'}});
+  ok(r.ok,'notes on cancelled booking do not require current shift');
+  const beforeRejected=await prisma.booking.findUniqueOrThrow({where:{id:shopping.id},include:{items:{orderBy:{sortOrder:'asc'}}}});
+  r=await req('/api/v1/bookings/'+shopping.id,{method:'PATCH',headers:{...mh,'x-unit-id':'shopping-contagem'},body:{status:'Agendado'}});
+  ok(r.status===409,'cancelled multi-item booking rejects second professional outside shift');
+  const afterRejected=await prisma.booking.findUniqueOrThrow({where:{id:shopping.id},include:{items:{orderBy:{sortOrder:'asc'}}}});
+  ok(JSON.stringify(afterRejected)===JSON.stringify(beforeRejected),'rejected reactivation preserves booking, items, version and status');
+  await prisma.bookingItem.updateMany({where:{bookingId:shopping.id,professionalId:'p2'},data:{forceFit:true}});
+  const forcedBefore=await prisma.booking.findUniqueOrThrow({where:{id:shopping.id},include:{items:{orderBy:{sortOrder:'asc'}}}});
+  r=await req('/api/v1/bookings/'+shopping.id,{method:'PATCH',headers:{...mh,'x-unit-id':'shopping-contagem'},body:{status:'Agendado'}});
+  ok(r.status===409,'stored forceFit cannot bypass current shift on reactivation');
+  const forcedAfter=await prisma.booking.findUniqueOrThrow({where:{id:shopping.id},include:{items:{orderBy:{sortOrder:'asc'}}}});
+  ok(JSON.stringify(forcedAfter)===JSON.stringify(forcedBefore),'forced rejection preserves full booking state');
+  await prisma.professional.update({where:{id:'p2'},data:{legacyPayload:previousConfig}});
+  r=await req('/api/v1/bookings/'+shopping.id,{method:'PATCH',headers:{...mh,'x-unit-id':'shopping-contagem'},body:{status:'Agendado'}});
+  ok(r.ok,'restored valid shift permits reactivation');
+  r=await req('/api/v1/bookings/'+shopping.id,{method:'PATCH',headers:{...mh,'x-unit-id':'shopping-contagem'},body:{status:'Cancelado'}});
+  ok(r.ok,'cancellation after reactivation remains available');
+
   r=await req('/api/v1/bookings/'+big.id,{method:'PATCH',headers:{...rh,'x-unit-id':'big'},body:{status:'Agendado'}});ok(r.status===403,'restricted user blocked outside scope');
   r=await req('/api/v1/bookings/'+big.id,{method:'PATCH',headers:{...mh,'x-unit-id':'centro'},body:{status:'Agendado'}});ok(r.status===404,'cross-unit booking invisible');
 
@@ -90,6 +121,35 @@ async function main(){
   r=await req('/api/v1/clients',{method:'POST',headers:{...mh,'x-unit-id':'centro','idempotency-key':'force-client'},body:{name:'Outra Cliente',phone:'31985550000'}});const other=await r.json();
   r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'centro','idempotency-key':'force-overlap'},body:{clientId:other.id,serviceDate:'2026-10-17',items:[item('mani','p1','2026-10-17T13:15:00.000Z',{forceFit:true})]}});ok(r.ok,'forceFit preserves explicit override');
   row=await prisma.booking.findFirstOrThrow({where:{id:{startsWith:'op_'}},orderBy:{createdAt:'desc'},include:{items:true}});ok(row.items.every(x=>x.unitId===row.unitId),'forceFit write unit invariant');
+
+
+  // A1-AG01: within shift, including approved Encaixe outside public hours.
+  r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'big','idempotency-key':'a1-after-public-hours'},body:{serviceDate:'2026-10-18',status:'Encaixe',items:[item('mani','p1','2026-10-18T22:10:00-03:00')]}});ok(r.ok,'Encaixe after published Sunday hours inside shift accepted');
+  r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'big','idempotency-key':'a1-outside-shift'},body:{serviceDate:'2026-10-18',items:[item('mani','p1','2026-10-18T23:30:00-03:00')]}});ok(r.status===409,'outside shift rejected');
+  r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'big','idempotency-key':'a1-force-outside'},body:{serviceDate:'2026-10-18',items:[item('mani','p1','2026-10-18T23:30:00-03:00',{forceFit:true})]}});ok(r.status===409,'forceFit cannot override shift');
+
+  r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'big','idempotency-key':'a1-utc-late-local-day'},body:{serviceDate:'2026-10-18',items:[item('pedi','p2','2026-10-19T01:10:00.000Z')]}});ok(r.ok,'UTC next day timestamp accepted when unit-local date and shift are valid');
+  r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'big','idempotency-key':'a1-utc-wrong-local-day'},body:{serviceDate:'2026-10-18',items:[item('pedi','p2','2026-10-18T01:00:00.000Z')]}});ok(r.status===409,'UTC timestamp with wrong unit-local booking date rejected');
+  const altered=Object.fromEntries(['centro','big','shopping-contagem'].flatMap(u=>Array.from({length:7},(_,d)=>[u+'-'+d,{work:true,start:'09:00',end:'23:00'}])));altered['centro-1']={work:false,start:'09:00',end:'23:00'};
+  await prisma.professional.update({where:{id:'p2'},data:{legacyPayload:{services:['mani','gel','pedi'],schedule:altered}}});
+  r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'centro','idempotency-key':'a1-off-day'},body:{serviceDate:'2026-10-19',items:[item('pedi','p2','2026-10-19T11:00:00-03:00')]}});ok(r.status===409,'no working day rejected');
+  r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'centro','idempotency-key':'a1-invalid-multi'},body:{serviceDate:'2026-10-19',items:[item('mani','p1','2026-10-19T10:00:00-03:00'),item('pedi','p2','2026-10-19T10:00:00-03:00')]}});ok(r.status===409,'every BookingItem schedule checked');
+  const beforeA1=await prisma.booking.findUniqueOrThrow({where:{id:big.id},include:{items:{orderBy:{sortOrder:'asc'}}}});
+  r=await req('/api/v1/bookings/'+big.id,{method:'PATCH',headers:{...mh,'x-unit-id':'big'},body:{serviceDate:'2026-10-18',items:[item('pedi','p2','2026-10-18T17:00:00-03:00'),item('gel','p1','2026-10-18T23:10:00-03:00')]}});ok(r.status===409,'invalid reschedule rejected');
+  const afterA1=await prisma.booking.findUniqueOrThrow({where:{id:big.id},include:{items:{orderBy:{sortOrder:'asc'}}}});
+  ok(beforeA1.version===afterA1.version&&beforeA1.serviceDate.getTime()===afterA1.serviceDate.getTime()&&beforeA1.items.map(x=>x.id+'|'+x.startAt.toISOString()).join()===afterA1.items.map(x=>x.id+'|'+x.startAt.toISOString()).join(),'rejected reschedule is atomic');
+  r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'centro','idempotency-key':'a1-block-day-off'},body:{serviceDate:'2026-10-19',status:'Bloqueado',items:[item(undefined,'p2','2026-10-19T06:00:00-03:00',{durationMin:30,unitPrice:0})]}});ok(r.ok,'Bloqueado remains independent of shift');
+
+
+  // A blocked marker is not a service; it cannot become an active visit by status alone.
+  r=await req('/api/v1/bookings',{method:'POST',headers:{...mh,'x-unit-id':'centro','idempotency-key':'a1-block-inside-shift'},body:{serviceDate:'2026-10-20',status:'Bloqueado',items:[item(undefined,'p1','2026-10-20T10:00:00-03:00',{durationMin:30})]}});
+  ok(r.ok,'blocked marker inside shift created');
+  const blockRecord=await r.json();
+  const blockBefore=await prisma.booking.findUniqueOrThrow({where:{id:blockRecord.id},include:{items:true}});
+  r=await req('/api/v1/bookings/'+blockRecord.id,{method:'PATCH',headers:{...mh,'x-unit-id':'centro'},body:{status:'Agendado'}});
+  ok(r.status===409,'Bloqueado without service cannot become active appointment');
+  const blockAfter=await prisma.booking.findUniqueOrThrow({where:{id:blockRecord.id},include:{items:true}});
+  ok(JSON.stringify(blockAfter)===JSON.stringify(blockBefore),'blocked conversion rejection preserves items, status and version');
 
   const validWithoutItems=await prisma.booking.count({where:{status:{notIn:['Bloqueado','Cancelado','Faltou','CANCELLED','CANCELED','CANCELADO']},items:{none:{}}}});
   ok(validWithoutItems===0,'gate: operational bookings do not remain without BookingItem');
