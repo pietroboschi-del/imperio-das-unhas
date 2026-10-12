@@ -47,9 +47,14 @@
    if(!csrf)throw Error('Token CSRF ausente');
    headers['X-CSRF-Token']=csrf;headers['Idempotency-Key']=idempotency||crypto.randomUUID();
   }
+  const requestIdentity=identity();
   const resp=await fetch(window.__imperioCentralApi.status().endpoint+path,
    {method,body:body===undefined?undefined:JSON.stringify(body),headers,credentials:'include',cache:'no-store'});
-  if(resp.status===401){invalidate();window.__imperioCentralApi?.disable?.();throw Error('Sessão expirada');}
+  // An expired response from the previous user must never disable a newer login.
+  if(resp.status===401){
+   if(identity()===requestIdentity){invalidate();window.__imperioCentralApi?.disable?.();}
+   throw Error('Sessão expirada');
+  }
   const result=await resp.json().catch(()=>null);
   if(!resp.ok)throw Error(Array.isArray(result?.message)?result.message.join(', '):result?.message||'HTTP '+resp.status);
   return result;
