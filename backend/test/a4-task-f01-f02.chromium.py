@@ -33,6 +33,7 @@ html = """<!doctype html><html><body><div id="adminPage"></div>
 window.page='actions';
 window.db={managementTasks:[{id:'legacy-1',title:'LEGADO LOCAL',unitId:'centro',status:'OPEN'}]};
 window.renderAdmin=function(){document.getElementById('adminPage').innerHTML='<div id="v66Automatic"><h3>Alertas automáticos V66</h3><span data-automatic-count="1">1</span>'+(db.managementTasks.length?'<div>LEGADO LOCAL na lista V66</div>':'')+'</div>';};
+window.v66Refresh=function(){return window.renderAdmin()};
 window.v66OpenTask=function(){};
 window.v66SaveTask=function(){};
 window.v66CompleteTask=function(){};
@@ -120,6 +121,9 @@ async def main():
   check(await owner.locator('#v66Automatic').count()==1,'V66 automatic alerts preserved')
   check(await owner.locator('#adminPage').get_by_text('LEGADO LOCAL na lista V66').count()==0,'legacy excluded from V66 authoritative list')
   check(await owner.locator('#a4LegacyArchive').count()==1,'legacy retained separately')
+  await owner.evaluate('v66Refresh()')
+  check(await owner.locator('[data-central-task]').count()==4,'V66 filter refresh preserves central overlay')
+  check(await owner.locator('#adminPage').get_by_text('LEGADO LOCAL na lista V66').count()==0,'V66 refresh never resurrects legacy tasks')
   await owner.locator('#a4FilterUnit').select_option('big')
   check(await owner.locator('[data-central-task]').count()==1,'unit filter')
   await owner.locator('#a4FilterUnit').select_option('all')
