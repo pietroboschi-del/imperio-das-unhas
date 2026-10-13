@@ -40,7 +40,11 @@ window.db={managementTasks:browserLegacy?JSON.parse(browserLegacy):[
 localStorage.setItem('a4-f04-synthetic-legacy',JSON.stringify(db.managementTasks));
 window.renderAdmin=function(){document.getElementById('adminPage').innerHTML='<div id="v66Automatic"><h3>Alertas automáticos V66</h3><span data-automatic-count="1">1</span>'+(db.managementTasks.length?'<div>LEGADO LOCAL na lista V66</div>':'')+'</div>';};
 window.v66Refresh=function(){return window.renderAdmin()};
-window.__imperioV66={renderActions:function(){document.getElementById('adminPage').innerHTML='<div id="v66Direct"><h3>Alertas automáticos V66</h3>'+(db.managementTasks.length?'<p>SEGREDO A CENTRO OBSERVACAO PRIVADA A CACHE CENTRAL ANTIGO</p>':'')+'</div>';}};
+window.__imperioV66={
+renderActions:function(){document.getElementById('adminPage').innerHTML='<div id="v66Direct"><h3>Alertas automáticos V66</h3>'+(db.managementTasks.length?'<p>SEGREDO A CENTRO OBSERVACAO PRIVADA A CACHE CENTRAL ANTIGO</p>':'')+'</div>';},
+manualRows:function(){return db.managementTasks},allItems:function(){return [...db.managementTasks,{kind:'automatic'}]},
+filteredItems:function(){return [...db.managementTasks,{kind:'automatic'}]},activeCount:function(){return db.managementTasks.length+1}
+};
 window.v66OpenTask=function(){};
 window.v66SaveTask=function(){};
 window.v66CompleteTask=function(){};
@@ -139,6 +143,10 @@ async def main():
   check(await owner.locator('#v66Direct').count()==1,'F04: direct V66 renderer exercised')
   check(await owner.locator('#adminPage').get_by_text('SEGREDO A CENTRO').count()==0,'F04: direct renderer cannot bypass legacy mask')
   check(await owner.locator('#adminPage').get_by_text('CACHE CENTRAL ANTIGO').count()==0,'F04: direct V66 renderer hides cached central')
+  check(await owner.evaluate('window.__imperioV66.activeCount()')==1,'F04: navigation alert count excludes browser legacy and retains automation')
+  check(await owner.evaluate('window.__imperioV66.manualRows().length')==0,'F04: exposed V66 manualRows never releases browser tasks')
+  check(await owner.evaluate('window.__imperioV66.allItems().length')==1,'F04: exposed V66 allItems returns automation only')
+  check(await owner.evaluate('window.__imperioV66.filteredItems().length')==1,'F04: exposed V66 filteredItems contains no cache or legacy')
   await owner.evaluate('window.renderAdmin()')
   await owner.evaluate('v66Refresh()')
   check(await owner.locator('[data-central-task]').count()==3,'V66 filter refresh preserves central overlay')
