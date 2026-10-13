@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""A4 F01/F02/F03: real Chromium UI, mock synthetic REST, no production network/data."""
+"""A4 F01/F02/F03/F04: real Chromium UI, synthetic REST and persistent legacy browser data."""
 import asyncio
 import json
 import os
@@ -31,9 +31,16 @@ USERS = [
 html = """<!doctype html><html><body><div id="adminPage"></div>
 <script>
 window.page='actions';
-window.db={managementTasks:[{id:'legacy-1',title:'LEGADO LOCAL',unitId:'centro',status:'OPEN'}]};
+const browserLegacy=localStorage.getItem('a4-f04-synthetic-legacy');
+window.db={managementTasks:browserLegacy?JSON.parse(browserLegacy):[
+{id:'legacy-centro-A',title:'SEGREDO A CENTRO',note:'OBSERVACAO PRIVADA A',unitId:'centro',assignedUserId:'centro-user',status:'OPEN'},
+{id:'legacy-big-B',title:'SEGREDO B BIG',note:'OBSERVACAO PRIVADA B',unitId:'big',assignedUserId:'big-user',status:'OPEN'},
+{id:'cached-central',title:'CACHE CENTRAL ANTIGO',note:'NAO E LEGADO',unitId:'centro',central:true,sourceType:'MANUAL',status:'OPEN'}
+]};
+localStorage.setItem('a4-f04-synthetic-legacy',JSON.stringify(db.managementTasks));
 window.renderAdmin=function(){document.getElementById('adminPage').innerHTML='<div id="v66Automatic"><h3>Alertas automáticos V66</h3><span data-automatic-count="1">1</span>'+(db.managementTasks.length?'<div>LEGADO LOCAL na lista V66</div>':'')+'</div>';};
 window.v66Refresh=function(){return window.renderAdmin()};
+window.__imperioV66={renderActions:function(){document.getElementById('adminPage').innerHTML='<div id="v66Direct"><h3>Alertas automáticos V66</h3>'+(db.managementTasks.length?'<p>SEGREDO A CENTRO OBSERVACAO PRIVADA A CACHE CENTRAL ANTIGO</p>':'')+'</div>';}};
 window.v66OpenTask=function(){};
 window.v66SaveTask=function(){};
 window.v66CompleteTask=function(){};
@@ -123,7 +130,16 @@ async def main():
   check(await owner.locator('[data-a4-count="loaded"]').inner_text()=='4','central loaded indicator')
   check(await owner.locator('#v66Automatic').count()==1,'V66 automatic alerts preserved')
   check(await owner.locator('#adminPage').get_by_text('LEGADO LOCAL na lista V66').count()==0,'legacy excluded from V66 authoritative list')
-  check(await owner.locator('#a4LegacyArchive').count()==1,'legacy retained separately')
+  check(await owner.locator('#a4LegacyArchive').count()==0,'F04: no production legacy archive even for network admin')
+  check(await owner.locator('#adminPage').get_by_text('SEGREDO A CENTRO').count()==0,'F04: owner cannot display browser legacy')
+  check(await owner.locator('#adminPage').get_by_text('CACHE CENTRAL ANTIGO').count()==0,'F04: cached central row not shown as legacy')
+  check(len(await owner.evaluate('db.managementTasks'))==3,'F04: legacy and cached central records preserved')
+  check(len(json.loads(await owner.evaluate("localStorage.getItem('a4-f04-synthetic-legacy')")))==3,'F04: browser persisted legacy preserved')
+  await owner.evaluate('window.__imperioV66.renderActions()')
+  check(await owner.locator('#v66Direct').count()==1,'F04: direct V66 renderer exercised')
+  check(await owner.locator('#adminPage').get_by_text('SEGREDO A CENTRO').count()==0,'F04: direct renderer cannot bypass legacy mask')
+  check(await owner.locator('#adminPage').get_by_text('CACHE CENTRAL ANTIGO').count()==0,'F04: direct V66 renderer hides cached central')
+  await owner.evaluate('window.renderAdmin()')
   await owner.evaluate('v66Refresh()')
   check(await owner.locator('[data-central-task]').count()==3,'V66 filter refresh preserves central overlay')
   check(await owner.locator('#adminPage').get_by_text('LEGADO LOCAL na lista V66').count()==0,'V66 refresh never resurrects legacy tasks')
@@ -161,6 +177,33 @@ async def main():
   bigctx,big=await make_page(browser,BIG)
   check(await big.locator('[data-central-task="manual_centro_seed"]').count()==0,'Big does not display Centro')
   check(await big.locator('[data-central-task="manual_big_seed"]').count()==1,'Big sees own unit')
+  # Same browser, different authenticated operators: browser-storage legacy is not identity proof.
+  await authenticate(owner,CENTRO)
+  await owner.evaluate('window.renderAdmin()')
+  await owner.wait_for_function("window.__a4Task.counts().loaded>0")
+  check(await owner.locator('[data-central-task="manual_centro_seed"]').count()==1,'F04: user A sees authorized PostgreSQL task')
+  check(await owner.locator('#adminPage').get_by_text('SEGREDO A CENTRO').count()==0,'F04: user A sees no local legacy titles')
+  await authenticate(owner,BIG)
+  await owner.evaluate('window.renderAdmin()')
+  await owner.wait_for_function("window.__a4Task.counts().loaded===1")
+  check(await owner.locator('[data-central-task="manual_big_seed"]').count()==1,'F04: user B sees authorized Big central task')
+  check(await owner.locator('[data-central-task="manual_centro_seed"]').count()==0,'F04: user B does not see A central task')
+  check(await owner.locator('#adminPage').get_by_text('SEGREDO A CENTRO').count()==0,'F04: user B cannot read legacy task A')
+  check(await owner.locator('#adminPage').get_by_text('OBSERVACAO PRIVADA A').count()==0,'F04: user B cannot read legacy notes A')
+  check(await owner.locator('#adminPage').get_by_text('CACHE CENTRAL ANTIGO').count()==0,'F04: cached central never misclassified')
+  check(await owner.locator('[data-a4-count="loaded"]').inner_text()=='1','F04: filters/indicators contain only authorized Big central task')
+  await owner.evaluate('window.v66Refresh()')
+  check(await owner.locator('#adminPage').get_by_text('SEGREDO A CENTRO').count()==0,'F04: V66 refresh hides old user legacy')
+  # A page reload must not change the fact that local storage persists but remains invisible.
+  await owner.reload()
+  await owner.add_script_tag(path=str(JS))
+  await owner.evaluate('window.renderAdmin()')
+  await owner.wait_for_function("window.__a4Task.counts().loaded===1")
+  check(await owner.locator('[data-central-task="manual_big_seed"]').count()==1,'F04: authorized central content survives reload')
+  check(await owner.locator('#adminPage').get_by_text('SEGREDO A CENTRO').count()==0,'F04: no A legacy title after reload')
+  check(await owner.locator('#adminPage').get_by_text('OBSERVACAO PRIVADA A').count()==0,'F04: no A note after reload')
+  check(len(await owner.evaluate('db.managementTasks'))==3,'F04: reload preserves all local records without migration')
+  check(len(json.loads(await owner.evaluate("localStorage.getItem('a4-f04-synthetic-legacy')")))==3,'F04: localStorage never deleted or mutated')
   # Simulate delayed Centro response, swap same browser to Big, ensure stale response cannot overwrite.
   await owner.evaluate("() => {window.__a4Task.invalidate()}")
   await authenticate(owner,CENTRO)
@@ -199,8 +242,8 @@ async def main():
   check(await owner.locator('[data-central-task]').count()==0,'logout clears visible rows')
   check(await owner.evaluate("window.__a4Task.rows().length")==0,'logout invalidates cached rows')
   check(next(x for x in DATA if x['id']=='auto_centro')['status']=='OPEN','automatic task unchanged')
-  check(any(x['id']=='legacy-1' for x in await owner.evaluate('db.managementTasks')),'local legacy preserved')
-  print(json.dumps({'scenario':'A4 F01/F02 Chromium isolated UI and two sessions','checks':checks,'result':'PASS'}))
+  check(any(x['id']=='legacy-centro-A' for x in await owner.evaluate('db.managementTasks')),'local legacy preserved')
+  print(json.dumps({'scenario':'A4 F01/F02/F03/F04 Chromium isolated UI, identity swap and browser legacy privacy','checks':checks,'result':'PASS'}))
   await ownerctx.close();await viewerctx.close();await bigctx.close();await browser.close()
 
 if __name__=='__main__':
