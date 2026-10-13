@@ -79,13 +79,13 @@
   const items=filtered(),open=rows.filter(t=>t.status!=='DONE'),done=rows.filter(t=>t.status==='DONE');
   const overdue=open.filter(t=>t.dueDate&&String(t.dueDate).slice(0,10)<new Date().toISOString().slice(0,10));
   const peopleOptions=[...new Map(rows.map(t=>[t.assignedUserId,people.find(p=>p.id===t.assignedUserId)?.displayName||t.assignedUserId]).filter(x=>x[0])).entries()];
-  const legacy=(state()?.managementTasks||[]).filter(t=>{const p=principal(),unit=map[t.unitId]||t.unitId;return (p?.networkAdmin||(unit&&allowed(unit,'tasks.read')))&&!rows.some(r=>r.id===t.id)});
+  // A4-F04: never expose browser-stored tasks in the shared production interface.
+  // Unit-level tasks.read cannot establish ownership of pre-central local records.
   const list=items.map(t=>{
    const editable=allowed(t.unitId,'tasks.manage')&&t.sourceType==='MANUAL';
    const buttons=editable?'<button class="btn btn-ghost btn-sm" onclick="v66OpenTask(\''+escape(t.id)+'\')">Editar</button> <button class="btn btn-primary btn-sm" onclick="window.__a4Task.status(\''+escape(t.id)+'\')">'+(t.status==='DONE'?'Reabrir':'Concluir')+'</button>':'';
    return '<div class="v66-item" data-central-task="'+escape(t.id)+'"><div class="v66-main"><h4>'+escape(t.title)+'</h4><p>'+escape(t.note||'')+'</p><div class="v66-meta"><span class="v66-chip">'+escape(t.unitId)+'</span><span class="v66-chip">'+escape(t.priority)+'</span><span class="v66-chip">'+escape(t.dueDate?String(t.dueDate).slice(0,10):'Sem prazo')+'</span><span class="v66-chip">'+(t.status==='DONE'?'Concluída':'Aberta')+'</span><span class="v66-chip">'+escape(people.find(p=>p.id===t.assignedUserId)?.displayName||t.assignedUserId)+'</span><span class="v66-chip">'+(t.sourceType==='MANUAL'?'Manual':'Automática, somente leitura')+'</span></div></div><div class="v66-actions">'+buttons+'</div></div>';
   }).join('');
-  const legacyHtml=legacy.length?'<details id="a4LegacyArchive"><summary>Consulta de tarefas locais antigas ('+legacy.length+') — somente leitura, fora dos indicadores</summary><p class="muted">Não migradas. Revisar pendências antes da operação definitiva.</p>'+legacy.map(t=>'<div class="v66-item"><div class="v66-main"><b>'+escape(t.title)+'</b><p>'+escape(t.note||'')+'</p><small>'+escape(t.unitId||'Sem unidade')+' · '+escape(t.status||'OPEN')+'</small></div></div>').join('')+'</details>':'';
   // The Tarefas navigation badge counts the same central OPEN records as this panel.
   const nav=document.querySelector('#adminTabs button[onclick*="actions"]');
   if(nav){let badge=nav.querySelector('.v66-badge');if(open.length){if(!badge){badge=document.createElement('span');badge.className='v66-badge';nav.appendChild(badge);}badge.textContent=open.length>99?'99+':String(open.length);}else badge?.remove();}
@@ -104,7 +104,7 @@
    +(loading?'<p role="status">Atualizando tarefas centrais...</p>':'')
    +(error?'<p role="alert">'+escape(error)+'</p>':'')
    +(list?'<div class="v66-list">'+list+'</div>':'<p class="muted">Nenhuma tarefa central corresponde aos filtros.</p>')
-   +legacyHtml+'</div>';
+   +'</div>';
  }
  function filter(){
   if(!active()){invalidate();return;}
@@ -218,6 +218,16 @@
   if(!production()||!pageActive())return priorV66Refresh.apply(this,arguments);
   const local=state(),previous=local?.managementTasks;
   let result;try{if(local)local.managementTasks=[];result=priorV66Refresh.apply(this,arguments);}
+  finally{if(local)local.managementTasks=previous;}
+  show();return result;
+ };
+ // The V66 public renderer can be invoked directly, outside renderAdmin/v66Refresh.
+ // Apply the same temporary mask without mutating the persisted local task collection.
+ const v66Direct=window.__imperioV66?.renderActions;
+ if(typeof v66Direct==='function')window.__imperioV66.renderActions=function(){
+  if(!production()||!pageActive())return v66Direct.apply(this,arguments);
+  const local=state(),previous=local?.managementTasks;
+  let result;try{if(local)local.managementTasks=[];result=v66Direct.apply(this,arguments);}
   finally{if(local)local.managementTasks=previous;}
   show();return result;
  };
