@@ -191,6 +191,10 @@ jobs:
         run: npm run test:finance-flow
       - name: A3 authoritative finance Chromium two sessions
         run: python3 test/a3-fin-rep.chromium.py
+      - name: A4 central task persistence
+        run: npm run test:tasks-central
+      - name: A4 central task Chromium isolated interface and session fencing
+        run: python3 test/a4-task-f01-f02.chromium.py
       - name: Three-unit public booking flow
         run: npm run test:public-booking
       - name: Empty-state integrated operational journey
