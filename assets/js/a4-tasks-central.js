@@ -221,16 +221,20 @@
   finally{if(local)local.managementTasks=previous;}
   show();return result;
  };
- // The V66 public renderer can be invoked directly, outside renderAdmin/v66Refresh.
- // Apply the same temporary mask without mutating the persisted local task collection.
- const v66Direct=window.__imperioV66?.renderActions;
- if(typeof v66Direct==='function')window.__imperioV66.renderActions=function(){
-  if(!production()||!pageActive())return v66Direct.apply(this,arguments);
-  const local=state(),previous=local?.managementTasks;
-  let result;try{if(local)local.managementTasks=[];result=v66Direct.apply(this,arguments);}
-  finally{if(local)local.managementTasks=previous;}
-  show();return result;
- };
+ // V66 exposes read/metric methods used by navigation and other UI bridges.
+ // Keep the original alert logic but never let it read shared browser tasks in production.
+ const v66Public=window.__imperioV66;
+ for(const methodName of ['manualRows','allItems','filteredItems','activeCount','renderActions']){
+  const previousMethod=v66Public?.[methodName];if(typeof previousMethod!=='function')continue;
+  v66Public[methodName]=function(){
+   if(!production())return previousMethod.apply(this,arguments);
+   const local=state(),previous=local?.managementTasks;
+   let result;try{if(local)local.managementTasks=[];result=previousMethod.apply(this,arguments);}
+   finally{if(local)local.managementTasks=previous;}
+   if(methodName==='renderActions'&&pageActive())show();
+   return result;
+  };
+ }
  // Preserve the V66 filter/alert/automation handlers and mask legacy manual rows only during its rendering.
  window.renderAdmin=function(){
   if(!production()||!pageActive())return old.render?.apply(this,arguments);
