@@ -87,7 +87,7 @@ async function setup(){
 try{
  await prisma.$connect();
  process.env.OPERATIONAL_WRITES_ENABLED='true';
- process.env.OPERATIONAL_WRITES_UNITS='';
+ process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';
  await setup();
 
  const availability=new BookingAvailabilityService(prisma);

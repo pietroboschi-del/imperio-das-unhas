@@ -20,7 +20,7 @@ async function setupUnit(unitId,requestId,clientId){
 }
 
 try{
-  await prisma.$connect();process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='';
+  await prisma.$connect();process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';
   await ensureCanonicalUnits(prisma);
   await prisma.serviceCategory.create({data:{id:cat,name:'WA55',active:true}});
   await prisma.service.create({data:{id:service,name:'WA55 Serviço',categoryId:cat,price:'50',durationMin:30,active:true,legacyPayload:{show:true,online:true,clientArea:'hands',proRules:{[pro]:{enabled:true,online:true}}}}});

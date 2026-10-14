@@ -39,7 +39,7 @@ async function startServer(port,enabled=true,operational=true){
  let stdout='',stderr='',exit=null,error=null;
  const child=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{
   ...process.env,PORT:String(port),WHATSAPP_AGENT_API_ENABLED:enabled?'true':'false',WHATSAPP_AGENT_API_SECRET:secret,
-  OPERATIONAL_WRITES_ENABLED:operational?'true':'false',OPERATIONAL_WRITES_UNITS:'',
+  OPERATIONAL_WRITES_ENABLED:operational?'true':'false',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem',
   EVOLUTION_WEBHOOK_ENABLED:'false',WHATSAPP_AUTOMATION_ENABLED:'false',
  },stdio:['ignore','pipe','pipe']});
  child.stdout.on('data',d=>stdout+=String(d));child.stderr.on('data',d=>stderr+=String(d));child.on('error',e=>error=e);child.on('exit',(code,signal)=>exit={code,signal});

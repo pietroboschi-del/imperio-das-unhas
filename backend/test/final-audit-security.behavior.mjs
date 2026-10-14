@@ -3,7 +3,7 @@ import {AuthService} from '../dist/src/auth/auth.service.js';
 import {CoreWriteController} from '../dist/src/core/core-write.controller.js';
 import {StockService} from '../dist/src/core/stock.service.js';
 import {FinanceWriteController} from '../dist/src/core/finance-write.controller.js';
-process.env.OPERATIONAL_WRITES_ENABLED='true';
+process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';
 const failures=[];
 async function check(name,fn){try{await fn();console.log('PASS '+name)}catch(e){failures.push(name+': '+e.message);console.error('FAIL '+name+': '+e.message)}}
 await check('activation token is consumed exactly once under concurrency',async()=>{
