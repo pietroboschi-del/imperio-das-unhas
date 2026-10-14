@@ -10,3 +10,17 @@ ok(main.includes("migrationImportEnabled")&&main.includes("clientBatchCommitEnab
 ok(gate.includes("allow.includes(unitId)"),'allowlist restringe escrita por unidade');
 ok(gate.includes("OPERATIONAL_WRITES_ENABLED")&&gate.includes("OPERATIONAL_WRITES_UNITS"),'gate depende das duas variáveis de produção');
 console.log(JSON.stringify({ok:true,tests,feature:'production_operational_write_gate_diagnostic'}));
+
+const clients=fs.readFileSync(new URL('../src/core/core-write.controller.ts',import.meta.url),'utf8');
+const accounts=fs.readFileSync(new URL('../src/core/finance-central.controller.ts',import.meta.url),'utf8');
+const stock=fs.readFileSync(new URL('../src/core/stock.service.ts',import.meta.url),'utf8');
+ok(gate.includes("if(!allow.length||(unitId&&!allow.includes(unitId)))"),'operational write denied without explicit unit allowlist');
+ok(gate.includes("SETUP_WRITES_ENABLED")&&gate.includes("SETUP_WRITES_UNITS"),'separate configuration opt-in requires both flags');
+ok(gate.includes("['centro','big','shopping-contagem'].every(id=>setupUnits.includes(id))"),'global setup requires all canonical unit IDs');
+ok(clients.split("@Post('clients')")[1].split("@Post('bookings')")[0].includes("assertConfigurationWriteEnabled(req.unitId!)"),'client create/update are setup eligible');
+ok(clients.split("@Post('bookings')")[1].includes("assertOperationalWriteEnabled(req.unitId!)"),'booking operations remain gated');
+ok(accounts.split("@Post('accounts')")[1].split("@Post('entries')")[0].includes("assertConfigurationWriteEnabled(req.unitId!)"),'finance account setup is separate');
+ok(accounts.split("@Post('entries')")[1].includes("assertOperationalWriteEnabled(req.unitId!)"),'financial transactions remain gated');
+ok(stock.split("async upsertProduct(")[1].split("async balances(")[0].includes("assertConfigurationWriteEnabled()"),'product catalog setup separately enabled');
+ok(stock.includes("private async assertWriteLocations(")&&stock.includes("assertOperationalWriteEnabled(unitId)"),'stock movements remain operational only');
+console.log(JSON.stringify({ok:true,tests,feature:'f6_setup_write_isolation'}));

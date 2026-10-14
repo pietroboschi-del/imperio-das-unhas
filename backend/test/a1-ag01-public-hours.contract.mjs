@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const html=readFileSync(new URL('../../index.html',import.meta.url),'utf8');
+const notice='Os horários disponíveis seguem a escala das profissionais e podem incluir atendimentos fora do horário comercial divulgado.';
+assert.equal(html.split(notice).length-1,1,'notice appears exactly once');
+const begin=html.lastIndexOf('<div id="bk3" class="booking-step"');
+const end=html.indexOf("window.bk={unit:null",begin);
+const modal=html.slice(begin,end);
+assert.ok(modal.includes('id="bkPublicDate"')&&modal.includes('id="bkPublicSlots"'),'official date and slots preserved');
+assert.ok(modal.indexOf(notice)>modal.indexOf('id="bkPublicDate"')&&modal.indexOf(notice)<modal.indexOf('id="bkPublicSlots"'),'notice next to slot consultation');
+assert.ok(html.includes('v99-public-unit-hours')&&html.includes('publicOpeningHoursMarkup'),'published unit opening hours preserved');
+assert.ok(['centro','big','shopping-contagem'].every(x=>html.includes(x)),'three public units preserved');
+console.log('A1-AG01 PUBLIC NOTICE: PASS');

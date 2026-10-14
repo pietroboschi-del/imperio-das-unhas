@@ -139,11 +139,12 @@ export class CoreReadController {
   @Get('tasks')
   @UnitScoped()
   @RequirePermissions('tasks.read')
-  tasks(@Req() req:ImperioRequest){
+  tasks(@Req() req:ImperioRequest,@Query('cursor') cursor?:string){
     return this.prisma.managementTask.findMany({
-      where:{unitId:req.unitId!,...(req.principal!.networkAdmin?{}:{assignedUserId:req.principal!.userId})},
-      orderBy:[{status:'asc'},{createdAt:'desc'}],
+      where:{unitId:req.unitId!,...(evaluateAccess({networkAdmin:req.principal!.networkAdmin,globalPermissions:req.principal!.permissions,unitAccesses:req.principal!.unitAccesses,unitScoped:true,unitId:req.unitId!,requiredPermissions:['tasks.manage']}).allowed?{}:{assignedUserId:req.principal!.userId})},
+      orderBy:[{createdAt:'desc'},{id:'desc'}],
       take:200,
+      ...(cursor?{cursor:{id:cursor},skip:1}:{})
     });
   }
 

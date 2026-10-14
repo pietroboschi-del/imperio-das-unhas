@@ -8,6 +8,7 @@ import { isMessagingChannelId } from '../messaging/messaging-channels';
 import { BookingAutomationMaterializationService } from '../messaging/booking-automation-materialization.service';
 import { BookingAvailabilityService, PUBLIC_BOOKING_SLOT_MINUTES } from './booking-availability.service';
 import { PublicBookingDto, PublicBookingItemDto } from './public-booking.dto';
+import { insideProfessionalSchedule } from './professional-schedule';
 import { WhatsappAgentBookingDto, WhatsappAgentMultiBookingDto } from './whatsapp-agent.dto';
 
 const TERMINAL=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
@@ -47,10 +48,6 @@ function clockMinute(value:string){
  const h=Number(m[1]),min=Number(m[2]),sec=Number(m[3]||0);
  return h<=23&&min<=59&&sec<=59?h*60+min+sec/60:Number.NaN;
 }
-function scheduleDay(date:string){
- const d=new Date(date+'T12:00:00.000Z');
- return Number.isNaN(d.getTime())?-1:d.getUTCDay();
-}
 function zonedParts(value:Date,timeZone:string){
  const parts=new Intl.DateTimeFormat('en-US',{timeZone,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(value);
  const read=(type:string)=>Number(parts.find(p=>p.type===type)?.value||0);
@@ -80,13 +77,6 @@ function canDo(proLegacy:any,serviceLegacy:any,professionalId:string,serviceId:s
 function profile(row:any){
  const legacy=obj(row?.legacyPayload);
  return obj(legacy.operationalProfile||legacy);
-}
-function insideSchedule(proLegacy:any,unitId:string,startText:string,durationMin:number){
- const day=scheduleDay(startText.slice(0,10));
- if(day<0)return false;
- const r=obj(obj(proLegacy?.schedule)[unitId+'-'+day]);
- const a=clockMinute(String(r.start||'')),z=clockMinute(String(r.end||'')),start=clockMinute(startText.slice(11));
- return r.work===true&&Number.isFinite(a)&&Number.isFinite(z)&&Number.isFinite(start)&&z>a&&start>=a&&start+durationMin<=z;
 }
 function operationId(scope:string,key:string|undefined,prefix:string){
  const normalized=String(key||'').trim();
@@ -347,7 +337,7 @@ export class BookingCreationService {
      if(rule.online===false)throw new ConflictException('Serviço indisponível para agendamento online com esta profissional');
      const duration=Math.max(1,Number(rule.duration??service.durationMin??30));
      const unitPrice=new Prisma.Decimal(Number(rule.price??service.price??0).toFixed(2));
-     if(!insideSchedule(proLegacy,input.unitId,it.startAt,duration))throw new ConflictException('Horário fora da escala da profissional');
+     if(!insideProfessionalSchedule(proLegacy,input.unitId,it.startAt,duration))throw new ConflictException('Horário fora da escala da profissional');
      prepared.push({
       id:'bi_'+createHash('sha256').update(bookingId+'|'+i).digest('hex').slice(0,40),
       bookingId,unitId:input.unitId,serviceId:it.serviceId,professionalId:it.professionalId,startAt,durationMin:duration,unitPrice,

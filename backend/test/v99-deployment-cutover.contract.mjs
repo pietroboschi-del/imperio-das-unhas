@@ -29,7 +29,7 @@ ok(env.includes('COOKIE_SECURE=true'),'cookie seguro em produção');
 ok(env.includes('SCHEMA_MIGRATION_ENABLED=false'),'template mantém migration de schema desligada por padrão');
 ok(env.includes('OPERATIONAL_WRITES_ENABLED=true')&&env.includes('OPERATIONAL_WRITES_UNITS=centro,big,shopping-contagem'),'template atual habilita as três unidades canônicas');
 ok(env.includes('MIGRATION_IMPORT_ENABLED=false')&&env.includes('OPENAPI_ENABLED=false'),'recursos sensíveis desligados no template');
-ok(gate.includes('OPERATIONAL_WRITES_UNITS')&&gate.includes('allow.length&&unitId&&!allow.includes(unitId)'),'gate implementa allowlist opcional');
+ok(gate.includes('OPERATIONAL_WRITES_UNITS')&&gate.includes('!allow.length||(unitId&&!allow.includes(unitId))'),'gate fecha escrita com allowlist vazia');
 ok(core.includes('assertOperationalWriteEnabled(req.unitId!)'),'core write usa gate por unidade');
 ok(finance.includes('assertOperationalWriteEnabled(req.unitId!)'),'finance write usa gate por unidade');
 ok(publicBooking.includes('this.creation.createPublicBooking')&&bookingCreation.includes("assertOperationalWriteEnabled(input.unitId,'Agendamento online central ainda não habilitado neste ambiente')"),'site delega à criação canônica que usa gate por unidade');
