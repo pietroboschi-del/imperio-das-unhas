@@ -4,7 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UnitScoped } from '../common/unit-scope.decorator';
 import { RequirePermissions } from '../common/permissions.decorator';
-import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
+import { assertConfigurationWriteEnabled, assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { evaluateAccess } from '../auth/permission-policy';
 import type { ImperioRequest, ImperioPrincipal } from '../common/request-context';
 
@@ -64,7 +64,7 @@ export class FinanceCentralController {
  }
  @Post('accounts') @UnitScoped() @RequirePermissions('finance.manage')
  async saveAccount(@Req() req:ImperioRequest,@Body() b:any){
-  assertOperationalWriteEnabled(req.unitId!);
+  assertConfigurationWriteEnabled(req.unitId!);
   const id=String(b?.id||''),name=String(b?.name||'').trim(),type=String(b?.type||'');
   if(!/^[a-zA-Z0-9:_-]{2,128}$/.test(id)||name.length<2||name.length>160||!['CASH','BANK','PROCESSOR','OTHER'].includes(type)||(b.unitId&&b.unitId!==req.unitId))throw new ConflictException('Conta financeira inválida');
   return this.prisma.$transaction(async tx=>{
