@@ -28,9 +28,9 @@ test('stock gate OFF denies product creation before any persistence',async()=>{
 });
 
 test('direct professional payment without a service-line recipient is rejected server-side',async()=>{
-  const old=process.env.OPERATIONAL_WRITES_ENABLED;process.env.OPERATIONAL_WRITES_ENABLED='true';let writes=0;
+  const old=process.env.OPERATIONAL_WRITES_ENABLED,oldUnits=process.env.OPERATIONAL_WRITES_UNITS;process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro';let writes=0;
   const db={$executeRaw:async()=>0,$queryRaw:async()=>[],commandPayment:{findUnique:async()=>null,create:async({data})=>{writes++;return data;}},openCommand:{findFirst:async()=>({id:'cmd',status:'OPEN',remainingAmount:10}),update:async()=>({})},commandServiceItem:{findMany:async()=>[],findFirst:async()=>null},auditEvent:{create:async()=>({})}};db.$transaction=async fn=>fn(db);
-  try{await assert.rejects(()=>new FinanceWriteController(db).payment({unitId:'centro',principal:{userId:'owner'}},'cmd',{method:'DIRECT_PROFESSIONAL',amount:10},'direct'),e=>e.getStatus?.()===409);assert.equal(writes,0);}finally{if(old===undefined)delete process.env.OPERATIONAL_WRITES_ENABLED;else process.env.OPERATIONAL_WRITES_ENABLED=old;}
+  try{await assert.rejects(()=>new FinanceWriteController(db).payment({unitId:'centro',principal:{userId:'owner'}},'cmd',{method:'DIRECT_PROFESSIONAL',amount:10},'direct'),e=>e.getStatus?.()===409);assert.equal(writes,0);}finally{if(old===undefined)delete process.env.OPERATIONAL_WRITES_ENABLED;else process.env.OPERATIONAL_WRITES_ENABLED=old;if(oldUnits===undefined)delete process.env.OPERATIONAL_WRITES_UNITS;else process.env.OPERATIONAL_WRITES_UNITS=oldUnits;}
 });
 
 test('nested service item rejects negative price/commission and unknown fields',async()=>{
