@@ -29,7 +29,7 @@ async function main(){
   {id:'unlinked',name:'Sem vínculo',price:'60',durationMin:30,legacyPayload:{show:true,online:true,showPrice:true,websiteOrder:3}}
  ]});
  await prisma.professional.create({data:{id:'p-all',name:'Profissional Multiunidade',publicName:'Profissional Pública',legacyPayload:{show:true,online:true,specialty:'Unhas',bio:'Perfil público',photo:'https://example.invalid/photo.jpg',bank:'DADO_PRIVADO',cpf:'00000000000',services:['long','short','hidden'],schedule:{'centro-2':{work:true,start:'09:00',end:'19:00'},'big-2':{work:true,start:'10:00',end:'19:00'}}},units:{create:['big','centro','shopping-contagem'].map(unitId=>({unitId}))}}});
- const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem'},stdio:['ignore','pipe','pipe']});
  server.stdout.on('data',d=>{childStdout+=String(d)});server.stderr.on('data',d=>{childStderr+=String(d)});server.on('error',e=>{childError=e});server.on('exit',(code,signal)=>{childExit={code,signal}});
  try{await health();
   const catalogResponse=await fetch(base+'/api/v1/public/catalog?unitId=centro');ok(catalogResponse.ok,'catálogo público central do Centro');const catalog=await catalogResponse.json(),catalogJson=JSON.stringify(catalog);

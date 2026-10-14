@@ -7,6 +7,7 @@ import {AuthService} from '../dist/src/auth/auth.service.js';
 import {StockService} from '../dist/src/core/stock.service.js';
 import {FinanceWriteController} from '../dist/src/core/finance-write.controller.js';
 import {SyncCommandDto} from '../dist/src/core/finance-write.dto.js';
+import {operationalWriteStatus,assertOperationalWriteEnabled,assertConfigurationWriteEnabled} from '../dist/src/common/operational-write-gate.js';
 
 test('one credential token cannot change a password twice under concurrent consumption',async()=>{
   // Both requests observe the initial token before asynchronous Argon2 hashing.
@@ -28,9 +29,9 @@ test('stock gate OFF denies product creation before any persistence',async()=>{
 });
 
 test('direct professional payment without a service-line recipient is rejected server-side',async()=>{
-  const old=process.env.OPERATIONAL_WRITES_ENABLED;process.env.OPERATIONAL_WRITES_ENABLED='true';let writes=0;
+  const old=process.env.OPERATIONAL_WRITES_ENABLED,oldUnits=process.env.OPERATIONAL_WRITES_UNITS;process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro';let writes=0;
   const db={$executeRaw:async()=>0,$queryRaw:async()=>[],commandPayment:{findUnique:async()=>null,create:async({data})=>{writes++;return data;}},openCommand:{findFirst:async()=>({id:'cmd',status:'OPEN',remainingAmount:10}),update:async()=>({})},commandServiceItem:{findMany:async()=>[],findFirst:async()=>null},auditEvent:{create:async()=>({})}};db.$transaction=async fn=>fn(db);
-  try{await assert.rejects(()=>new FinanceWriteController(db).payment({unitId:'centro',principal:{userId:'owner'}},'cmd',{method:'DIRECT_PROFESSIONAL',amount:10},'direct'),e=>e.getStatus?.()===409);assert.equal(writes,0);}finally{if(old===undefined)delete process.env.OPERATIONAL_WRITES_ENABLED;else process.env.OPERATIONAL_WRITES_ENABLED=old;}
+  try{await assert.rejects(()=>new FinanceWriteController(db).payment({unitId:'centro',principal:{userId:'owner'}},'cmd',{method:'DIRECT_PROFESSIONAL',amount:10},'direct'),e=>e.getStatus?.()===409);assert.equal(writes,0);}finally{if(old===undefined)delete process.env.OPERATIONAL_WRITES_ENABLED;else process.env.OPERATIONAL_WRITES_ENABLED=old;if(oldUnits===undefined)delete process.env.OPERATIONAL_WRITES_UNITS;else process.env.OPERATIONAL_WRITES_UNITS=oldUnits;}
 });
 
 test('nested service item rejects negative price/commission and unknown fields',async()=>{
@@ -44,4 +45,40 @@ test('unknown stock location is validated before unit gate and cannot cause writ
  let writes=0;const db={stockLocation:{findUnique:async()=>null},$transaction:async()=>{writes++;throw Error('unexpected transaction')}};
  try{await assert.rejects(()=>new StockService(db).consume({networkAdmin:true},{locationId:'evil-location',items:[{productId:'p',qty:1}]},'unknown'),e=>e.getStatus?.()===404);assert.equal(writes,0);}
  finally{if(old===undefined)delete process.env.OPERATIONAL_WRITES_ENABLED;else process.env.OPERATIONAL_WRITES_ENABLED=old;if(units===undefined)delete process.env.OPERATIONAL_WRITES_UNITS;else process.env.OPERATIONAL_WRITES_UNITS=units;}
+});
+
+test('F6 setup-only writes do not unlock financial or booking operations',()=>{
+ const keys=['OPERATIONAL_WRITES_ENABLED','OPERATIONAL_WRITES_UNITS','SETUP_WRITES_ENABLED','SETUP_WRITES_UNITS'];
+ const saved=Object.fromEntries(keys.map(key=>[key,process.env[key]]));
+ const forbidden=fn=>assert.throws(fn,e=>e.getStatus?.()===503);
+ try{
+  process.env.OPERATIONAL_WRITES_ENABLED='false';
+  process.env.OPERATIONAL_WRITES_UNITS='';
+  process.env.SETUP_WRITES_ENABLED='false';
+  process.env.SETUP_WRITES_UNITS='centro,big,shopping-contagem';
+  forbidden(()=>assertConfigurationWriteEnabled('centro'));
+  process.env.SETUP_WRITES_ENABLED='true';
+  process.env.SETUP_WRITES_UNITS='';
+  forbidden(()=>assertConfigurationWriteEnabled('centro'));
+  process.env.SETUP_WRITES_UNITS='centro';
+  assert.doesNotThrow(()=>assertConfigurationWriteEnabled('centro'));
+  forbidden(()=>assertConfigurationWriteEnabled('big'));
+  forbidden(()=>assertConfigurationWriteEnabled());
+  forbidden(()=>assertOperationalWriteEnabled('centro'));
+  process.env.SETUP_WRITES_UNITS='centro,big,shopping-contagem';
+  assert.doesNotThrow(()=>assertConfigurationWriteEnabled('big'));
+  assert.doesNotThrow(()=>assertConfigurationWriteEnabled());
+  forbidden(()=>assertOperationalWriteEnabled('big'));
+  process.env.OPERATIONAL_WRITES_ENABLED='true';
+  process.env.OPERATIONAL_WRITES_UNITS='';
+  forbidden(()=>assertOperationalWriteEnabled('centro'));
+  assert.equal(operationalWriteStatus('centro').unitEnabled,false);
+  process.env.OPERATIONAL_WRITES_UNITS='centro';
+  assert.doesNotThrow(()=>assertOperationalWriteEnabled('centro'));
+  forbidden(()=>assertOperationalWriteEnabled('big'));
+  assert.equal(operationalWriteStatus('centro').unitEnabled,true);
+  assert.equal(operationalWriteStatus('big').unitEnabled,false);
+ }finally{
+  for(const key of keys){if(saved[key]===undefined)delete process.env[key];else process.env[key]=saved[key];}
+ }
 });

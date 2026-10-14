@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RequirePermissions } from '../common/permissions.decorator';
 import { UnitScoped } from '../common/unit-scope.decorator';
 import type { ImperioRequest } from '../common/request-context';
-import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
+import { assertConfigurationWriteEnabled, assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { BookingItemWriteDto, CreateBlockSeriesDto, CreateBookingDto, CreateClientDto, UpdateBookingDto, UpdateClientDto } from './core-write.dto';
 import { insideProfessionalSchedule, professionalLocalStart } from './professional-schedule';
 import { WaitlistOpportunityService } from './waitlist-opportunity.service';
@@ -160,7 +160,7 @@ export class CoreWriteController {
   @UnitScoped()
   @RequirePermissions('clients.manage')
   async createClient(@Req() req:ImperioRequest,@Body() body:CreateClientDto,@Headers('idempotency-key') key?:string){
-    assertOperationalWriteEnabled(req.unitId!);
+    assertConfigurationWriteEnabled(req.unitId!);
     const phone=this.phone(body.phone),email=body.email?.trim().toLowerCase()||null;if(!phone&&!email)throw new ConflictException('Informe telefone ou e-mail para identificar o cliente na rede');
     const id=this.operationId('client|'+req.unitId!,key),profile=this.profile(body);
     const client=await this.prisma.$transaction(async tx=>{
@@ -174,7 +174,7 @@ export class CoreWriteController {
   @UnitScoped()
   @RequirePermissions('clients.manage')
   async updateClient(@Req() req:ImperioRequest,@Param('id') id:string,@Body() body:UpdateClientDto){
-    assertOperationalWriteEnabled(req.unitId!);
+    assertConfigurationWriteEnabled(req.unitId!);
     const updated=await this.prisma.$transaction(async tx=>{
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('client-identity'), 0)`;
     const current=await tx.client.findFirst({where:{id,active:true}});if(!current)throw new NotFoundException('Cliente não encontrada');

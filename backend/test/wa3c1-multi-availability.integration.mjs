@@ -5,7 +5,7 @@ import {BookingAvailabilityService} from '../dist/src/core/booking-availability.
 const prisma=new PrismaClient();let checks=0;const ok=(v,m)=>{checks++;assert.ok(v,m)},eq=(a,b,m)=>{checks++;assert.equal(a,b,m)};
 const date='2030-10-08',unit='centro',services=['w3c-maint','w3c-mani','w3c-pedi'],pros=['w3c-a','w3c-b','w3c-c','w3c-d'];
 async function cleanup(){await prisma.booking.deleteMany({where:{serviceId:{in:services}}}).catch(()=>{});await prisma.workstation.deleteMany({where:{id:{startsWith:'w3c-ws'}}}).catch(()=>{});await prisma.professionalUnit.deleteMany({where:{professionalId:{in:pros}}}).catch(()=>{});await prisma.professional.deleteMany({where:{id:{in:pros}}}).catch(()=>{});await prisma.service.deleteMany({where:{id:{in:services}}}).catch(()=>{});await prisma.serviceCategory.deleteMany({where:{id:{in:['w3c-hands','w3c-feet']}}}).catch(()=>{})}
-try{await prisma.$connect();await ensureCanonicalUnits(prisma);await cleanup();process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='';
+try{await prisma.$connect();await ensureCanonicalUnits(prisma);await cleanup();process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';
 await prisma.serviceCategory.createMany({data:[{id:'w3c-hands',name:'Hands',active:true},{id:'w3c-feet',name:'Feet',active:true}]});
 await prisma.service.createMany({data:[
 {id:'w3c-maint',name:'Manutenção',categoryId:'w3c-hands',price:'100',durationMin:75,active:true,legacyPayload:{show:true,online:true,clientArea:'hands',mustFinishBeforeSameArea:true,proRules:{'w3c-a':{enabled:true,online:true,duration:75}}}},

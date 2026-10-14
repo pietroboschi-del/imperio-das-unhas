@@ -15,7 +15,7 @@ async function main(){
  for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
  await prisma.service.createMany({data:[{id:'s1',name:'Manicure',price:'50.00',durationMin:60},{id:'s2',name:'Pedicure',price:'60.00',durationMin:45}]});
  await prisma.professional.create({data:{id:'p1',name:'Profissional 1',legacyPayload:{services:['s1','s2'],schedule:Object.fromEntries(Array.from({length:7},(_,d)=>['centro-'+d,{work:true,start:'09:00',end:'23:00'}]))},units:{create:[{unitId:'centro'}]}}});
- const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true'},stdio:['ignore','pipe','pipe']});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem'},stdio:['ignore','pipe','pipe']});
  server.stdout.on('data',d=>{childStdout+=String(d)});server.stderr.on('data',d=>{childStderr+=String(d)});server.on('error',e=>{childError=e});server.on('exit',(code,signal)=>{childExit={code,signal}});
  try{
   await health(server);

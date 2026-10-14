@@ -13,7 +13,7 @@ async function main(){
  execFileSync(process.execPath,['--check',frontendFile.pathname]);
  const src=readFileSync(frontendFile,'utf8');
  assert.match(src,/function centralClosedRows\(/);assert.match(src,/central finance|central-only financial/i);
- const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:''},stdio:['ignore','pipe','pipe']});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem'},stdio:['ignore','pipe','pipe']});
  try{
   await wait();
   const login=async(username,password)=>{

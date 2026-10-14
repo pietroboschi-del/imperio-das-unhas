@@ -38,7 +38,7 @@ async function main(){
  const employee=await user('a4-centro',['centro'],['tasks.read','tasks.manage']);
  const viewer=await user('a4-viewer',['centro'],['tasks.read']);
  const big=await user('a4-big',['big'],['tasks.read','tasks.manage']);
- const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:''},stdio:'ignore'});
+ const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem'},stdio:'ignore'});
  try{
   await wait();
   const payload={title:'Tarefa sintética',unitId:'centro',assignedUserId:'a4-centro',dueDate:'2026-10-15',priority:'high',category:'general',note:'Teste de persistência'};

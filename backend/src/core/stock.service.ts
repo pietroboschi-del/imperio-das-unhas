@@ -3,7 +3,7 @@ import { Prisma, StockLocationKind } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { ImperioPrincipal } from '../common/request-context';
-import { assertOperationalWriteEnabled } from '../common/operational-write-gate';
+import { assertConfigurationWriteEnabled, assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { evaluateAccess, hasPermissions, permissionSet } from '../auth/permission-policy';
 
 const CANONICAL_UNITS=['centro','big','shopping-contagem'] as const;
@@ -114,7 +114,7 @@ export class StockService {
   }
   async products(p:ImperioPrincipal){this.assertAny(p,'stock.read');return this.prisma.product.findMany({orderBy:[{active:'desc'},{name:'asc'}]})}
   async upsertProduct(p:ImperioPrincipal,body:any,id?:string){
-    this.assertAny(p,'stock.manage');assertOperationalWriteEnabled();
+    this.assertAny(p,'stock.manage');assertConfigurationWriteEnabled();
     const productId=String(id||body.id||randomUUID()).trim(),name=String(body.name||'').trim(),type=String(body.type||'').trim().toUpperCase();
     if(!name)throw new ConflictException('Nome do produto é obrigatório');
     if(!['INPUT','RESALE'].includes(type))throw new ConflictException('Tipo de produto inválido');

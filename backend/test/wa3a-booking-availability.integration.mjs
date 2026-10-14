@@ -71,7 +71,7 @@ async function startServer(port,agentEnabled){
   const secret='wa3a-agent-secret-never-log';
   const child=spawn(process.execPath,['dist/src/main.js'],{
     cwd:new URL('../',import.meta.url),
-    env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'',
+    env:{...process.env,PORT:String(port),OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big,shopping-contagem',
       WHATSAPP_AGENT_API_ENABLED:agentEnabled?'true':'false',WHATSAPP_AGENT_API_SECRET:secret,
       EVOLUTION_WEBHOOK_ENABLED:'false',WHATSAPP_AUTOMATION_ENABLED:'false'},
     stdio:['ignore','pipe','pipe'],
@@ -96,7 +96,7 @@ try{
   await prisma.$connect();
   await setup();
   process.env.OPERATIONAL_WRITES_ENABLED='true';
-  process.env.OPERATIONAL_WRITES_UNITS='';
+  process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';
   const service=new BookingAvailabilityService(prisma);
 
   await expectReject(()=>service.availability({unitId:'wa3a-missing',date,serviceId:'wa3a-main'}),404,'unidade inexistente é rejeitada');
