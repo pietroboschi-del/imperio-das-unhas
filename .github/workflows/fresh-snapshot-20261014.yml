@@ -1,0 +1,330 @@
+name: Owner-authorized fresh logical backup
+
+on:
+  push:
+    branches: [backup/fresh-snapshot-20261014]
+    paths: [.github/workflows/fresh-snapshot-20261014.yml]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-logical-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: encrypted logical backup
+    if: github.actor == 'pietroboschi-del' && github.ref == 'refs/heads/backup/fresh-snapshot-20261014'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production-backup
+
+    steps:
+      - name: Gate 03:00 America/Sao_Paulo
+        id: schedule_gate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF}" == "refs/heads/backup/fresh-snapshot-20261014" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          local_hour="$(TZ=America/Sao_Paulo date +%H)"
+          if [[ "$local_hour" == "03" ]]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Scheduled guard: local hour is ${local_hour}; no backup on this UTC slot."
+          fi
+
+      - name: Install age
+        if: steps.schedule_gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age
+
+      - name: Create, validate, hash and encrypt backup
+        id: backup
+        if: steps.schedule_gate.outputs.run == 'true'
+        shell: bash
+        env:
+          BACKUP_BASE_URL: ${{ vars.IMPERIO_BACKUP_BASE_URL }}
+          AGE_RECIPIENT: ${{ vars.IMPERIO_BACKUP_AGE_RECIPIENT }}
+          BACKUP_USERNAME: ${{ secrets.IMPERIO_BACKUP_USERNAME }}
+          BACKUP_PASSWORD: ${{ secrets.IMPERIO_BACKUP_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          set +x
+          umask 077
+
+          [[ -n "${BACKUP_BASE_URL:-}" ]] || { echo "Missing IMPERIO_BACKUP_BASE_URL."; exit 1; }
+          [[ "$BACKUP_BASE_URL" == https://* ]] || { echo "IMPERIO_BACKUP_BASE_URL must use HTTPS."; exit 1; }
+          [[ "$BACKUP_BASE_URL" != *"@"* ]] || { echo "IMPERIO_BACKUP_BASE_URL must not contain credentials."; exit 1; }
+          [[ -n "${AGE_RECIPIENT:-}" ]] || { echo "Missing IMPERIO_BACKUP_AGE_RECIPIENT."; exit 1; }
+          [[ "$AGE_RECIPIENT" =~ ^age1[0-9a-z]+$ ]] || { echo "Invalid age recipient."; exit 1; }
+          [[ -n "${BACKUP_USERNAME:-}" ]] || { echo "Missing IMPERIO_BACKUP_USERNAME."; exit 1; }
+          [[ -n "${BACKUP_PASSWORD:-}" ]] || { echo "Missing IMPERIO_BACKUP_PASSWORD."; exit 1; }
+
+          echo "::add-mask::$BACKUP_USERNAME"
+          echo "::add-mask::$BACKUP_PASSWORD"
+
+          BASE_URL="${BACKUP_BASE_URL%/}"
+          WORK_DIR="$RUNNER_TEMP/imperio-backup"
+          UPLOAD_DIR="$RUNNER_TEMP/imperio-backup-upload"
+          mkdir -p "$WORK_DIR" "$UPLOAD_DIR"
+          chmod 700 "$WORK_DIR" "$UPLOAD_DIR"
+
+          timestamp="$(TZ=America/Sao_Paulo date '+%Y-%m-%dT%H-%M-%S')"
+          generated_at="$(TZ=America/Sao_Paulo date --iso-8601=seconds)"
+          BACKUP_NAME="imperio-postgres-${timestamp}.dump"
+          DUMP_PATH="$WORK_DIR/$BACKUP_NAME"
+          LOGIN_PAYLOAD="$WORK_DIR/login.json"
+          LOGIN_RESPONSE="$WORK_DIR/login-response.json"
+          COOKIE_JAR="$WORK_DIR/cookies.txt"
+          HEADERS_PATH="$WORK_DIR/backup-headers.txt"
+          MANIFEST_PATH="$WORK_DIR/${BACKUP_NAME}.manifest.json"
+          RESTORE_CONTAINER="imperio-backup-restore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          cleanup() {
+            if [[ -n "${RESTORE_CONTAINER:-}" ]]; then
+              docker rm -f "$RESTORE_CONTAINER" >/dev/null 2>&1 || true
+            fi
+            for path in \
+              "$DUMP_PATH" \
+              "$LOGIN_PAYLOAD" \
+              "$LOGIN_RESPONSE" \
+              "$COOKIE_JAR" \
+              "$HEADERS_PATH" \
+              "$MANIFEST_PATH"
+            do
+              if [[ -e "$path" ]]; then
+                shred -u "$path" 2>/dev/null || rm -f "$path"
+              fi
+            done
+          }
+          trap cleanup EXIT
+
+          python3 - <<'PY' > "$LOGIN_PAYLOAD"
+          import json
+          import os
+          print(json.dumps({
+              "username": os.environ["BACKUP_USERNAME"],
+              "password": os.environ["BACKUP_PASSWORD"],
+          }))
+          PY
+
+          curl \
+            --proto '=https' \
+            --tlsv1.2 \
+            --fail \
+            --silent \
+            --show-error \
+            --cookie-jar "$COOKIE_JAR" \
+            --header 'Content-Type: application/json' \
+            --data-binary @"$LOGIN_PAYLOAD" \
+            "$BASE_URL/api/v1/auth/login" \
+            --output "$LOGIN_RESPONSE"
+
+          python3 - "$LOGIN_RESPONSE" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], "r", encoding="utf-8") as fh:
+              payload = json.load(fh)
+          user = payload.get("user") or {}
+          if user.get("networkAdmin") is not True:
+              raise SystemExit("Backup account is not a network administrator.")
+          PY
+
+          curl \
+            --proto '=https' \
+            --tlsv1.2 \
+            --fail \
+            --silent \
+            --show-error \
+            --cookie "$COOKIE_JAR" \
+            --dump-header "$HEADERS_PATH" \
+            "$BASE_URL/api/v1/admin/database-backup" \
+            --output "$DUMP_PATH"
+
+          test -s "$DUMP_PATH"
+          grep -qi '^X-Backup-Format: pg_dump-custom' "$HEADERS_PATH"
+
+          python3 - "$DUMP_PATH" <<'PY'
+          import sys
+          with open(sys.argv[1], "rb") as fh:
+              magic = fh.read(5)
+          if magic != b"PGDMP":
+              raise SystemExit("Downloaded file is not a PostgreSQL custom-format dump.")
+          PY
+
+          docker run --rm --network none \
+            -v "$WORK_DIR:/backup:ro" \
+            postgres:18 \
+            pg_restore --list "/backup/$BACKUP_NAME" >/dev/null
+
+          echo "Starting isolated PostgreSQL restore smoke test."
+          docker rm -f "$RESTORE_CONTAINER" >/dev/null 2>&1 || true
+          docker run --detach \
+            --name "$RESTORE_CONTAINER" \
+            --network none \
+            --tmpfs /var/lib/postgresql:rw,size=536870912 \
+            --tmpfs /tmp:rw,size=67108864 \
+            -e POSTGRES_USER=imperio_restore \
+            -e POSTGRES_DB=imperio_restore \
+            -e POSTGRES_HOST_AUTH_METHOD=trust \
+            postgres:18 >/dev/null
+
+          RESTORE_READY=false
+          for attempt in $(seq 1 30); do
+            if docker exec "$RESTORE_CONTAINER" \
+              pg_isready -U imperio_restore -d imperio_restore >/dev/null 2>&1
+            then
+              RESTORE_READY=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [[ "$RESTORE_READY" != "true" ]]; then
+            docker logs "$RESTORE_CONTAINER" >&2 || true
+            echo "Temporary PostgreSQL did not become ready."
+            exit 1
+          fi
+
+          [[ "$(docker inspect --format '{{.HostConfig.NetworkMode}}' "$RESTORE_CONTAINER")" == none ]]
+          test "$(docker inspect --format '{{range .Mounts}}{{if eq .Type "volume"}}volume{{end}}{{end}}' "$RESTORE_CONTAINER")" = ""
+          docker exec -i "$RESTORE_CONTAINER" sh -c 'umask 077; cat > /tmp/backup.dump' < "$DUMP_PATH"
+
+          docker exec "$RESTORE_CONTAINER" \
+            pg_restore \
+            --exit-on-error \
+            --no-owner \
+            --no-acl \
+            -U imperio_restore \
+            -d imperio_restore \
+            /tmp/backup.dump
+
+          PUBLIC_TABLES="$(docker exec "$RESTORE_CONTAINER" \
+            psql -U imperio_restore -d imperio_restore -Atqc \
+            "SELECT COUNT(*) FROM pg_tables WHERE schemaname='public';")"
+          [[ "$PUBLIC_TABLES" =~ ^[0-9]+$ && "$PUBLIC_TABLES" -gt 0 ]] \
+            || { echo "Restore smoke found no public tables."; exit 1; }
+          echo "Restore smoke public tables: $PUBLIC_TABLES"
+
+          for table in Unit User; do
+            TABLE_EXISTS="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT to_regclass('public.\"$table\"') IS NOT NULL;")"
+            [[ "$TABLE_EXISTS" == "t" ]] \
+              || { echo "Restore smoke missing required table: $table"; exit 1; }
+
+            ROW_COUNT="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT COUNT(*) FROM public.\"$table\";")"
+            [[ "$ROW_COUNT" =~ ^[0-9]+$ && "$ROW_COUNT" -gt 0 ]] \
+              || { echo "Restore smoke expected non-empty table: $table"; exit 1; }
+            echo "Restore smoke count $table=$ROW_COUNT"
+          done
+
+          for table in Client Service Professional Booking; do
+            TABLE_EXISTS="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT to_regclass('public.\"$table\"') IS NOT NULL;")"
+            [[ "$TABLE_EXISTS" == "t" ]] \
+              || { echo "Restore smoke missing required table: $table"; exit 1; }
+
+            ROW_COUNT="$(docker exec "$RESTORE_CONTAINER" \
+              psql -U imperio_restore -d imperio_restore -Atqc \
+              "SELECT COUNT(*) FROM public.\"$table\";")"
+            [[ "$ROW_COUNT" =~ ^[0-9]+$ ]] \
+              || { echo "Restore smoke could not count table: $table"; exit 1; }
+            echo "Restore smoke count $table=$ROW_COUNT"
+          done
+
+          MIGRATIONS_APPLIED="$(docker exec "$RESTORE_CONTAINER" \
+            psql -U imperio_restore -d imperio_restore -Atqc \
+            "SELECT COUNT(*) FROM public.\"_prisma_migrations\" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL;")"
+          [[ "$MIGRATIONS_APPLIED" =~ ^[0-9]+$ && "$MIGRATIONS_APPLIED" -gt 0 ]] \
+            || { echo "Restore smoke found no applied Prisma migrations."; exit 1; }
+
+          MIGRATIONS_UNRESOLVED="$(docker exec "$RESTORE_CONTAINER" \
+            psql -U imperio_restore -d imperio_restore -Atqc \
+            "SELECT COUNT(*) FROM public.\"_prisma_migrations\" WHERE finished_at IS NULL AND rolled_back_at IS NULL;")"
+          [[ "$MIGRATIONS_UNRESOLVED" == "0" ]] \
+            || { echo "Restore smoke found unresolved Prisma migrations: $MIGRATIONS_UNRESOLVED"; exit 1; }
+          echo "Restore smoke Prisma migrations applied=$MIGRATIONS_APPLIED unresolved=0"
+
+          removed_container="$RESTORE_CONTAINER"
+          docker rm -f "$RESTORE_CONTAINER" >/dev/null
+          test "$(docker ps -aq --filter "name=^/${removed_container}$")" = ""
+          RESTORE_CONTAINER=""
+          echo "Backup restore clone discarded; no persistent volumes used."
+          echo "Restore smoke: PASS; temporary PostgreSQL removed."
+
+          BACKUP_SHA256="$(sha256sum "$DUMP_PATH" | awk '{print $1}')"
+          BACKUP_BYTES="$(stat -c '%s' "$DUMP_PATH")"
+          export BACKUP_SHA256 BACKUP_BYTES BACKUP_NAME generated_at
+
+          python3 - <<'PY' > "$MANIFEST_PATH"
+          import json
+          import os
+          manifest = {
+              "filename": os.environ["BACKUP_NAME"],
+              "generatedAt": os.environ["generated_at"],
+              "timezone": "America/Sao_Paulo",
+              "bytes": int(os.environ["BACKUP_BYTES"]),
+              "sha256": os.environ["BACKUP_SHA256"],
+              "format": "pg_dump-custom",
+              "pgRestoreValidation": "postgres:18 pg_restore --list",
+              "restoreSmokeValidation": "postgres:18 isolated restore PASS",
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "gitSha": os.environ["GITHUB_SHA"],
+              "runId": os.environ["GITHUB_RUN_ID"],
+          }
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+
+          age \
+            --recipient "$AGE_RECIPIENT" \
+            --output "$UPLOAD_DIR/${BACKUP_NAME}.age" \
+            "$DUMP_PATH"
+
+          age \
+            --recipient "$AGE_RECIPIENT" \
+            --output "$UPLOAD_DIR/${BACKUP_NAME}.manifest.json.age" \
+            "$MANIFEST_PATH"
+
+          sha256sum "$UPLOAD_DIR/${BACKUP_NAME}.age" \
+            | sed "s#  .*#  ${BACKUP_NAME}.age#" \
+            > "$UPLOAD_DIR/${BACKUP_NAME}.age.sha256"
+
+          test -s "$UPLOAD_DIR/${BACKUP_NAME}.age"
+          test -s "$UPLOAD_DIR/${BACKUP_NAME}.manifest.json.age"
+          test -s "$UPLOAD_DIR/${BACKUP_NAME}.age.sha256"
+
+          echo "artifact_name=imperio-logical-backup-${timestamp}" >> "$GITHUB_OUTPUT"
+          echo "Backup created, pg_restore validated, isolated restore smoke passed, SHA-256 recorded in encrypted manifest, and age encryption completed."
+
+      - name: Verify plaintext and session temporary files discarded
+        if: steps.schedule_gate.outputs.run == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          shopt -s nullglob
+          leftover=("$RUNNER_TEMP/imperio-backup/"*)
+          [[ "${#leftover[@]}" == 0 ]] || { echo 'Temporary plaintext cleanup incomplete'; exit 1; }
+          echo 'Temporary dump, cookie and login files discarded; only encrypted artifact remains.'
+
+      - name: Upload encrypted backup artifact
+        if: steps.schedule_gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.backup.outputs.artifact_name }}
+          path: ${{ runner.temp }}/imperio-backup-upload/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
