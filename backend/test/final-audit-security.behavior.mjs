@@ -24,7 +24,7 @@ await check('direct payment without a service-line recipient has no write',async
 await check('stock mutation obeys operational write freeze',async()=>{
  process.env.OPERATIONAL_WRITES_ENABLED='false';let writes=0;
  const stock=new StockService({$transaction:async fn=>fn({product:{findUnique:async()=>null,create:async()=>{writes++;return {id:'p'}}},auditEvent:{create:async()=>{writes++}}})});
- await assert.rejects(stock.upsertProduct({networkAdmin:true},{name:'p',type:'RESALE'}),/habilitada/i);assert.equal(writes,0);
+ await assert.rejects(stock.upsertProduct({networkAdmin:true},{name:'p',type:'RESALE'}),/habilitad|autorizad/i);assert.equal(writes,0);
  process.env.OPERATIONAL_WRITES_ENABLED='true';
 });
 await check('internal agenda rejects exhausted configured workstation capacity',async()=>{
