@@ -53,6 +53,7 @@ export class SyncCommandItemDto {
  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) commissionFixedAmount?:number;
 }
 export class SyncCommandDto{
+ @IsNumber() @IsInt() @Min(1) expectedVersion!:number;
  @IsNumber({maxDecimalPlaces:2}) @Min(0) grossAmount!:number;
  @IsNumber({maxDecimalPlaces:2}) @Min(0) discountAmount!:number;
  @IsOptional() @IsNumber({maxDecimalPlaces:2}) @Min(0) appliedSignalAmount?:number;
