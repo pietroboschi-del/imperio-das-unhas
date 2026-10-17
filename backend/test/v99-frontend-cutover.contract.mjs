@@ -6,7 +6,7 @@ let n=0;const ok=(v,m)=>{n++;assert.ok(v,m)};
 
 ok(html.includes("u1:'big',u2:'shopping-contagem',u3:'centro'"),'três unidades locais mapeiam para IDs centrais canônicos');
 ok(html.includes("big:'u1','shopping-contagem':'u2',centro:'u3'"),'IDs centrais retornam ao shape legado da UI');
-ok(html.includes("const PRODUCTION_API='https://imperio-backend-production-5086.up.railway.app'"),'frontend oficial aponta para backend de produção');
+ok(html.includes("const PRODUCTION_API='https://api.imperiodasunhas.com.br'"),'frontend oficial aponta para backend de produção');
 ok(html.includes("function officialProductionMode()"),'frontend diferencia produção de desenvolvimento local');
 ok(html.includes("CENTRAL_WRITE_UNITS='imperio-v99-central-write-units'"),'allowlist operacional é persistida na sessão');
 ok(html.includes("function centralWriteUnits()"),'frontend lê allowlist operacional');
