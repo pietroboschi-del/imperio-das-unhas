@@ -9,6 +9,7 @@ import type { ImperioRequest } from '../common/request-context';
 import { assertConfigurationWriteEnabled, assertOperationalWriteEnabled } from '../common/operational-write-gate';
 import { BookingItemWriteDto, CreateBlockSeriesDto, CreateBookingDto, CreateClientDto, UpdateBookingDto, UpdateClientDto } from './core-write.dto';
 import { insideProfessionalSchedule, professionalLocalStart } from './professional-schedule';
+import { insideUnitOpeningHours, isCanonicalUnitId, normalizeUnitPublicProfile } from './unit-public-profile';
 import { WaitlistOpportunityService } from './waitlist-opportunity.service';
 import { BookingAutomationMaterializationService } from '../messaging/booking-automation-materialization.service';
 import { BookingAutomationLifecycleService } from '../messaging/booking-automation-lifecycle.service';
@@ -77,8 +78,9 @@ export class CoreWriteController {
   private async prepareItems(tx:Prisma.TransactionClient,unitId:string,serviceDate:string,items:BookingItemWriteDto[],status:string){
     const out:any[]=[];
     const checkSchedule=status!=='Bloqueado'&&!TERMINAL_BOOKING.includes(status);
-    const unit=checkSchedule?await tx.unit.findFirst({where:{id:unitId},select:{timezone:true}}):null;
-    if(checkSchedule&&!unit)throw new NotFoundException('Unidade não encontrada');
+    const unit=checkSchedule?await tx.unit.findFirst({where:{id:unitId},select:{timezone:true,legacyPayload:true}}):null;
+    if(checkSchedule&&(!unit||!isCanonicalUnitId(unitId)))throw new NotFoundException('Unidade não encontrada');
+    const unitProfile=checkSchedule?normalizeUnitPublicProfile((unit!.legacyPayload as any)?.publicProfile,unitId as 'centro'|'big'|'shopping-contagem'):null;
     for(let i=0;i<items.length;i++){
       const it=items[i],startAt=new Date(it.startAt);if(Number.isNaN(startAt.getTime()))throw new ConflictException('Horário inválido');
       if(!checkSchedule&&String(it.startAt).slice(0,10)!==serviceDate)throw new ConflictException('Horário do serviço deve pertencer à data da visita');
@@ -94,6 +96,7 @@ export class CoreWriteController {
       const duration=Math.max(1,Number(it.durationMin??rule?.duration??service?.durationMin??30));
       const localStart=checkSchedule?professionalLocalStart(startAt,unit!.timezone):'';
       if(checkSchedule&&localStart.slice(0,10)!==serviceDate)throw new ConflictException('Horário do serviço deve pertencer à data local da visita');
+      if(checkSchedule&&!insideUnitOpeningHours(unitProfile!,localStart,duration))throw new ConflictException('Horário fora do funcionamento da unidade');
       if(checkSchedule&&!insideProfessionalSchedule(pro.professional.legacyPayload,unitId,localStart,duration))throw new ConflictException('Horário fora da escala da profissional');
       const unitPrice=new Prisma.Decimal(Number(isBlock?0:(it.unitPrice??rule?.price??service?.price??0)).toFixed(2));
       const serviceConfig=service?.legacyPayload&&typeof service.legacyPayload==='object'&&!Array.isArray(service.legacyPayload)?service.legacyPayload as any:{};
@@ -104,14 +107,15 @@ export class CoreWriteController {
   // Revalidate only reactivations of existing items; do not rewrite historical snapshots.
   private async assertReactivationItems(tx:Prisma.TransactionClient,unitId:string,serviceDate:string,items:any[]){
     if(!items.length)throw new ConflictException('Atendimento sem serviços válidos; informe os itens para reativar');
-    const unit=await tx.unit.findFirst({where:{id:unitId},select:{timezone:true}});
-    if(!unit)throw new NotFoundException('Unidade não encontrada');
+    const unit=await tx.unit.findFirst({where:{id:unitId},select:{timezone:true,legacyPayload:true}});
+    if(!unit||!isCanonicalUnitId(unitId))throw new NotFoundException('Unidade não encontrada');
+    const unitProfile=normalizeUnitPublicProfile((unit.legacyPayload as any)?.publicProfile,unitId);
     for(const item of items){
       if(!item.serviceId||!await tx.service.findFirst({where:{id:item.serviceId,active:true},select:{id:true}}))throw new ConflictException('Atendimento sem serviço válido; revise os itens antes de reativar');
       const pro=await tx.professionalUnit.findFirst({where:{unitId,professionalId:item.professionalId,active:true,professional:{active:true}},select:{professional:{select:{legacyPayload:true}}}});
       if(!pro)throw new ConflictException('Profissional não atende nesta unidade');
       const localStart=professionalLocalStart(item.startAt,unit.timezone);
-      if(localStart.slice(0,10)!==serviceDate||!insideProfessionalSchedule(pro.professional.legacyPayload,unitId,localStart,Number(item.durationMin)))throw new ConflictException('Horário fora da escala da profissional');
+      if(localStart.slice(0,10)!==serviceDate||!insideUnitOpeningHours(unitProfile,localStart,Number(item.durationMin))||!insideProfessionalSchedule(pro.professional.legacyPayload,unitId,localStart,Number(item.durationMin)))throw new ConflictException('Horário fora do funcionamento da unidade ou da escala profissional');
     }
   }
   private clientAreaConflict(a:any,b:any){
