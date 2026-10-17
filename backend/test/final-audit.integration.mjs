@@ -94,6 +94,7 @@ async function main(){
    await db.professional.upsert({where:{id:pro},create:{id:pro,...data},update:data});
    await db.professionalUnit.upsert({where:{professionalId_unitId:{professionalId:pro,unitId:'centro'}},create:{professionalId:pro,unitId:'centro'},update:{active:true}});
   }
+  await db.unit.update({where:{id:'centro'},data:{legacyPayload:{publicProfile:{openingHours:{monday:{status:'OPEN',open:'09:00',close:'18:00'},tuesday:{status:'OPEN',open:'09:00',close:'18:00'},wednesday:{status:'OPEN',open:'09:00',close:'18:00'},thursday:{status:'OPEN',open:'09:00',close:'18:00'},friday:{status:'OPEN',open:'09:00',close:'18:00'},saturday:{status:'OPEN',open:'09:00',close:'18:00'},sunday:{status:'OPEN',open:'09:00',close:'18:00'}}}}}});
   await db.workstation.create({data:{id:'public-station',name:'Single station',unitId:'centro',allowedCategoryIds:['public-cat']}});
   const publicBody={unitId:'centro',serviceId:'audit-service',professionalId:'audit-pro',startAt:future+'T12:00:00',clientName:'Public concurrent',clientPhone:'31981234567'};
   r=await request('/api/v1/public/bookings',{method:'POST',key:'public-past',body:{...publicBody,startAt:'2020-01-01T12:00:00'}});eq(r.status,409,'past public booking denied');
