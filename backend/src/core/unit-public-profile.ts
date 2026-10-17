@@ -63,7 +63,7 @@ export function defaultUnitPublicProfile(unitId:CanonicalUnitId):UnitPublicProfi
 
 /** Enforce the persisted unit opening window; UNSET/CLOSED fail closed. */
 export function insideUnitOpeningHours(profile:UnitPublicProfile,localStart:string,durationMin:number):boolean{
- const match=String(localStart||'').match(/^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})(?::(\\d{2}))?$/);
+ const match=String(localStart||'').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
  if(!match||!Number.isFinite(durationMin)||durationMin<=0)return false;
  const date=match[1]+'-'+match[2]+'-'+match[3],d=new Date(date+'T12:00:00.000Z');
  if(Number.isNaN(d.getTime())||d.toISOString().slice(0,10)!==date)return false;
