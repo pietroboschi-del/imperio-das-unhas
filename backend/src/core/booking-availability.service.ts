@@ -2,6 +2,7 @@ import { hasPhysicalCapacity } from './booking-capacity';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { operationalWriteStatus } from '../common/operational-write-gate';
+import { insideUnitOpeningHours, normalizeUnitPublicProfile } from './unit-public-profile';
 
 export const PUBLIC_BOOKING_SLOT_MINUTES=15;
 const TERMINAL_BOOKING_STATUSES=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
@@ -73,8 +74,9 @@ export class BookingAvailabilityService {
   async catalog(unitId:string){
     const requested=String(unitId||'').trim();
     if(!requested)throw new ConflictException('Unidade é obrigatória');
-    const unit=await this.prisma.unit.findFirst({where:{id:requested,active:true},select:{id:true,name:true,timezone:true}});
+    const unit=await this.prisma.unit.findFirst({where:{id:requested,active:true},select:{id:true,name:true,timezone:true,legacyPayload:true}});
     if(!unit)throw new NotFoundException('Unidade indisponível');
+    const unitProfile=normalizeUnitPublicProfile(obj(unit.legacyPayload).publicProfile,requested);
     const [serviceRows,links]=await Promise.all([
       this.prisma.service.findMany({
         where:{active:true},
@@ -126,7 +128,7 @@ export class BookingAvailabilityService {
     }).filter(Boolean).sort((a:any,b:any)=>String(a.publicName).localeCompare(String(b.publicName)));
     const bookingEnabled=operationalWriteStatus(requested).unitEnabled&&professionals.some((p:any)=>workingSchedule(p.schedule));
     const eligibleServiceIds=new Set(professionals.flatMap((p:any)=>p.serviceIds));
-    return {unit,bookingEnabled,services:services.filter(s=>eligibleServiceIds.has(s.id)),professionals};
+    return {unit,unitProfile,bookingEnabled,services:services.filter(s=>eligibleServiceIds.has(s.id)),professionals};
   }
 
   async activeUnits(){
@@ -218,7 +220,7 @@ export class BookingAvailabilityService {
             const sch=obj(p.schedule)[unitId+'-'+day],wa=clockMinute(String(sch?.start||'')),wz=clockMinute(String(sch?.end||''));
             if(sch?.work!==true||!Number.isFinite(wa)||!Number.isFinite(wz))continue;
             for(const m of starts){
-              const end=m+duration;if(m<wa||end>wz||end>searchEnd)continue;
+              const end=m+duration;if(m<wa||end>wz||end>searchEnd||!insideUnitOpeningHours(catalog.unitProfile,date+'T'+minuteClock(m),duration))continue;
               const startAt=localDateTimeToUtc(date,minuteClock(m),catalog.unit.timezone),endAt=localDateTimeToUtc(date,minuteClock(end),catalog.unit.timezone),ams=startAt.getTime(),zms=endAt.getTime();
               if((occupied.get(p.id)||[]).some(x=>x.start<zms&&x.end>ams))continue;
               if(state.assigned.some((x:any)=>x.professionalId===p.id&&x.startMin<end&&x.endMin>m))continue;
@@ -315,6 +317,7 @@ export class BookingAvailabilityService {
       let first=Math.ceil(start/PUBLIC_BOOKING_SLOT_MINUTES)*PUBLIC_BOOKING_SLOT_MINUTES;
       if(date===now.date)first=Math.max(first,Math.ceil(now.minute/PUBLIC_BOOKING_SLOT_MINUTES)*PUBLIC_BOOKING_SLOT_MINUTES);
       for(let minute=first;minute+durationMin<=end;minute+=PUBLIC_BOOKING_SLOT_MINUTES){
+        if(!insideUnitOpeningHours(catalog.unitProfile,date+'T'+minuteClock(minute),durationMin))continue;
         const localStart=minuteClock(minute),localEnd=minuteClock(minute+durationMin);
         const startAt=localDateTimeToUtc(date,localStart,catalog.unit.timezone);
         const endAt=localDateTimeToUtc(date,localEnd,catalog.unit.timezone);
