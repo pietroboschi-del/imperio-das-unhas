@@ -9,6 +9,7 @@ import { BookingAutomationMaterializationService } from '../messaging/booking-au
 import { BookingAvailabilityService, PUBLIC_BOOKING_SLOT_MINUTES } from './booking-availability.service';
 import { PublicBookingDto, PublicBookingItemDto } from './public-booking.dto';
 import { insideProfessionalSchedule } from './professional-schedule';
+import { insideUnitOpeningHours, isCanonicalUnitId, normalizeUnitPublicProfile } from './unit-public-profile';
 import { WhatsappAgentBookingDto, WhatsappAgentMultiBookingDto } from './whatsapp-agent.dto';
 
 const TERMINAL=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
@@ -305,8 +306,9 @@ export class BookingCreationService {
     const prior=await tx.booking.findUnique({where:{id:bookingId},include:{items:true}});
     if(prior)return this.verifyExisting(prior,idempotencyHash,input.strictIdempotency);
 
-    const unit=await tx.unit.findFirst({where:{id:input.unitId,active:true},select:{id:true,timezone:true}});
-    if(!unit)throw new NotFoundException('Unidade indisponível');
+    const unit=await tx.unit.findFirst({where:{id:input.unitId,active:true},select:{id:true,timezone:true,legacyPayload:true}});
+    if(!unit||!isCanonicalUnitId(input.unitId))throw new NotFoundException('Unidade indisponível');
+    const unitProfile=normalizeUnitPublicProfile(obj(unit.legacyPayload).publicProfile,input.unitId);
 
     const prepared:any[]=[];
     for(let i=0;i<input.items.length;i++){
@@ -337,6 +339,7 @@ export class BookingCreationService {
      if(rule.online===false)throw new ConflictException('Serviço indisponível para agendamento online com esta profissional');
      const duration=Math.max(1,Number(rule.duration??service.durationMin??30));
      const unitPrice=new Prisma.Decimal(Number(rule.price??service.price??0).toFixed(2));
+     if(!insideUnitOpeningHours(unitProfile,it.startAt,duration))throw new ConflictException('Horário fora do funcionamento da unidade');
      if(!insideProfessionalSchedule(proLegacy,input.unitId,it.startAt,duration))throw new ConflictException('Horário fora da escala da profissional');
      prepared.push({
       id:'bi_'+createHash('sha256').update(bookingId+'|'+i).digest('hex').slice(0,40),
