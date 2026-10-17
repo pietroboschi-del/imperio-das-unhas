@@ -7025,9 +7025,9 @@ button,.btn,input,select,textarea{touch-action:manipulation}
   if(Number(db.schemaVersion||0)<SCHEMA){db.schemaVersion=SCHEMA;db.schemaMigratedAt=now();changed=true}
   if(changed&&typeof save==='function')save({render:false,reason:'v96_migration'});return changed
  }
- const PRODUCTION_API='https://imperio-backend-production-5086.up.railway.app';
+ const PRODUCTION_API='https://api.imperiodasunhas.com.br';
  function officialProductionMode(){try{let h=String(location?.hostname||'').toLowerCase();return !!h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'}catch(e){return false}}
- function endpoint(){try{let configured=sessionStorage.getItem(SESSION_URL)||window.IMPERIO_API_BASE||'',fallback=officialProductionMode()?PRODUCTION_API:'http://127.0.0.1:3000';return String(configured||fallback).replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
+ function endpoint(){if(officialProductionMode())return PRODUCTION_API;try{let configured=sessionStorage.getItem(SESSION_URL)||window.IMPERIO_API_BASE||'';return String(configured||'http://127.0.0.1:3000').replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
  function setEndpoint(v){v=String(v||'').trim().replace(/\/+$/,'');if(!/^https?:\/\//i.test(v))throw new Error('Informe URL http:// ou https://');try{sessionStorage.setItem(SESSION_URL,v)}catch(e){}return v}
  function csrf(){try{return sessionStorage.getItem(SESSION_CSRF)||''}catch(e){return ''}}
  function setCsrf(v){try{if(v)sessionStorage.setItem(SESSION_CSRF,String(v));else sessionStorage.removeItem(SESSION_CSRF)}catch(e){}}
@@ -7121,9 +7121,9 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  function stableHash(v){return payloadHash(stableValue(v))}
  function aggregateRows(rows){let pairs=(rows||[]).map((r,i)=>[String(r?.id||`__index_${i}`),stableHash(r)]).sort((a,b)=>a[0].localeCompare(b[0]));return payloadHash(pairs)}
  function migrate(){let changed=false;db.storageMeta=db.storageMeta&&typeof db.storageMeta==='object'&&!Array.isArray(db.storageMeta)?db.storageMeta:{};if(db.storageMeta.readThroughArchitectureVersion!==CONTRACT){db.storageMeta.readThroughArchitectureVersion=CONTRACT;changed=true}if(db.storageMeta.operationalRemoteWritesEnabled!==false){db.storageMeta.operationalRemoteWritesEnabled=false;changed=true}db.migrationHistory=Array.isArray(db.migrationHistory)?db.migrationHistory:[];if(!db.migrationHistory.some(x=>(typeof x==='string'?x:x?.id)===MIGRATION_ID)){db.migrationHistory.push({id:MIGRATION_ID,version:SCHEMA,status:'applied',appliedAt:now(),note:'Read-through V97: catálogo Serviços/Categorias pode usar backend somente com envelope exato verificado e fallback local automático. Profissionais/Clientes/Agenda permanecem preview nesta etapa. Escrita remota segue desativada.'});changed=true}if(Number(db.schemaVersion||0)<SCHEMA){db.schemaVersion=SCHEMA;db.schemaMigratedAt=now();changed=true}if(changed&&typeof save==='function')save({render:false,reason:'v97_migration'});return changed}
- const PRODUCTION_API='https://imperio-backend-production-5086.up.railway.app';
+ const PRODUCTION_API='https://api.imperiodasunhas.com.br';
  function officialProductionMode(){try{let h=String(location?.hostname||'').toLowerCase();return !!h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'}catch(e){return false}}
- function endpoint(){try{let configured=sessionStorage.getItem(SESSION_URL)||window.IMPERIO_API_BASE||'',fallback=officialProductionMode()?PRODUCTION_API:'http://127.0.0.1:3000';return String(configured||fallback).replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
+ function endpoint(){if(officialProductionMode())return PRODUCTION_API;try{let configured=sessionStorage.getItem(SESSION_URL)||window.IMPERIO_API_BASE||'';return String(configured||'http://127.0.0.1:3000').replace(/\/+$/,'')}catch(e){return 'http://127.0.0.1:3000'}}
  function enabled(){try{return sessionStorage.getItem(SESSION_ENABLED)==='1'}catch(e){return false}}
  function setEnabled(v){try{if(v)sessionStorage.setItem(SESSION_ENABLED,'1');else sessionStorage.removeItem(SESSION_ENABLED)}catch(e){}if(!v)cache={catalog:null,key:'',verified:false,inFlight:false,lastError:'',lastAttemptAt:0};return enabled()}
  function probe(){if(!window.__imperioV96?.localProbe)throw new Error('Probe V96 indisponível');return window.__imperioV96.localProbe()}
@@ -7772,7 +7772,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  if(legacyUnitChangeV99){let wrapped=function(){let requested=document.getElementById('unitPicker')?.value||'';phase5Context.invalidate();let out=legacyUnitChangeV99.apply(this,arguments);if(officialProductionMode()&&centralAuthenticated()){applyCentralUnitGate();let picker=document.getElementById('unitPicker');if(picker&&[...picker.options].some(x=>x.value===requested))picker.value=requested}return out};window.handleUnitChange=wrapped;try{handleUnitChange=wrapped}catch(e){}}
 
  const legacyStaffLoginV99=window.doLogin||((typeof doLogin==='function')?doLogin:null);
- if(legacyStaffLoginV99){let wrapped=function(){if(!officialProductionMode())return legacyStaffLoginV99.apply(this,arguments);let ue=document.getElementById('loginUser'),pe=document.getElementById('loginPass'),username=ue?.value.trim()||'',password=pe?.value||'';if(!username||!password){toast('Informe usuário e senha');return false}return (async()=>{try{let res=await fetch(endpoint()+'/api/v1/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({username,password})}),txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}if(!res.ok||!data.user)throw centralError(data,res.status);let local=(db.userAccounts||[]).find(x=>String(x.username||'').trim().toLowerCase()===username.toLowerCase()&&x.active!==false);/* In central mode the verified backend principal can log in without a migrated local identity. */let healthRes=await fetch(endpoint()+'/api/v1/health',{credentials:'include',headers:{'Accept':'application/json'}}),health=healthRes.ok?await healthRes.json():{};setCentralWriteUnits(health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)?health.operationalWriteUnits:[]);setCentralSession(data.user,data.csrfToken||'');window.__imperioProfessionalUnitHydration?.hydrateUnits(await centralApi.units());if(local)window.__imperioV63?.sessionSet?.(local.id);if(pe)pe.value='';showOnly('adminApp');buildAdminNav();applyCentralUnitGate();renderAdmin();toast('Sessão central autenticada ✓');return true}catch(e){setCentralSession(null);toast('Login não realizado: '+(e?.message||e));return false}})()};window.doLogin=wrapped;try{doLogin=wrapped}catch(e){}}
+ if(legacyStaffLoginV99){let wrapped=function(){if(!officialProductionMode())return legacyStaffLoginV99.apply(this,arguments);let ue=document.getElementById('loginUser'),pe=document.getElementById('loginPass'),username=ue?.value.trim()||'',password=pe?.value||'';if(!username||!password){toast('Informe usuário e senha');return false}return (async()=>{try{let res=await fetch(endpoint()+'/api/v1/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({username,password})}),txt=await res.text(),data={};try{data=txt?JSON.parse(txt):{}}catch(e){data={message:txt}}if(!res.ok||!data.user)throw centralError(data,res.status);let verify=await fetch(endpoint()+'/api/v1/auth/me',{credentials:'include',headers:{Accept:'application/json'}});let verified=verify.ok?await verify.json():null;if(!verified?.user||verified.user.userId!==data.user.userId)throw new Error('Sessão não confirmada pelo servidor');let local=(db.userAccounts||[]).find(x=>String(x.username||'').trim().toLowerCase()===username.toLowerCase()&&x.active!==false);/* In central mode the verified backend principal can log in without a migrated local identity. */let healthRes=await fetch(endpoint()+'/api/v1/health',{credentials:'include',headers:{'Accept':'application/json'}}),health=healthRes.ok?await healthRes.json():{};setCentralWriteUnits(health.operationalWritesEnabled===true&&Array.isArray(health.operationalWriteUnits)?health.operationalWriteUnits:[]);setCentralSession(data.user,data.csrfToken||'');window.__imperioProfessionalUnitHydration?.hydrateUnits(await centralApi.units());if(local)window.__imperioV63?.sessionSet?.(local.id);if(pe)pe.value='';showOnly('adminApp');buildAdminNav();applyCentralUnitGate();renderAdmin();toast('Sessão central autenticada ✓');return true}catch(e){setCentralSession(null);toast('Login não realizado: '+(e?.message||e));return false}})()};window.doLogin=wrapped;try{doLogin=wrapped}catch(e){}}
 const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  if(legacyLogoutV99){let wrapped=function(){if(!officialProductionMode()){setCentralSession(null);return legacyLogoutV99.apply(this,arguments)}let args=arguments,self=this,token=centralCsrf();return (async()=>{if(centralAuthenticated())await fetch(endpoint()+'/api/v1/auth/logout',{method:'POST',credentials:'include',headers:{...(token?{'X-CSRF-Token':token}:{})}}).catch(()=>{});setCentralSession(null);return legacyLogoutV99.apply(self,args)})()};window.logout=wrapped;try{logout=wrapped}catch(e){}}
  window.__imperioCentralApi=centralApi;
@@ -7849,7 +7849,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
    let primary=head.querySelector?.('.btn-primary');if(primary)head.insertBefore(box,primary);else head.appendChild(box);return true
   }catch(e){return false}
  }
- function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
+ function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://api.imperiodasunhas.com.br').replace(/\/+$/,'')}catch(e){return 'https://api.imperiodasunhas.com.br'}}
  function csrf(){try{return sessionStorage.getItem(CSRF_KEY)||''}catch(e){return ''}}
  async function request(path,opt={}){
   let hasBody=opt.body!==undefined,headers={Accept:'application/json',...(hasBody?{'Content-Type':'application/json'}:{})},token=csrf();
@@ -7933,7 +7933,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  const CANONICAL_UNITS=['centro','big','shopping-contagem'];
  const cache=new Map();let homeRefresh=null,publicUnitsCache={at:0,data:null},slotSearchGeneration=0,alternativeRecommendationState=[],publicCatalogCategory='',publicCatalogQuery='';
  function production(){try{let h=String(location?.hostname||'').toLowerCase();return !!h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'}catch(e){return false}}
- function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
+ function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://api.imperiodasunhas.com.br').replace(/\/+$/,'')}catch(e){return 'https://api.imperiodasunhas.com.br'}}
  function errorOf(data,status){let m=Array.isArray(data?.message)?data.message.join(' · '):(data?.message||('HTTP '+status));let e=new Error(String(m));e.status=status;return e}
  async function centralPublicRequest(path,opt={}){
   let hasBody=opt.body!==undefined,headers={Accept:'application/json',...(hasBody?{'Content-Type':'application/json'}:{}),...(opt.key?{'Idempotency-Key':opt.key}:{})};
@@ -8204,7 +8204,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  function networkAdmin(){return principal()?.networkAdmin===true}
  function canShow(){return localAdmin()&&(!productionMode()||networkAdmin())}
  function canRun(){return localAdmin()&&networkAdmin()}
- function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
+ function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://api.imperiodasunhas.com.br').replace(/\/+$/,'')}catch(e){return 'https://api.imperiodasunhas.com.br'}}
  function csrf(){try{return sessionStorage.getItem(CSRF_KEY)||''}catch(e){return ''}}
  function dtValue(){let d=new Date();return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
  function unitCard(u){
@@ -8354,7 +8354,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  function esc(v){return typeof escapeHtml==='function'?escapeHtml(String(v==null?'':v)):String(v==null?'':v)}
  function principal(){try{return JSON.parse(sessionStorage.getItem(PRINCIPAL_KEY)||'null')}catch(e){return null}}
  function canUse(){let p=principal();return !!p&&(p.networkAdmin===true||(Array.isArray(p.permissions)&&p.permissions.includes(PERMISSION)))}
- function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
+ function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://api.imperiodasunhas.com.br').replace(/\/+$/,'')}catch(e){return 'https://api.imperiodasunhas.com.br'}}
  function csrf(){try{return sessionStorage.getItem(CSRF_KEY)||''}catch(e){return ''}}
  function normalize(v){return String(v==null?'':v).trim().toLowerCase().replace(/\s+/g,' ')}
  function errorMessage(data,status){let m=data?.message||data?.error||('HTTP '+status);return Array.isArray(m)?m.join(' · '):String(m)}
@@ -8535,7 +8535,7 @@ const legacyLogoutV99=window.logout||((typeof logout==='function')?logout:null);
  function production(){try{let h=String(location?.hostname||'').toLowerCase();return !!h&&h!=='localhost'&&h!=='127.0.0.1'&&location?.protocol!=='file:'}catch(e){return false}}
  function principal(){try{return JSON.parse(sessionStorage.getItem(PRINCIPAL_KEY)||'null')}catch(e){return null}}
  function networkAdmin(){return principal()?.networkAdmin===true}
- function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://imperio-backend-production-5086.up.railway.app').replace(/\/+$/,'')}catch(e){return 'https://imperio-backend-production-5086.up.railway.app'}}
+ function endpoint(){try{return String(window.__imperioCentralApi?.status?.()?.endpoint||'https://api.imperiodasunhas.com.br').replace(/\/+$/,'')}catch(e){return 'https://api.imperiodasunhas.com.br'}}
  function csrf(){try{return sessionStorage.getItem(CSRF_KEY)||''}catch(e){return ''}}
  function centralError(data,status){let m=Array.isArray(data?.message)?data.message.join(' · '):(data?.message||('HTTP '+status));return new Error(String(m))}
  async function request(path,opt={}){
