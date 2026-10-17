@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsIn, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString, Matches, MaxLength, Min, Max, ValidateNested } from 'class-validator';
+import { IsArray, IsIn, IsNotEmpty, IsInt, IsNumber, IsObject, IsOptional, IsString, Matches, MaxLength, Min, Max, ValidateNested } from 'class-validator';
 
 export class OpenCashDto {
  @Matches(/^\d{4}-\d{2}-\d{2}$/) businessDate!:string;
