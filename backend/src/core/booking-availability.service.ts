@@ -2,7 +2,7 @@ import { hasPhysicalCapacity } from './booking-capacity';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { operationalWriteStatus } from '../common/operational-write-gate';
-import { insideUnitOpeningHours, normalizeUnitPublicProfile } from './unit-public-profile';
+import { insideUnitOpeningHours, isCanonicalUnitId, normalizeUnitPublicProfile } from './unit-public-profile';
 
 export const PUBLIC_BOOKING_SLOT_MINUTES=15;
 const TERMINAL_BOOKING_STATUSES=['CANCELLED','CANCELED','CANCELADO','Cancelado','Faltou'];
@@ -76,6 +76,7 @@ export class BookingAvailabilityService {
     if(!requested)throw new ConflictException('Unidade é obrigatória');
     const unit=await this.prisma.unit.findFirst({where:{id:requested,active:true},select:{id:true,name:true,timezone:true,legacyPayload:true}});
     if(!unit)throw new NotFoundException('Unidade indisponível');
+    if(!isCanonicalUnitId(requested))throw new NotFoundException('Unidade canônica indisponível');
     const unitProfile=normalizeUnitPublicProfile(obj(unit.legacyPayload).publicProfile,requested);
     const [serviceRows,links]=await Promise.all([
       this.prisma.service.findMany({
