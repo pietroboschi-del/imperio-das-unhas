@@ -15,7 +15,7 @@ ok(html.includes("let uid=opt.unitRequired===false?'':await ensureCentralUnitId(
 ok(html.includes("CENTRAL_CSRF_KEY='imperio-v96-shadow-csrf'"),'CSRF central usa armazenamento autenticado');
 ok(html.includes("function centralCsrf(){try{return sessionStorage.getItem(CENTRAL_CSRF_KEY)||''}"),'escritas reutilizam CSRF da sessão backend');
 ok(html.includes("const PRODUCTION_API='https://api.imperiodasunhas.com.br'"),'API central de produção configurada');
-ok(html.includes("if(officialProductionMode())return PRODUCTION_API"),'localhost permanece somente para desenvolvimento');
+ok(html.includes("if(officialProductionMode()&&!String(location.hostname||'').toLowerCase().endsWith('.localhost'))return PRODUCTION_API"),'localhost permanece somente para desenvolvimento');
 ok(html.includes("sourceOfTruth:centralEnabled()?'postgresql_central':'blocked_or_legacy_local'"),'status distingue fonte central de unidade bloqueada/desenvolvimento');
 ok(html.includes("db.bookings=(db.bookings||[]).filter(b=>!(b.unit===uid&&b.date===date))"),'refresh central substitui agenda local da unidade/dia e evita mistura silenciosa');
 ok(html.includes("registrationUnit:UNIT_TO_LOCAL[x.registrationUnitId]"),'cliente central retorna ao ID local de apresentação');
