@@ -28,12 +28,26 @@ def attach(context):
     page.add_init_script(f"window.IMPERIO_API_BASE={json.dumps(API)};")
     page.route("**/*", lambda route:route.continue_() if urlsplit(route.request.url).hostname in ("127.0.0.1",) else route.abort())
     page.goto(UI+"/index.html",wait_until="domcontentloaded",timeout=30000)
-    page.get_by_role("button",name="Área da equipe").click()
-    page.locator("#loginUser").fill(os.environ["ADMIN_USERNAME"])
-    page.locator("#loginPass").fill(os.environ["ADMIN_PASSWORD"])
-    page.get_by_role("button",name="Entrar",exact=True).click()
-    page.wait_for_function("sessionStorage.getItem('imperio-v99-central-authenticated')==='1'",timeout=15000)
-    page.wait_for_function("!!window.__a3Finance",timeout=15000)
+    # The local loopback host deliberately uses the legacy UI login path.
+    # Authenticate through the real backend, verify /auth/me and establish
+    # the same browser session keys that the verified central UI login sets.
+    result=page.evaluate("""async ({api,username,password})=>{
+      const login=await fetch(api+'/api/v1/auth/login',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+      const data=await login.json();
+      if(!login.ok||!data.user)throw new Error('Central login failed: '+login.status);
+      const me=await fetch(api+'/api/v1/auth/me',{credentials:'include'});
+      const verified=await me.json();
+      if(!me.ok||verified?.user?.userId!==data.user.userId)throw new Error('Backend session verification failed');
+      const health=await fetch(api+'/api/v1/health',{credentials:'include'}).then(r=>r.json());
+      sessionStorage.setItem('imperio-v99-central-authenticated','1');
+      sessionStorage.setItem('imperio-v99-central-principal',JSON.stringify(verified.user));
+      sessionStorage.setItem('imperio-v96-shadow-csrf',data.csrfToken);
+      sessionStorage.setItem('imperio-v99-central-write-units',JSON.stringify(health.operationalWriteUnits||[]));
+      return {verified:true,writeUnits:health.operationalWriteUnits||[]};
+    }""",{"api":API,"username":os.environ["ADMIN_USERNAME"],"password":os.environ["ADMIN_PASSWORD"]})
+    assert result["verified"] and "centro" in result["writeUnits"],result
+    page.reload(wait_until="domcontentloaded")
+    page.wait_for_function("!!window.__a3Finance&&window.__imperioCentralApi.status().enabled",timeout=15000)
     return page
 
 JS_CALL="""async ({method,path,body,key})=>{
