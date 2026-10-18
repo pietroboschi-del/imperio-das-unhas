@@ -5,8 +5,18 @@ import {PrismaClient} from '@prisma/client';
 import {ensureCanonicalUnits} from '../dist/src/core/canonical-units.js';
 const prisma=new PrismaClient();let checks=0;const eq=(a,b,m)=>{checks++;assert.equal(a,b,m)},ok=(v,m)=>{checks++;assert.ok(v,m)},sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const date='2030-10-08',unit='centro',secret='w3c3-secret',services=['w3c3-maint','w3c3-mani','w3c3-pedi'],pros=['w3c3-a','w3c3-b','w3c3-c'],client='w3c3-client';
+async function configureTestUnitHours(){
+ const ids=['big','centro','shopping-contagem'];
+ const rows=await prisma.unit.findMany({where:{id:{in:ids}},select:{id:true,legacyPayload:true}});
+ for(const row of rows){const legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload:{};
+ const profile=legacy.publicProfile&&typeof legacy.publicProfile==='object'&&!Array.isArray(legacy.publicProfile)?legacy.publicProfile:{};
+ await prisma.unit.update({where:{id:row.id},data:{legacyPayload:{...legacy,publicProfile:{...profile,openingHours:Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'19:00'}]))}}}});}
+ return rows;
+}
+async function restoreTestUnitHours(rows){for(const row of rows)await prisma.unit.update({where:{id:row.id},data:{legacyPayload:row.legacyPayload??undefined}}).catch(()=>{});}
+let savedTestUnitHours=[];
 async function cleanup(){await prisma.auditEvent.deleteMany({where:{entityId:{startsWith:'wa_'}}}).catch(()=>{});await prisma.booking.deleteMany({where:{OR:[{serviceId:{in:services}},{id:{startsWith:'wa_'}}]}}).catch(()=>{});await prisma.clientUnitLink.deleteMany({where:{clientId:client}}).catch(()=>{});await prisma.client.deleteMany({where:{id:client}}).catch(()=>{});await prisma.workstation.deleteMany({where:{id:{startsWith:'w3c3-ws'}}}).catch(()=>{});await prisma.professionalUnit.deleteMany({where:{professionalId:{in:pros}}}).catch(()=>{});await prisma.professional.deleteMany({where:{id:{in:pros}}}).catch(()=>{});await prisma.service.deleteMany({where:{id:{in:services}}}).catch(()=>{});await prisma.serviceCategory.deleteMany({where:{id:{in:['w3c3-h','w3c3-f']}}}).catch(()=>{})}
-async function setup(){await ensureCanonicalUnits(prisma);await cleanup();await prisma.serviceCategory.createMany({data:[{id:'w3c3-h',name:'Hands',active:true},{id:'w3c3-f',name:'Feet',active:true}]});await prisma.service.createMany({data:[
+async function setup(){await ensureCanonicalUnits(prisma);savedTestUnitHours=await configureTestUnitHours();await cleanup();await prisma.serviceCategory.createMany({data:[{id:'w3c3-h',name:'Hands',active:true},{id:'w3c3-f',name:'Feet',active:true}]});await prisma.service.createMany({data:[
 {id:'w3c3-maint',name:'Manutenção',categoryId:'w3c3-h',price:'100',durationMin:75,active:true,legacyPayload:{show:true,online:true,clientArea:'hands',mustFinishBeforeSameArea:true,proRules:{'w3c3-a':{enabled:true,online:true,duration:75,price:100}}}},
 {id:'w3c3-mani',name:'Manicure',categoryId:'w3c3-h',price:'40',durationMin:45,active:true,legacyPayload:{show:true,online:true,clientArea:'hands',mustFinishBeforeSameArea:false,proRules:{'w3c3-b':{enabled:true,online:true,duration:45,price:40}}}},
 {id:'w3c3-pedi',name:'Pedicure',categoryId:'w3c3-f',price:'45',durationMin:50,active:true,legacyPayload:{show:true,online:true,clientArea:'feet',mustFinishBeforeSameArea:false,proRules:{'w3c3-c':{enabled:true,online:true,duration:50,price:45}}}},
@@ -25,4 +35,4 @@ const retry=await post(server,'/api/v1/integrations/whatsapp-agent/bookings/mult
 q=await post(server,'/api/v1/integrations/whatsapp-agent/availability/multi',{unitId:unit,date,services:specs});ok(q.data.visits.length>0,'outra visita ainda disponível');const next=q.data.visits[0];const tampered={...body,items:next.items.map(x=>({serviceId:x.serviceId,professionalId:x.professionalId,startAt:x.startAt}))};tampered.items[0]={...tampered.items[0],startAt:new Date(new Date(tampered.items[0].startAt).getTime()+7*60000).toISOString()};r=await post(server,'/api/v1/integrations/whatsapp-agent/bookings/multi',tampered,'w3c3-tampered');eq(r.response.status,409,'combinação inventada é rejeitada');
 q=await post(server,'/api/v1/integrations/whatsapp-agent/availability/multi',{unitId:unit,date,services:specs});const raceVisit=q.data.visits[0];const raceBody={...body,items:raceVisit.items.map(x=>({serviceId:x.serviceId,professionalId:x.professionalId,startAt:x.startAt}))};await prisma.workstation.update({where:{id:'w3c3-ws-f'},data:{active:false}});r=await post(server,'/api/v1/integrations/whatsapp-agent/bookings/multi',raceBody,'w3c3-capacity');eq(r.response.status,409,'capacidade perdida entre leitura e criação gera conflito');
 console.log(JSON.stringify({ok:true,checks,feature:'wa3c3_authoritative_multi_booking'}));
-}finally{await stop(server)}}finally{await cleanup().catch(()=>{});await prisma.$disconnect()}
+}finally{await stop(server)}}finally{await cleanup().catch(()=>{});await restoreTestUnitHours(savedTestUnitHours);await prisma.$disconnect()}
