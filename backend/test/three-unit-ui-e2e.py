@@ -457,7 +457,7 @@ def main():
                 # not authorize bookings when unit opening hours are unset.
                 for unit in ("u3","u1","u2"):
                     page.locator("#unitPicker").select_option(value=unit)
-                    page.get_by_role("button",name="Unidade pública").click()
+                    page.evaluate("() => window.setPage(\'unit-profile\')")
                     page.wait_for_function("() => !!document.querySelector('.v99upp-day[data-day=monday] .v99upp-state')",timeout=15000)
                     monday_row=page.locator('.v99upp-day[data-day="monday"]')
                     monday_row.locator(".v99upp-state").select_option(value="OPEN")
