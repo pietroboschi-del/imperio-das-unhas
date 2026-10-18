@@ -40,8 +40,9 @@ async function setup(){
  const connected=await prisma.$queryRawUnsafe('SELECT current_database() AS name,current_schema() AS schema');
  eq(connected[0]?.schema,SCHEMA,'isolated Prisma schema identity');
  eq(connected[0]?.name,process.env.READINESS_TEST_DATABASE,'isolated Prisma database identity');
+ const testHours=Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'18:00'}]));
  for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']]){
-  await prisma.unit.create({data:{id,name,timezone:'America/Sao_Paulo',active:true}});
+  await prisma.unit.create({data:{id,name,timezone:'America/Sao_Paulo',active:true,legacyPayload:{publicProfile:{openingHours:testHours}}}});
  }
  const createAdmin=spawnSync('npm',['run','admin:create'],{cwd:new URL('../',import.meta.url),env:env(u),encoding:'utf8',timeout:60000});
  eq(createAdmin.status,0,'owner created with real credential hashing');
