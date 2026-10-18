@@ -458,7 +458,7 @@ def main():
                 for unit in ("u3","u1","u2"):
                     page.locator("#unitPicker").select_option(value=unit)
                     page.get_by_role("button",name="Unidade pública").click()
-                    page.wait_for_function("() => !!document.querySelector('.v99upp-day[data-day=\\"monday\\"] .v99upp-state')",timeout=15000)
+                    page.wait_for_function("() => !!document.querySelector('.v99upp-day[data-day=monday] .v99upp-state')",timeout=15000)
                     monday_row=page.locator('.v99upp-day[data-day="monday"]')
                     monday_row.locator(".v99upp-state").select_option(value="OPEN")
                     monday_row.locator(".v99upp-open").fill("08:00")
