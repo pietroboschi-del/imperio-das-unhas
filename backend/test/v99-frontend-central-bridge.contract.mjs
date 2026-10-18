@@ -14,13 +14,13 @@ ok(html.includes("fetch(endpoint()+'/api/v1/health'"),'requisição central recu
 ok(html.includes("let uid=opt.unitRequired===false?'':await ensureCentralUnitId()"),'escritas operacionais resolvem unidade e configuração estrutural pode ser global');
 ok(html.includes("CENTRAL_CSRF_KEY='imperio-v96-shadow-csrf'"),'CSRF central usa armazenamento autenticado');
 ok(html.includes("function centralCsrf(){try{return sessionStorage.getItem(CENTRAL_CSRF_KEY)||''}"),'escritas reutilizam CSRF da sessão backend');
-ok(html.includes("const PRODUCTION_API='https://imperio-backend-production-5086.up.railway.app'"),'API central de produção configurada');
-ok(html.includes("officialProductionMode()?PRODUCTION_API:'http://127.0.0.1:3000'"),'localhost permanece somente para desenvolvimento');
+ok(html.includes("const PRODUCTION_API='https://api.imperiodasunhas.com.br'"),'API central de produção configurada');
+ok(html.includes("if(officialProductionMode())return PRODUCTION_API"),'localhost permanece somente para desenvolvimento');
 ok(html.includes("sourceOfTruth:centralEnabled()?'postgresql_central':'blocked_or_legacy_local'"),'status distingue fonte central de unidade bloqueada/desenvolvimento');
 ok(html.includes("db.bookings=(db.bookings||[]).filter(b=>!(b.unit===uid&&b.date===date))"),'refresh central substitui agenda local da unidade/dia e evita mistura silenciosa');
 ok(html.includes("registrationUnit:UNIT_TO_LOCAL[x.registrationUnitId]"),'cliente central retorna ao ID local de apresentação');
 ok(html.includes("if(!officialProductionMode())"),'produção não autentica silenciosamente pelo legado');
-ok(html.includes("applyCentralUnitGate();renderAdmin();toast('Sessão central autenticada ✓')"),'login central aplica gate antes da operação');
+ok(html.includes("fetch(endpoint()+'/api/v1/auth/me'")&&html.includes("verified.user.userId!==data.user.userId")&&html.includes("applyCentralUnitGate();renderAdmin();toast('Sessão central autenticada ✓')"),'login confirma sessão no servidor e aplica gate antes da operação');
 ok(html.includes("function centralPermissionUserV99()"),'permissões V67 projetam usuário central autenticado');
 ok(html.includes("sessionStorage.getItem('imperio-v99-central-principal')")&&html.includes("p.networkAdmin===true")&&html.includes("networkAdmin:true"),'networkAdmin central sem usuário legado local consegue atravessar guards administrativos');
 ok(html.includes("window.__imperioStructuralCentral?.patchServiceStructuralActions?.()"),'refresh assíncrono de serviços centrais preserva ações estruturais de Categorias/Estações');
