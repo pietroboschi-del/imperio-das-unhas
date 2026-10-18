@@ -21,7 +21,8 @@ async function cleanupStockLocationDependencies(){
 async function main(){
  await cleanupStockLocationDependencies();
  await prisma.auditEvent.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.serviceCategory.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.unit.deleteMany();
- for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
+ const testOpeningHours=Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'19:00'}]));
+ for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name,legacyPayload:{publicProfile:{openingHours:testOpeningHours}}}});
  await prisma.service.createMany({data:[
   {id:'long',name:'Alongamento',price:'120',durationMin:90,legacyPayload:{show:true,online:true,showPrice:true,publicDescription:'Alongamento público',websiteOrder:2,proRules:{'p-all':{enabled:true,duration:90,commission:55,price:125,online:true}}}},
   {id:'short',name:'Manicure',price:'50',durationMin:30,legacyPayload:{show:true,online:true,showPrice:false,websiteOrder:1,proRules:{'p-all':{enabled:true,duration:30,commission:50,price:50,online:true}}}},
