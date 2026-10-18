@@ -7,7 +7,8 @@ async function waitHealth(){for(let i=0;i<60;i++){try{const r=await fetch(base+'
 const cookieOf=r=>(r.headers.get('set-cookie')||'').split(';')[0];
 async function main(){
  await prisma.auditEvent.deleteMany();await prisma.booking.deleteMany();await prisma.clientUnitLink.deleteMany();await prisma.client.deleteMany();await prisma.professionalUnit.deleteMany();await prisma.professional.deleteMany();await prisma.service.deleteMany();await prisma.serviceCategory.deleteMany();await prisma.loginRateLimit.deleteMany();await prisma.userCredentialToken.deleteMany();await prisma.session.deleteMany();await prisma.userUnitAccess.deleteMany();await prisma.unit.deleteMany();
- for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name}});
+ const testHours=Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'23:00'}]));
+ for(const [id,name] of [['big','Big Shopping'],['centro','Centro de Contagem'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name,legacyPayload:{publicProfile:{openingHours:testHours}}}});
  await prisma.service.create({data:{id:'s1',name:'Manicure',price:'50.00',durationMin:60}});
  await prisma.professional.create({data:{id:'p1',name:'Profissional 1',legacyPayload:{schedule:Object.fromEntries(['centro','big','shopping-contagem'].flatMap(u=>Array.from({length:7},(_,d)=>[u+'-'+d,{work:true,start:'09:00',end:'23:00'}])))},units:{create:[{unitId:'centro'},{unitId:'big'}]}}});
  const server=spawn(process.execPath,['dist/src/main.js'],{cwd:new URL('../',import.meta.url),env:{...process.env,OPERATIONAL_WRITES_ENABLED:'true',OPERATIONAL_WRITES_UNITS:'centro,big'},stdio:['ignore','pipe','pipe']});
