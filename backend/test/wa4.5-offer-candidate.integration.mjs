@@ -3,10 +3,20 @@ import {PrismaClient} from '@prisma/client';
 import {ensureCanonicalUnits} from '../dist/src/core/canonical-units.js';
 import {BookingAvailabilityService} from '../dist/src/core/booking-availability.service.js';
 import {WaitlistOpportunityService} from '../dist/src/core/waitlist-opportunity.service.js';
-const prisma=new PrismaClient();let checks=0;const eq=(a,b,m)=>{checks++;assert.equal(a,b,m)},ok=(v,m)=>{checks++;assert.ok(v,m)};
+const prisma=new PrismaClient();let savedUnitOpeningHours=[];
+async function openTestUnits(){
+ const ids=['centro','big','shopping-contagem'];
+ savedUnitOpeningHours=await prisma.unit.findMany({where:{id:{in:ids}},select:{id:true,legacyPayload:true}});
+ const hours=Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'19:00'}]));
+ for(const unit of savedUnitOpeningHours){const legacy=unit.legacyPayload&&typeof unit.legacyPayload==='object'&&!Array.isArray(unit.legacyPayload)?unit.legacyPayload:{};
+ const profile=legacy.publicProfile&&typeof legacy.publicProfile==='object'&&!Array.isArray(legacy.publicProfile)?legacy.publicProfile:{};
+ await prisma.unit.update({where:{id:unit.id},data:{legacyPayload:{...legacy,publicProfile:{...profile,openingHours:hours}}}});}
+}
+async function restoreTestUnits(){for(const unit of savedUnitOpeningHours)await prisma.unit.update({where:{id:unit.id},data:{legacyPayload:unit.legacyPayload??undefined}}).catch(()=>{});}
+let checks=0;const eq=(a,b,m)=>{checks++;assert.equal(a,b,m)},ok=(v,m)=>{checks++;assert.ok(v,m)};
 const date='2030-10-08',service='wa45-s',pro='wa45-p';
 async function cleanup(){await prisma.auditEvent.deleteMany({where:{OR:[{action:'waitlist.offer_candidate_ready'},{action:'waitlist.opportunity_found'}]}}).catch(()=>{});await prisma.waitlistOpportunity.deleteMany({where:{requestId:'wa45-r'}}).catch(()=>{});await prisma.waitlistRequest.deleteMany({where:{id:'wa45-r'}}).catch(()=>{});await prisma.workstation.deleteMany({where:{id:'wa45-ws'}}).catch(()=>{});await prisma.professionalUnit.deleteMany({where:{professionalId:pro}}).catch(()=>{});await prisma.professional.deleteMany({where:{id:pro}}).catch(()=>{});await prisma.service.deleteMany({where:{id:service}}).catch(()=>{});await prisma.serviceCategory.deleteMany({where:{id:'wa45-cat'}}).catch(()=>{})}
-try{await prisma.$connect();process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';await ensureCanonicalUnits(prisma);await cleanup();
+try{await prisma.$connect();process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';await ensureCanonicalUnits(prisma);await openTestUnits();await cleanup();
 await prisma.serviceCategory.create({data:{id:'wa45-cat',name:'WA45',active:true}});
 await prisma.service.create({data:{id:service,name:'WA45 Serviço',categoryId:'wa45-cat',price:'50',durationMin:30,active:true,legacyPayload:{show:true,online:true,clientArea:'hands',proRules:{[pro]:{enabled:true,online:true}}}}});
 await prisma.professional.create({data:{id:pro,name:'WA45 Pro',active:true,legacyPayload:{show:true,online:true,services:[service],schedule:{'centro-2':{work:true,start:'09:00',end:'18:00'}}}}});
@@ -25,4 +35,4 @@ eq(await prisma.auditEvent.count({where:{action:'waitlist.offer_candidate_ready'
 eq(await prisma.messagingOutbox.count(),beforeOutbox,'WA4.5 não cria outbound');
 eq(await prisma.booking.count({where:{id:{startsWith:'wa45'}}}),0,'WA4.5 não cria booking');
 console.log(JSON.stringify({ok:true,checks,feature:'wa4_5_offer_candidate_ready',externalMessages:false}));
-}finally{await cleanup().catch(()=>{});await prisma.$disconnect()}
+}finally{await cleanup().catch(()=>{});await restoreTestUnits();await prisma.$disconnect()}
