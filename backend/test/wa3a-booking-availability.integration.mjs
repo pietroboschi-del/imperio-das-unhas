@@ -13,6 +13,7 @@ const date='2030-10-08';
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const ids={services:['wa3a-main','wa3a-inactive'],pros:['wa3a-p1','wa3a-p2','wa3a-no-service','wa3a-unlinked'],bookings:['wa3a-occupied','wa3a-cancelled','wa3a-block']};
 const oldOperational=process.env.OPERATIONAL_WRITES_ENABLED,oldUnits=process.env.OPERATIONAL_WRITES_UNITS;
+let originalUnitProfiles=[];
 
 function localUtc(hour,minute=0,offsetHours=3){
   return new Date(Date.UTC(2030,9,8,hour+offsetHours,minute,0));
@@ -27,7 +28,13 @@ async function cleanup(){
 async function setup(){
   await ensureCanonicalUnits(prisma);
   await cleanup();
-  await prisma.unit.updateMany({where:{id:{in:['big','centro','shopping-contagem']}},data:{active:true,timezone:'America/Sao_Paulo'}});
+  originalUnitProfiles=await prisma.unit.findMany({where:{id:{in:['big','centro','shopping-contagem']}},select:{id:true,legacyPayload:true}});
+  const openingHours=Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'18:00'}]));
+  for(const unit of originalUnitProfiles){
+    const legacy=unit.legacyPayload&&typeof unit.legacyPayload==='object'&&!Array.isArray(unit.legacyPayload)?unit.legacyPayload:{};
+    const profile=legacy.publicProfile&&typeof legacy.publicProfile==='object'&&!Array.isArray(legacy.publicProfile)?legacy.publicProfile:{};
+    await prisma.unit.update({where:{id:unit.id},data:{active:true,timezone:'America/Sao_Paulo',legacyPayload:{...legacy,publicProfile:{...profile,openingHours}}}});
+  }
   await prisma.service.createMany({data:[
     {id:'wa3a-main',name:'WA3A Manicure',price:'50',durationMin:30,active:true,legacyPayload:{show:true,online:true,showPrice:true,proRules:{
       'wa3a-p1':{enabled:true,online:true,duration:45,price:55},
@@ -223,6 +230,6 @@ try{
   process.env.OPERATIONAL_WRITES_ENABLED=oldOperational;
   if(oldUnits===undefined)delete process.env.OPERATIONAL_WRITES_UNITS;else process.env.OPERATIONAL_WRITES_UNITS=oldUnits;
   await cleanup().catch(()=>{});
-  await prisma.unit.updateMany({where:{id:{in:['big','centro','shopping-contagem']}},data:{active:true,timezone:'America/Sao_Paulo'}}).catch(()=>{});
+  for(const unit of originalUnitProfiles)await prisma.unit.update({where:{id:unit.id},data:{active:true,timezone:'America/Sao_Paulo',legacyPayload:unit.legacyPayload??undefined}}).catch(()=>{});
   await prisma.$disconnect();
 }
