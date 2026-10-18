@@ -10,7 +10,17 @@ import {MessagingAutomationService} from '../dist/src/messaging/messaging-automa
 import {BookingAutomationMaterializationService} from '../dist/src/messaging/booking-automation-materialization.service.js';
 import {BookingAutomationLifecycleService} from '../dist/src/messaging/booking-automation-lifecycle.service.js';
 
-const prisma=new PrismaClient();
+const prisma=new PrismaClient();let savedUnitOpeningHours=[];
+async function openTestUnits(){
+ const ids=['centro','big','shopping-contagem'];
+ savedUnitOpeningHours=await prisma.unit.findMany({where:{id:{in:ids}},select:{id:true,legacyPayload:true}});
+ const hours=Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'19:00'}]));
+ for(const unit of savedUnitOpeningHours){const legacy=unit.legacyPayload&&typeof unit.legacyPayload==='object'&&!Array.isArray(unit.legacyPayload)?unit.legacyPayload:{};
+ const profile=legacy.publicProfile&&typeof legacy.publicProfile==='object'&&!Array.isArray(legacy.publicProfile)?legacy.publicProfile:{};
+ await prisma.unit.update({where:{id:unit.id},data:{legacyPayload:{...legacy,publicProfile:{...profile,openingHours:hours}}}});}
+}
+async function restoreTestUnits(){for(const unit of savedUnitOpeningHours)await prisma.unit.update({where:{id:unit.id},data:{legacyPayload:unit.legacyPayload??undefined}}).catch(()=>{});}
+
 let checks=0;
 const ok=(v,m)=>{checks++;assert.ok(v,m)};
 const eq=(a,b,m)=>{checks++;assert.equal(a,b,m)};
@@ -47,7 +57,7 @@ async function cleanup(){
 }
 
 async function setup(){
- await ensureCanonicalUnits(prisma);
+ await ensureCanonicalUnits(prisma);await openTestUnits();
  await cleanup();
  await prisma.unit.updateMany({where:{id:{in:units}},data:{active:true,timezone:'America/Sao_Paulo'}});
  await prisma.serviceCategory.createMany({data:[
@@ -177,5 +187,5 @@ try{
  console.log(JSON.stringify({ok:true,checks,feature:'wa4_end_to_end',units,externalMessages:false,automaticBooking:false,financialWrites:false}));
 }finally{
  await cleanup().catch(()=>{});
- await prisma.$disconnect();
+ await restoreTestUnits();await prisma.$disconnect();
 }
