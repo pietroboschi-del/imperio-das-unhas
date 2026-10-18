@@ -452,6 +452,21 @@ def main():
                 print(json.dumps({"ok":True,"scenario":"3C-two-professionals-global-history","rows":visible[:8]},ensure_ascii=False))
 
 
+                # Configure Monday opening hours through the real admin UI before
+                # asserting public availability. A professional shift alone does
+                # not authorize bookings when unit opening hours are unset.
+                for unit in ("u3","u1","u2"):
+                    page.locator("#unitPicker").select_option(value=unit)
+                    page.get_by_role("button",name="Unidade pública").click()
+                    page.wait_for_function("() => !!document.querySelector('.v99upp-day[data-day=\\"monday\\"] .v99upp-state')",timeout=15000)
+                    monday_row=page.locator('.v99upp-day[data-day="monday"]')
+                    monday_row.locator(".v99upp-state").select_option(value="OPEN")
+                    monday_row.locator(".v99upp-open").fill("08:00")
+                    monday_row.locator(".v99upp-close").fill("18:00")
+                    page.get_by_role("button",name="Salvar perfil da unidade").click()
+                    page.wait_for_function("() => document.body.innerText.includes('Perfil público salvo no banco central')",timeout=15000)
+                    page.wait_for_timeout(300)
+                print(json.dumps({"ok":True,"scenario":"3C-unit-opening-hours-configured-via-admin-ui","units":["centro","big","shopping-contagem"],"monday":"08:00-18:00"},ensure_ascii=False))
                 # 3D — genuine public booking from public unit cards, with no SQL/API fixture.
                 # Retain the synthetic catalogue/professional built by 3B, but start from
                 # the actual public landing page as an unaided browser visitor.
