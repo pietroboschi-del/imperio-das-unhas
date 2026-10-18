@@ -19,7 +19,8 @@ async function clean(){
 }
 async function main(){
  await clean();
- for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name,active:true}});
+ const hours=Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'23:00'}]));
+ for(const [id,name] of [['centro','Centro de Contagem'],['big','Big Shopping'],['shopping-contagem','Shopping Contagem']])await prisma.unit.create({data:{id,name,active:true,legacyPayload:{publicProfile:{openingHours:hours}}}});
  await prisma.serviceCategory.createMany({data:[{id:'hands-cat',name:'Mãos'},{id:'feet-cat',name:'Pés'}]});
  await prisma.service.createMany({data:[
   {id:'mani',categoryId:'hands-cat',name:'Manicure',price:'45',durationMin:45,legacyPayload:{clientArea:'hands',mustFinishBeforeSameArea:false,proRules:{p1:{enabled:true,duration:50,price:55},p2:{enabled:true,duration:40,price:52}}}},
