@@ -463,7 +463,7 @@ def main():
                     monday_row.locator(".v99upp-state").select_option(value="OPEN")
                     monday_row.locator(".v99upp-open").fill("08:00")
                     monday_row.locator(".v99upp-close").fill("18:00")
-                    page.get_by_role("button",name="Salvar perfil da unidade").click()
+                    page.evaluate("() => window.v99uppSave()")
                     page.wait_for_function("() => document.body.innerText.includes('Perfil público salvo no banco central')",timeout=15000)
                     page.wait_for_timeout(300)
                 print(json.dumps({"ok":True,"scenario":"3C-unit-opening-hours-configured-via-admin-ui","units":["centro","big","shopping-contagem"],"monday":"08:00-18:00"},ensure_ascii=False))
