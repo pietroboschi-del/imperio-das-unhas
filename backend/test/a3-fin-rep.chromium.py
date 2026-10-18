@@ -9,8 +9,8 @@ ROOT=Path(__file__).resolve().parents[2]
 BACKEND=ROOT/"backend"
 FRONT_PORT=3281
 API_PORT=3282
-UI=f"http://ui.imperio.localhost:{FRONT_PORT}"
-API=f"http://api.imperio.localhost:{API_PORT}"
+UI=f"http://127.0.0.1:{FRONT_PORT}"
+API=f"http://127.0.0.1:{API_PORT}"
 db=os.environ.get("DATABASE_URL","")
 if not ("imperio_ci" in db and ("localhost" in db or "127.0.0.1" in db)):
     raise RuntimeError("Refusing A3 Chromium outside isolated imperio_ci")
@@ -26,7 +26,7 @@ def ready(url):
 def attach(context):
     page=context.new_page()
     page.add_init_script(f"window.IMPERIO_API_BASE={json.dumps(API)};")
-    page.route("**/*", lambda route:route.continue_() if urlsplit(route.request.url).hostname in ("ui.imperio.localhost","api.imperio.localhost") else route.abort())
+    page.route("**/*", lambda route:route.continue_() if urlsplit(route.request.url).hostname in ("127.0.0.1",) else route.abort())
     page.goto(UI+"/index.html",wait_until="domcontentloaded",timeout=30000)
     page.get_by_role("button",name="Área da equipe").click()
     page.locator("#loginUser").fill(os.environ["ADMIN_USERNAME"])
@@ -56,7 +56,7 @@ try:
     ready(f"http://127.0.0.1:{FRONT_PORT}/index.html")
     ready(f"http://127.0.0.1:{API_PORT}/api/v1/health")
     with sync_playwright() as pw:
-        browser=pw.chromium.launch(headless=True,args=["--no-proxy-server","--host-resolver-rules=MAP ui.imperio.localhost 127.0.0.1, MAP api.imperio.localhost 127.0.0.1"])
+        browser=pw.chromium.launch(headless=True,args=["--no-proxy-server"])
         try:
             c1=browser.new_context(viewport={"width":1280,"height":800})
             c2=browser.new_context(viewport={"width":1280,"height":800})
