@@ -136,7 +136,7 @@ async function publicJourney(cfg,client){
 async function cashAndCommands(owner,cfg,client){
  for(const unit of UNITS){
   const cash=await good(await req('/api/v1/cash-sessions',{actor:owner,unit,method:'POST',key:'journey-cash-'+unit,body:{businessDate:cfg.date,openingAmount:0}}),'cash open '+unit);
-  const cmd=await good(await req('/api/v1/commands',{actor:owner,unit,method:'POST',key:'journey-command-'+unit,body:{clientId:client.id,serviceDate:cfg.date,grossAmount:50,discountAmount:0}}),'command open '+unit);
+  const cmd=await good(await req('/api/v1/commands',{actor:owner,unit,method:'POST',key:'journey-command-'+unit,body:{clientId:client.id,serviceDate:cfg.date,grossAmount:0,discountAmount:0}}),'command open '+unit);
   await good(await req('/api/v1/commands/'+cmd.id+'/items',{actor:owner,unit,method:'POST',key:'journey-command-line-'+unit,body:{serviceId:cfg.service,professionalId:cfg.pros[unit],unitPrice:50,commissionPercent:40}}),'command item '+unit);
   await good(await req('/api/v1/commands/'+cmd.id+'/payments',{actor:owner,unit,method:'POST',key:'journey-payment-'+unit,body:{cashSessionId:cash.id,method:'PIX',amount:50}}),'payment '+unit);
   eq(Number((await prisma.openCommand.findUniqueOrThrow({where:{id:cmd.id}})).remainingAmount),0,'payment settles command '+unit);
