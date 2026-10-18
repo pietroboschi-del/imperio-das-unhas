@@ -3,11 +3,21 @@ import {PrismaClient} from '@prisma/client';
 import {ensureCanonicalUnits} from '../dist/src/core/canonical-units.js';
 import {BookingAvailabilityService} from '../dist/src/core/booking-availability.service.js';
 import {WaitlistOpportunityService} from '../dist/src/core/waitlist-opportunity.service.js';
-const prisma=new PrismaClient();let checks=0;const ok=(v,m)=>{checks++;assert.ok(v,m)},eq=(a,b,m)=>{checks++;assert.equal(a,b,m)};
+const prisma=new PrismaClient();let savedUnitOpeningHours=[];
+async function openTestUnits(){
+ const ids=['centro','big','shopping-contagem'];
+ savedUnitOpeningHours=await prisma.unit.findMany({where:{id:{in:ids}},select:{id:true,legacyPayload:true}});
+ const hours=Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'19:00'}]));
+ for(const unit of savedUnitOpeningHours){const legacy=unit.legacyPayload&&typeof unit.legacyPayload==='object'&&!Array.isArray(unit.legacyPayload)?unit.legacyPayload:{};
+ const profile=legacy.publicProfile&&typeof legacy.publicProfile==='object'&&!Array.isArray(legacy.publicProfile)?legacy.publicProfile:{};
+ await prisma.unit.update({where:{id:unit.id},data:{legacyPayload:{...legacy,publicProfile:{...profile,openingHours:hours}}}});}
+}
+async function restoreTestUnits(){for(const unit of savedUnitOpeningHours)await prisma.unit.update({where:{id:unit.id},data:{legacyPayload:unit.legacyPayload??undefined}}).catch(()=>{});}
+let checks=0;const ok=(v,m)=>{checks++;assert.ok(v,m)},eq=(a,b,m)=>{checks++;assert.equal(a,b,m)};
 const date='2030-10-08',services=['wa44-maint','wa44-mani','wa44-pedi','wa44-other'],pros=['wa44-a','wa44-b','wa44-c','wa44-d'];
 async function cleanup(){await prisma.waitlistOpportunity.deleteMany({where:{id:{startsWith:'wo_'}}}).catch(()=>{});await prisma.waitlistRequest.deleteMany({where:{id:{startsWith:'wa44-'}}}).catch(()=>{});await prisma.booking.deleteMany({where:{id:{startsWith:'wa44-'}}}).catch(()=>{});await prisma.workstation.deleteMany({where:{id:{startsWith:'wa44-ws'}}}).catch(()=>{});await prisma.professionalUnit.deleteMany({where:{professionalId:{in:pros}}}).catch(()=>{});await prisma.professional.deleteMany({where:{id:{in:pros}}}).catch(()=>{});await prisma.service.deleteMany({where:{id:{in:services}}}).catch(()=>{});await prisma.serviceCategory.deleteMany({where:{id:{in:['wa44-h','wa44-f']}}}).catch(()=>{})}
 async function req(id,unitId,svcs,extra={}){return prisma.waitlistRequest.create({data:{id,unitId,status:'WAITING',legacyPayload:{source:'WHATSAPP_AGENT',services:svcs,serviceIds:svcs.map(x=>x.serviceId),desiredDate:date,desiredDateFrom:date,desiredDateTo:date,timeFrom:'09:00',timeTo:'12:00',acceptsOtherProfessional:true,acceptsOtherUnits:false,...extra}}})}
-try{await prisma.$connect();process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';await ensureCanonicalUnits(prisma);await cleanup();
+try{await prisma.$connect();process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';await ensureCanonicalUnits(prisma);await openTestUnits();await cleanup();
 await prisma.serviceCategory.createMany({data:[{id:'wa44-h',name:'Hands',active:true},{id:'wa44-f',name:'Feet',active:true}]});
 await prisma.service.createMany({data:[
 {id:'wa44-maint',name:'Maint',categoryId:'wa44-h',price:'100',durationMin:75,active:true,legacyPayload:{show:true,online:true,clientArea:'hands',mustFinishBeforeSameArea:true,proRules:{'wa44-a':{enabled:true,online:true,duration:75}}}},
@@ -31,4 +41,4 @@ await req('wa44-other-unit','centro',[{serviceId:'wa44-pedi'}],{acceptsOtherUnit
 await req('wa44-fixed-unit','centro',[{serviceId:'wa44-pedi'}],{acceptsOtherUnits:false});found=await matcher.reevaluateForAvailabilityEvent({unitId:'big',date,sourceType:'CANCELLATION'});ok(!found.some(x=>x.requestId==='wa44-fixed-unit'),'sem flexibilidade outra unidade não associa');
 const beforeBookings=await prisma.booking.count();await matcher.reevaluateForAvailabilityEvent({unitId:'centro',date,sourceType:'CANCELLATION'});eq(await prisma.booking.count(),beforeBookings,'matcher nunca cria/move booking');
 console.log(JSON.stringify({ok:true,checks,feature:'wa4_4_opportunity_match'}));
-}finally{await cleanup().catch(()=>{});await prisma.$disconnect()}
+}finally{await cleanup().catch(()=>{});await restoreTestUnits();await prisma.$disconnect()}
