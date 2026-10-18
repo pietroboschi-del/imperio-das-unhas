@@ -14,6 +14,16 @@ const secret='wa3b-agent-secret-never-log';
 const serviceId='wa3b-service',proId='wa3b-pro',knownClient='wa3b-known-client';
 const bookingPrefix='wa_';
 
+async function configureTestUnitHours(){
+ const ids=['big','centro','shopping-contagem'];
+ const rows=await prisma.unit.findMany({where:{id:{in:ids}},select:{id:true,legacyPayload:true}});
+ for(const row of rows){const legacy=row.legacyPayload&&typeof row.legacyPayload==='object'&&!Array.isArray(row.legacyPayload)?row.legacyPayload:{};
+ const profile=legacy.publicProfile&&typeof legacy.publicProfile==='object'&&!Array.isArray(legacy.publicProfile)?legacy.publicProfile:{};
+ await prisma.unit.update({where:{id:row.id},data:{legacyPayload:{...legacy,publicProfile:{...profile,openingHours:Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'19:00'}]))}}}});}
+ return rows;
+}
+async function restoreTestUnitHours(rows){for(const row of rows)await prisma.unit.update({where:{id:row.id},data:{legacyPayload:row.legacyPayload??undefined}}).catch(()=>{});}
+let savedTestUnitHours=[];
 async function cleanup(){
  await prisma.auditEvent.deleteMany({where:{OR:[{action:'booking.created_from_whatsapp'},{entityId:{startsWith:bookingPrefix}}]}}).catch(()=>{});
  await prisma.booking.deleteMany({where:{OR:[{id:{startsWith:bookingPrefix}},{serviceId}]}}).catch(()=>{});
@@ -26,6 +36,7 @@ async function cleanup(){
 async function setup(){
  await ensureCanonicalUnits(prisma);await cleanup();
  await prisma.unit.updateMany({where:{id:{in:['big','centro','shopping-contagem']}},data:{active:true,timezone:'America/Sao_Paulo'}});
+ savedTestUnitHours=await configureTestUnitHours();
  await prisma.service.create({data:{id:serviceId,name:'WA3B Manicure',price:'55',durationMin:30,active:true,legacyPayload:{show:true,online:true,showPrice:true,proRules:{[proId]:{enabled:true,online:true,duration:30,price:57}}}}});
  await prisma.professional.create({data:{id:proId,name:'WA3B Ana',publicName:'Ana WA3B',active:true,legacyPayload:{show:true,online:true,services:[serviceId],schedule:{
   'big-2':{work:true,start:'09:00',end:'18:00'},
@@ -206,5 +217,5 @@ try{
  await cleanup().catch(()=>{});
  await prisma.booking.deleteMany({where:{id:'wa3b-intervening'}}).catch(()=>{});
  await prisma.client.deleteMany({where:{legacyPayload:{path:['source'],equals:'whatsapp_agent'}}}).catch(()=>{});
- await prisma.$disconnect();
+ await restoreTestUnitHours(savedTestUnitHours);await prisma.$disconnect();
 }
