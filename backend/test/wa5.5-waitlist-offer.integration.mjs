@@ -6,7 +6,17 @@ import {WaitlistOpportunityService} from '../dist/src/core/waitlist-opportunity.
 import {MessagingAutomationService} from '../dist/src/messaging/messaging-automation.service.js';
 import {WaitlistAutomationMaterializationService} from '../dist/src/messaging/waitlist-automation-materialization.service.js';
 
-const prisma=new PrismaClient();
+const prisma=new PrismaClient();let savedUnitOpeningHours=[];
+async function openTestUnits(){
+ const ids=['centro','big','shopping-contagem'];
+ savedUnitOpeningHours=await prisma.unit.findMany({where:{id:{in:ids}},select:{id:true,legacyPayload:true}});
+ const hours=Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(day=>[day,{status:'OPEN',open:'09:00',close:'19:00'}]));
+ for(const unit of savedUnitOpeningHours){const legacy=unit.legacyPayload&&typeof unit.legacyPayload==='object'&&!Array.isArray(unit.legacyPayload)?unit.legacyPayload:{};
+ const profile=legacy.publicProfile&&typeof legacy.publicProfile==='object'&&!Array.isArray(legacy.publicProfile)?legacy.publicProfile:{};
+ await prisma.unit.update({where:{id:unit.id},data:{legacyPayload:{...legacy,publicProfile:{...profile,openingHours:hours}}}});}
+}
+async function restoreTestUnits(){for(const unit of savedUnitOpeningHours)await prisma.unit.update({where:{id:unit.id},data:{legacyPayload:unit.legacyPayload??undefined}}).catch(()=>{});}
+
 const prefix='wa55-ci-'+Date.now(),service=prefix+'-svc',pro=prefix+'-pro',cat=prefix+'-cat';
 const requestIds=[prefix+'-centro-r',prefix+'-big-r'],clientIds=[prefix+'-centro-c',prefix+'-big-c'];
 let opportunityIds=[];
@@ -21,7 +31,7 @@ async function setupUnit(unitId,requestId,clientId){
 
 try{
   await prisma.$connect();process.env.OPERATIONAL_WRITES_ENABLED='true';process.env.OPERATIONAL_WRITES_UNITS='centro,big,shopping-contagem';
-  await ensureCanonicalUnits(prisma);
+  await ensureCanonicalUnits(prisma);await openTestUnits();
   await prisma.serviceCategory.create({data:{id:cat,name:'WA55',active:true}});
   await prisma.service.create({data:{id:service,name:'WA55 Serviço',categoryId:cat,price:'50',durationMin:30,active:true,legacyPayload:{show:true,online:true,clientArea:'hands',proRules:{[pro]:{enabled:true,online:true}}}}});
   await prisma.professional.create({data:{id:pro,name:'WA55 Pro',active:true,legacyPayload:{show:true,online:true,services:[service],schedule:{
@@ -102,5 +112,5 @@ try{
   await prisma.professional.deleteMany({where:{id:pro}}).catch(()=>{});
   await prisma.service.deleteMany({where:{id:service}}).catch(()=>{});
   await prisma.serviceCategory.deleteMany({where:{id:cat}}).catch(()=>{});
-  await prisma.$disconnect();
+  await restoreTestUnits();await prisma.$disconnect();
 }
