@@ -7756,7 +7756,7 @@ button,.btn,input,select,textarea{touch-action:manipulation}
    let discount=commandDiscountTotal(draft),body={clientId:b.clientId,serviceDate:b.date,grossAmount:commandGrossTotal(draft)+discount,discountAmount:discount};
    let pending=null;try{pending=JSON.parse(sessionStorage.getItem(pendingKey)||'null')}catch(e){}
    if(pending&&pending.fingerprint!==fingerprint)throw new Error('Há uma abertura pendente para esta cliente e data; reconcilie antes de criar outra');
-   let key=pending?.key||'agenda_command:'+centralUnit+':'+b.clientId+':'+b.date;
+   let key=pending?.key||'agenda_command:'+centralUnit+':'+b.clientId+':'+b.date+':'+visitIds.join(',');
    sessionStorage.setItem(pendingKey,JSON.stringify({fingerprint,key}));
    let remote=await centralApi.createCommand(body,key);
    if(!remote?.id||remote.unitId!==centralUnit||remote.clientId!==b.clientId||String(remote.serviceDate||'').slice(0,10)!==b.date)throw new Error('Servidor não confirmou os vínculos da comanda');
