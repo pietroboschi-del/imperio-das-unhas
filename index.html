@@ -7734,7 +7734,51 @@ button,.btn,input,select,textarea{touch-action:manipulation}
  const legacySaveOpenCashV99=window.saveOpenCashSession||((typeof saveOpenCashSession==='function')?saveOpenCashSession:null);if(legacySaveOpenCashV99){let wrapped=async function(){if(!centralEnabled()){if(officialProductionMode()){toast('Operação comercial bloqueada: acesso central ou autorização da unidade indisponível');return false}return legacySaveOpenCashV99.apply(this,arguments)};let opening=Math.max(0,Number(document.getElementById('cashOpeningAmount')?.value||0));try{await centralApi.openCash({businessDate:cashDate,openingAmount:opening});await refreshCentralFinance(cashDate);closeModal();legacyRenderCashV99();toast('Caixa aberto no PostgreSQL ✓')}catch(e){toast('Caixa não aberto: '+e.message)}};window.saveOpenCashSession=wrapped;try{saveOpenCashSession=wrapped}catch(e){}}
  const legacySaveCloseCashV99=window.saveCloseCash||((typeof saveCloseCash==='function')?saveCloseCash:null);if(legacySaveCloseCashV99){let wrapped=async function(){if(!centralEnabled()){if(officialProductionMode()){toast('Operação comercial bloqueada: acesso central ou autorização da unidade indisponível');return false}return legacySaveCloseCashV99.apply(this,arguments)};let t=cashTotals(),s=t.session;if(!s||s.status!=='open')return;let counted=Math.max(0,Number(document.getElementById('cashCounted')?.value||0)),difference=counted-t.physicalExpected,closeNote=document.getElementById('cashCloseNote')?.value.trim()||'';try{await centralApi.closeCash(s.id,{closingAmount:counted,systemExpected:t.physicalExpected,difference,closeNote,snapshot:{received:t.received,cash:t.cash,pix:t.pix,cards:t.cards,fees:t.fees,sangrias:t.sangrias,expenses:t.expenses,advances:t.advances,transfers:t.transfers,tips:t.tips}});await refreshCentralFinance(cashDate);closeModal();legacyRenderCashV99();toast('Caixa fechado no PostgreSQL ✓')}catch(e){toast('Caixa não fechado: '+e.message)}};window.saveCloseCash=wrapped;try{saveCloseCash=wrapped}catch(e){}}
  const legacyCashAdjustmentV99=window.saveCashAdjustment||((typeof saveCashAdjustment==='function')?saveCashAdjustment:null);if(legacyCashAdjustmentV99){let wrapped=async function(){if(officialProductionMode()){toast('Operação temporariamente indisponível: confirmação central antes de alterar dados locais ainda não implementada');return false}if(!centralEnabled()){if(officialProductionMode()){toast('Operação comercial bloqueada: acesso central ou autorização da unidade indisponível');return false}return legacyCashAdjustmentV99.apply(this,arguments)};let s=cashSessionFor(cashUnitId(),cashDate);if(!s||s.status!=='open'){toast('Abra o caixa antes do ajuste');return}let m0=(db.demoCashMovements||[]).length,f0=(db.demoFinancialEntries||[]).length,a0=(db.professionalCommissionAdjustments||[]).length;legacyCashAdjustmentV99.apply(this,arguments);let movement=(db.demoCashMovements||[])[m0];if(!movement)return;let payload={movement,financialEntries:(db.demoFinancialEntries||[]).slice(f0),commissionAdjustments:(db.professionalCommissionAdjustments||[]).slice(a0)};try{await centralApi.cashAdjustment(s.id,{kind:movement.type||'Ajuste',amount:Number(movement.amount||0),payload});movement.central=true;save({render:false,reason:'central_cash_adjustment'});await refreshCentralFinance(cashDate)}catch(e){db.demoCashMovements.splice(m0);db.demoFinancialEntries.splice(f0);db.professionalCommissionAdjustments.splice(a0);save();legacyRenderCashV99();toast('Ajuste revertido: '+e.message)}};window.saveCashAdjustment=wrapped;try{saveCashAdjustment=wrapped}catch(e){}}
- const legacyOpenCommandFromBookingV99=window.openCommandFromBooking||((typeof openCommandFromBooking==='function')?openCommandFromBooking:null);if(legacyOpenCommandFromBookingV99){let wrapped=async function(bookingId){if(officialProductionMode()){toast('Operação temporariamente indisponível: confirmação central antes de alterar dados locais ainda não implementada');return false}if(!centralEnabled()){if(officialProductionMode()){toast('Operação comercial bloqueada: acesso central ou autorização da unidade indisponível');return false}return legacyOpenCommandFromBookingV99.apply(this,arguments)};let b=db.bookings.find(x=>x.id===bookingId);if(!b)return;normalizeBooking(b);let existed=commandFindOpenForBooking(b),c=createCommandFromBooking(bookingId),oldId=c?.id;if(!c){toast('Não foi possível abrir a comanda');return}try{if(!c.central){let discount=commandDiscountTotal(c),remote=await centralApi.createCommand({clientId:c.clientId||undefined,serviceDate:c.date,grossAmount:commandGrossTotal(c)+discount,discountAmount:discount});c.id=remote.id;c.central=true;if(oldId!==c.id&&window.commandReturnId===oldId)window.commandReturnId=c.id}await syncCentralCommand(c);save({render:false,reason:'central_command_open'});openCommand(c.id);renderAgenda();return c}catch(e){if(!existed)db.clientCommands=db.clientCommands.filter(x=>x!==c);save();toast('Comanda não aberta no banco central: '+e.message)}};window.openCommandFromBooking=wrapped;try{openCommandFromBooking=wrapped}catch(e){}}
+ const legacyOpenCommandFromBookingV99=window.openCommandFromBooking||((typeof openCommandFromBooking==='function')?openCommandFromBooking:null);
+ const centralCommandOpening=new Set();
+ if(legacyOpenCommandFromBookingV99){let wrapped=async function(bookingId){
+  if(!officialProductionMode())return legacyOpenCommandFromBookingV99.apply(this,arguments);
+  if(!centralEnabled()){toast('Operação comercial bloqueada: acesso central ou autorização da unidade indisponível');return false}
+  if(!centralGlobalPermission('finance.manage')){toast('Permissão finance.manage necessária para abrir comanda');return false}
+  let b=db.bookings.find(x=>x.id===bookingId);if(!b){toast('Agendamento não encontrado');return false}
+  normalizeBooking(b);
+  let unit=centralLocalUnitId(),centralUnit=centralUnitId(),session=phase5Context.session();
+  if(b.unit!==unit||!b.clientId||!b.date||['Cancelado','Faltou','Bloqueado'].includes(b.status)){toast('Agendamento inválido para abertura de comanda nesta unidade');return false}
+  let visits=commandEligibleBookings(b),visitIds=visits.map(x=>x.id).sort(),fingerprint=JSON.stringify([centralUnit,b.clientId,b.date,visitIds]);
+  let pendingKey='imperio-p0-command-open:'+centralUnit+':'+b.clientId+':'+b.date;
+  if(centralCommandOpening.has(fingerprint)){toast('Abertura de comanda já em andamento');return false}
+  centralCommandOpening.add(fingerprint);
+  try{
+   let existing=commandFindOpenForBooking(b);
+   if(existing&&!existing.central)throw new Error('Existe comanda local sem confirmação central; reconciliação necessária');
+   let draft={id:'pending',clientId:b.clientId,clientName:b.client||'',date:b.date,unitId:unit,status:'Aberta',openedAt:new Date().toISOString(),openedBy:currentUserName(),bookingIds:visitIds,lines:visits.flatMap(v=>(v.items||[]).map((it,i)=>commandLineFromBooking(v,it,i))),notes:'',useSignal:true,creditToUse:0,payments:[],total:0};
+   normalizeCommand(draft);
+   let discount=commandDiscountTotal(draft),body={clientId:b.clientId,serviceDate:b.date,grossAmount:commandGrossTotal(draft)+discount,discountAmount:discount};
+   let pending=null;try{pending=JSON.parse(sessionStorage.getItem(pendingKey)||'null')}catch(e){}
+   if(pending&&pending.fingerprint!==fingerprint)throw new Error('Há uma abertura pendente para esta cliente e data; reconcilie antes de criar outra');
+   let key=pending?.key||'agenda_command:'+centralUnit+':'+b.clientId+':'+b.date;
+   sessionStorage.setItem(pendingKey,JSON.stringify({fingerprint,key}));
+   let remote=await centralApi.createCommand(body,key);
+   if(!remote?.id||remote.unitId!==centralUnit||remote.clientId!==b.clientId||String(remote.serviceDate||'').slice(0,10)!==b.date)throw new Error('Servidor não confirmou os vínculos da comanda');
+   let snapshot=remote.legacyPayload?.operationalSnapshot;
+   if(!snapshot){
+    draft.id=remote.id;draft.central=true;draft.centralVersion=Number(remote.version||1);
+    await syncCentralCommand(draft);
+   }else if(!Array.isArray(snapshot.bookingIds)||!visitIds.every(id=>snapshot.bookingIds.includes(id))){
+    throw new Error('Comanda central já contém outro agendamento; reconciliação necessária');
+   }
+   let confirmed=await centralApi.command(remote.id),saved=confirmed?.legacyPayload?.operationalSnapshot;
+   if(!confirmed||confirmed.unitId!==centralUnit||confirmed.clientId!==b.clientId||confirmed.status!=='OPEN'||!saved||!Array.isArray(saved.bookingIds)||!visitIds.every(id=>saved.bookingIds.includes(id)))throw new Error('Persistência central ainda não confirmada');
+   if(session!==phase5Context.session()||centralUnit!==centralUnitId()||unit!==centralLocalUnitId()||!centralEnabled())throw new Error('Sessão ou unidade alterada durante a operação');
+   let c=existing||draft;c.id=confirmed.id;c.central=true;c.centralVersion=Number(confirmed.version||1);c.bookingIds=visitIds;
+   if(!existing)db.clientCommands.push(c);
+   for(const visit of visits)markBookingInService(visit);
+   save({render:false,reason:'central_command_open_confirmed'});
+   sessionStorage.removeItem(pendingKey);
+   openCommand(c.id);renderAgenda();return c;
+  }catch(e){toast('Comanda não confirmada: '+e.message+'. Tente novamente para recuperar a operação.');return false}
+  finally{centralCommandOpening.delete(fingerprint)}
+ };window.openCommandFromBooking=wrapped;try{openCommandFromBooking=wrapped}catch(e){}}
  const legacyCommandOnlyV99=window.saveCommandOnlyService||((typeof saveCommandOnlyService==='function')?saveCommandOnlyService:null);
  if(legacyCommandOnlyV99){let wrapped=async function(cmdId){
   if(!officialProductionMode())return legacyCommandOnlyV99.apply(this,arguments);
